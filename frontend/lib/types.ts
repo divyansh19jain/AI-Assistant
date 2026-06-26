@@ -150,3 +150,13 @@ export interface FormDetail extends FormSummary {
   prompt?: Record<string, unknown> | null;
   voice?: Record<string, unknown> | null;
 }
+
+/** A knowledgebase document summary (builder KB manager). */
+export interface KbDocSummary {
+  id: number;
+  doc_key: string;
+  title: string;
+  source?: string | null;
+  status: string;
+  chunk_count: number;
+}

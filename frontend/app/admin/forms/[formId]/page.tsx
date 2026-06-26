@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { FormDetail, FormSchemaDoc, SectionDef, FieldDef } from "@/lib/types";
+import type { FormDetail, FormSchemaDoc, SectionDef, FieldDef, KbDocSummary } from "@/lib/types";
 
 const FIELD_TYPES = ["text", "textarea", "date", "boolean", "phone", "ssn", "number", "select"];
 const OUTPUT_TARGETS = ["pdf", "web"];
@@ -42,6 +42,11 @@ export default function FormEditorPage() {
   const [voiceId, setVoiceId] = useState("");
   const [sttVocab, setSttVocab] = useState("");
   const [overrides, setOverrides] = useState<Record<string, string>>({});
+
+  // Knowledgebase docs (PHI-free guidance for RAG help).
+  const [kbDocs, setKbDocs] = useState<KbDocSummary[]>([]);
+  const [kbTitle, setKbTitle] = useState("");
+  const [kbText, setKbText] = useState("");
 
   useEffect(() => {
     if (typeof window !== "undefined" && !localStorage.getItem("admin_token")) router.replace("/admin");
@@ -79,6 +84,46 @@ export default function FormEditorPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const loadKb = useCallback(async () => {
+    try {
+      setKbDocs(await api.admin.listKb(formId));
+    } catch {
+      /* KB is optional; ignore load errors */
+    }
+  }, [formId]);
+
+  useEffect(() => {
+    loadKb();
+  }, [loadKb]);
+
+  async function addKb() {
+    if (!kbTitle.trim() || !kbText.trim()) return;
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.admin.createKb(formId, { title: kbTitle.trim(), text: kbText.trim() });
+      setKbTitle("");
+      setKbText("");
+      await loadKb();
+      setNotice("Knowledgebase document added & embedded.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Add failed.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function delKb(docId: number) {
+    setError(null);
+    try {
+      await api.admin.deleteKb(formId, docId);
+      await loadKb();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Delete failed.");
+    }
+  }
 
   // ── immutable schema mutations (keep rawText mirrored) ──
   function commit(next: FormSchemaDoc) {
@@ -421,6 +466,39 @@ export default function FormEditorPage() {
             className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
             {saving ? "Saving…" : "Save prompts & voice"}
           </button>
+        </section>
+
+        {/* Knowledgebase */}
+        <section className="bg-white border border-gray-200 rounded-2xl p-5 mt-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-1 uppercase tracking-wide">Knowledgebase</h2>
+          <p className="text-xs text-gray-400 mb-3">
+            PHI-free guidance the assistant retrieves to help users (e.g. &quot;what counts as income?&quot;). No patient data.
+          </p>
+
+          <div className="space-y-1.5 mb-4">
+            {kbDocs.length === 0 ? (
+              <p className="text-xs text-gray-400">No documents yet.</p>
+            ) : (
+              kbDocs.map((d) => (
+                <div key={d.id} className="flex items-center gap-2 text-sm border border-gray-150 rounded-lg px-3 py-2">
+                  <span className="flex-1 truncate">{d.title}</span>
+                  <span className="text-xs text-gray-400">{d.chunk_count} chunks · {d.status}</span>
+                  <button onClick={() => delKb(d.id)} className="text-xs text-red-500 hover:underline">delete</button>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="space-y-2">
+            <input value={kbTitle} onChange={(e) => setKbTitle(e.target.value)} placeholder="Document title"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            <textarea value={kbText} onChange={(e) => setKbText(e.target.value)} rows={4} placeholder="Paste PHI-free guidance text…"
+              className="w-full text-sm border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            <button onClick={addKb} disabled={saving || !kbTitle.trim() || !kbText.trim()}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
+              {saving ? "Adding…" : "+ Add & embed"}
+            </button>
+          </div>
         </section>
       </div>
     </div>

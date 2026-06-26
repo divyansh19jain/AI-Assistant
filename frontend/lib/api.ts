@@ -8,6 +8,7 @@ import type {
   FormSummary,
   FormDetail,
   FormSchemaDoc,
+  KbDocSummary,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -152,5 +153,14 @@ export const api = {
       adminRequest(`/api/admin/forms/${id}/unpublish`, { method: "POST" }),
     deleteForm: (id: string): Promise<void> =>
       adminRequest(`/api/admin/forms/${id}`, { method: "DELETE" }),
+
+    // Knowledgebase
+    listKb: (id: string): Promise<KbDocSummary[]> => adminRequest(`/api/admin/forms/${id}/kb`),
+    createKb: (id: string, body: { title: string; text: string; source?: string }): Promise<KbDocSummary> =>
+      adminRequest(`/api/admin/forms/${id}/kb`, { method: "POST", body: JSON.stringify(body) }),
+    reembedKb: (id: string, docId: number): Promise<KbDocSummary> =>
+      adminRequest(`/api/admin/forms/${id}/kb/${docId}/reembed`, { method: "POST" }),
+    deleteKb: (id: string, docId: number): Promise<void> =>
+      adminRequest(`/api/admin/forms/${id}/kb/${docId}`, { method: "DELETE" }),
   },
 };

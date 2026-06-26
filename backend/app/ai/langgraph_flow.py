@@ -150,7 +150,7 @@ def run_answer_step(
     from app.ai.help_intent import classify_intent, explain_field
 
     if classify_intent(field, raw_answer) == "help":
-        explanation = explain_field(field, raw_answer)
+        explanation = explain_field(field, raw_answer, form_id)
         next_ctx = get_current_question_context(form_id, current_answers)
         return {
             "success": False,

@@ -63,6 +63,49 @@ class AuditLog(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class KbDocument(Base):
+    """A per-form knowledgebase document (PHI-free guidance the AI uses to help).
+
+    The extracted ``text`` is chunked + embedded into :class:`KbChunk` for retrieval.
+    Embeddings are stored as JSON text (cross-DB; cosine similarity computed in Python)
+    so no pgvector extension is required — see app/ai/kb.py.
+
+    🔒 No PHI: KB documents are general, form-level guidance only.
+    """
+
+    __tablename__ = "kb_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    form_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    doc_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    title: Mapped[str] = mapped_column(String(256), nullable=False)
+    source: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    mime: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="pending")  # pending|embedded|failed
+    checksum: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+    chunks: Mapped[list["KbChunk"]] = relationship(back_populates="document", cascade="all, delete-orphan")
+
+
+class KbChunk(Base):
+    """A chunk of a KB document with its embedding (JSON-encoded vector)."""
+
+    __tablename__ = "kb_chunks"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    kb_document_id: Mapped[int] = mapped_column(ForeignKey("kb_documents.id"), nullable=False)
+    form_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    ordinal: Mapped[int] = mapped_column(default=0)
+    chunk_text: Mapped[str] = mapped_column(Text, nullable=False)
+    embedding: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON list[float]
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    document: Mapped["KbDocument"] = relationship(back_populates="chunks")
+
+
 class Form(Base):
     """DB-authoritative record for a form (the builder platform's core entity).
 

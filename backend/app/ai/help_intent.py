@@ -93,27 +93,56 @@ def classify_intent(field: dict, raw_answer: str) -> str:
     return "answer"
 
 
-def explain_field(field: dict, raw_question: str) -> str:
+def _kb_context(form_id: str | None, label: str, question_text: str, raw_question: str) -> str:
+    """Retrieve PHI-free KB snippets for this field ("" if the form has no KB).
+
+    Opens a short read-only session so the AI helpers don't need a db handle threaded
+    through the whole answer flow. The query is field-level text — see app/ai/kb.py.
+    """
+    if not form_id:
+        return ""
+    try:
+        from app.ai.kb import retrieve
+        from app.db.base import SessionLocal
+
+        db = SessionLocal()
+        try:
+            snippets = retrieve(db, form_id, f"{label} {question_text} {raw_question}", k=3)
+        finally:
+            db.close()
+        return "\n\n".join(snippets)
+    except Exception:
+        logger.warning("KB retrieval for explain_field failed.", exc_info=True)
+        return ""
+
+
+def explain_field(field: dict, raw_question: str, form_id: str | None = None) -> str:
     """
     Produce a short, plain-language, first-person explanation answering the
     patient's question about the current field, then nudge them to answer.
 
-    Falls back to a static helpful sentence when no LLM is configured.
+    When the form has a knowledgebase, relevant snippets are retrieved (PHI-free,
+    field-level query) and used to ground the answer. Falls back to a static helpful
+    sentence when no LLM is configured (still surfacing a KB snippet if present).
     """
     label = field.get("label", field.get("field_key", "field"))
     question_text = field.get("question_text", "")
     required = field.get("required", True)
+
+    kb_context = _kb_context(form_id, label, question_text, raw_question)
 
     from app.ai.llm import get_chat_model
     model = get_chat_model()
 
     if model is None:
         opt = "" if required else " If it doesn't apply to you, you can say 'skip'."
-        return (
-            f"This is asking for your {label.lower()}.{opt} {question_text}".strip()
-        )
+        base = f"This is asking for your {label.lower()}.{opt} {question_text}".strip()
+        if kb_context:
+            base = f"{base} {kb_context.splitlines()[0][:240]}".strip()
+        return base
 
     try:
+        kb_block = f"\nReference material (use if relevant):\n{kb_context}" if kb_context else ""
         response = model.invoke([
             ("system",
              "You are a warm medical-form assistant. The patient asked a "
@@ -124,7 +153,7 @@ def explain_field(field: dict, raw_question: str) -> str:
             ("human",
              f"Field: {label}\nField is required: {required}\n"
              f"Original question: {question_text}\n"
-             f"Patient asked: {raw_question!r}"),
+             f"Patient asked: {raw_question!r}{kb_block}"),
         ])
         text = getattr(response, "content", None)
         if isinstance(text, list):

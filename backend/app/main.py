@@ -16,6 +16,7 @@ from app.ai.tts_router import router as tts_router
 from app.ai.stt_router import router as stt_router
 from app.admin.router import router as admin_router
 from app.admin.forms_router import router as admin_forms_router
+from app.admin.kb_router import router as admin_kb_router
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +63,7 @@ app.include_router(tts_router)
 app.include_router(stt_router)
 app.include_router(admin_router)
 app.include_router(admin_forms_router)
+app.include_router(admin_kb_router)
 
 
 @app.get("/health")
