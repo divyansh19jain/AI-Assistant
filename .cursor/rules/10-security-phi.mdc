@@ -1,0 +1,35 @@
+---
+description: Non-negotiable PHI / HIPAA security rules for the AI-Assistant repo. Always on.
+alwaysApply: true
+---
+
+# 🔒 PHI / security — NON-NEGOTIABLE (always on)
+
+This app handles **Protected Health Information** (names, DOB, SSN, address,
+contact info, Medicaid eligibility). Full rules + pre-flight checklist:
+[`docs/ai/SECURITY-AND-PHI.md`](mdc:docs/ai/SECURITY-AND-PHI.md). **If a task would
+relax any rule below, stop and flag it in your response — don't do it silently.**
+
+1. **Never log PHI.** No names, DOB, SSN, address, phone, email, or raw answers in
+   `logger.*`, `print`, errors, comments, or test fixtures. Log identifiers only
+   (`session_id`, `field_key`, `event_type`, `source`, `confidence`).
+2. **Never hardcode secrets.** Connection strings, API keys, JWT secrets,
+   passwords live in `.env` only. Never commit `.env` / `.env.local`.
+3. **EMR is read-only + parameterized.** Only `SELECT`, only `text()` with named
+   bind params (see [`backend/app/emr/talbot_adapter.py`](mdc:backend/app/emr/talbot_adapter.py)).
+   Never string-build SQL; never `INSERT/UPDATE/DELETE/DDL`. Keep the
+   `"IsDeleted" = false` soft-delete filter and graceful degradation.
+4. **Mask at output.** Patient data leaving the backend uses the helpers in
+   [`backend/app/core/security.py`](mdc:backend/app/core/security.py). Search returns
+   `MaskedPatient`; full `EMRPatient` is **server-side only** — never serialize it
+   to an HTTP response.
+5. **Audit significant actions** via [`backend/app/core/audit.py`](mdc:backend/app/core/audit.py)
+   with metadata passed through `sanitize_metadata`.
+6. **Respect `sensitive: true`** fields in the form schema — never echo via TTS,
+   never send their values to the LLM.
+7. **Keep the disclaimer** on every page and PDF; keep the MOCK-mode banner.
+8. **Don't loosen CORS or auth.** `ADMIN_PASSWORD` / `ADMIN_JWT_SECRET` defaults
+   are insecure — require them via env, never hardcode a replacement.
+
+Before finishing any change, run the pre-flight checklist in
+[`docs/ai/SECURITY-AND-PHI.md`](mdc:docs/ai/SECURITY-AND-PHI.md#9-pre-flight-checklist-for-any-change).

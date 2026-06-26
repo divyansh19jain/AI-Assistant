@@ -1,0 +1,35 @@
+---
+description: Backend (FastAPI / Python 3.11 / SQLAlchemy 2.0 sync / Pydantic v2) conventions.
+globs: backend/**/*.py
+---
+
+# Backend conventions (path-scoped)
+
+Match the existing code — new code should be indistinguishable. Full reference:
+[`docs/ai/BACKEND-CONVENTIONS.md`](mdc:docs/ai/BACKEND-CONVENTIONS.md).
+
+- **Feature = package of three files:** `router.py` (thin HTTP,
+  `db: Session = Depends(get_db)`, `response_model=...`) + `service.py` (business
+  logic, owns DB + calls `emr/`,`forms/`,`ai/`,`pdf/`) + `schemas.py` (Pydantic
+  v2). Routers hold no business logic; services don't import FastAPI req/resp.
+- **Config only via** [`app/core/config.py`](mdc:backend/app/core/config.py)
+  `get_settings()` (it's `@lru_cache`d — don't re-instantiate `Settings()`, don't
+  read `os.environ` in feature code). Secrets default to `""`.
+- **SQLAlchemy 2.0 sync** — `Mapped[...]` + `mapped_column(...)`; `db.query/add/
+  commit/refresh`. Timestamps timezone-aware UTC via `utcnow()`. Schema is
+  `create_all` at startup — **no Alembic yet**; a model change won't auto-alter an
+  existing DB, so note the manual `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`.
+- **Typing:** full hints, `str | None` (not `Optional`). Pydantic v2
+  `field_validator`. Private helpers `_prefixed`; constants `UPPER_SNAKE`.
+- **`async` only for real network I/O** (STT/TTS routers + `httpx.AsyncClient`).
+  Everything else (DB, forms, PDF) is synchronous.
+- **Errors:** `HTTPException` for client-facing; EMR/AI code **degrades
+  gracefully** (log without PHI, return `None`/`[]`) — preserve that.
+- **AI access only through** [`app/ai/llm.py`](mdc:backend/app/ai/llm.py); every AI
+  feature needs a rule-based fallback.
+- Field keys are dot-notation from the form schema — don't invent ad-hoc keys.
+- Add deps to [`backend/requirements.txt`](mdc:backend/requirements.txt) with a
+  `>=` floor; prefer libraries already present.
+
+🔒 Re-check the always-on PHI rules before touching `emr/`, `core/security.py`,
+`core/audit.py`, `admin/`, logging, or CORS.

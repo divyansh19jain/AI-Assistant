@@ -1,0 +1,4121 @@
+{
+  "form_id": "ODM_07216",
+  "form_title": "Ohio Department of Medicaid - Application for Health Coverage & Help Paying Costs",
+  "version": "1.0",
+  "sections": [
+    {
+      "section_key": "step1_applicant",
+      "section_title": "Step 1 - About the Applicant",
+      "fields": [
+        {
+          "field_key": "applicant.first_name",
+          "label": "First Name",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "first_name"
+          ],
+          "question_text": "What is your first name?",
+          "validation_rule": {
+            "min_length": 1,
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_first_name",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.middle_name",
+          "label": "Middle Name",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "middle_name"
+          ],
+          "question_text": "What is your middle name? (optional, say 'skip' to skip)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_middle_name",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.last_name",
+          "label": "Last Name",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "last_name"
+          ],
+          "question_text": "What is your last name?",
+          "validation_rule": {
+            "min_length": 1,
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_last_name",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.suffix",
+          "label": "Suffix",
+          "section": "step1_applicant",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Do you have a name suffix? Say Junior or Jr, Senior or Sr, II, III, or IV. Say 'skip' if none.",
+          "validation_rule": {
+            "allowed_values": [
+              "Jr",
+              "Sr",
+              "II",
+              "III",
+              "IV",
+              ""
+            ]
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_suffix",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.zip",
+          "label": "ZIP Code",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "zip",
+            "zip_code",
+            "postal_code"
+          ],
+          "question_text": "What is your ZIP code?",
+          "validation_rule": {
+            "pattern": "^\\d{5}(-\\d{4})?$"
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_zip",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.home_address",
+          "label": "Home Address (Street)",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "address",
+            "address_line1",
+            "line1"
+          ],
+          "question_text": "What is your home street address?",
+          "validation_rule": {
+            "min_length": 2,
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "applicant.is_homeless",
+            "value": false
+          },
+          "pdf_mapping": {
+            "field_name": "applicant_home_address",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.is_homeless",
+          "label": "Is Homeless",
+          "section": "step1_applicant",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you currently experiencing homelessness?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_is_homeless",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.apartment",
+          "label": "Apartment / Unit",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "address2",
+            "address_line2",
+            "line2"
+          ],
+          "question_text": "What is your apartment or unit number? (optional, say 'skip' to skip)",
+          "validation_rule": {
+            "max_length": 32
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_apartment",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.city",
+          "label": "City",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "city"
+          ],
+          "question_text": "What city do you live in?",
+          "validation_rule": {
+            "min_length": 1,
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_city",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.state",
+          "label": "State",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "state"
+          ],
+          "question_text": "What state do you live in? (e.g. OH)",
+          "validation_rule": {
+            "min_length": 2,
+            "max_length": 2
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_state",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.county",
+          "label": "County",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "county"
+          ],
+          "question_text": "What county do you live in? (optional)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_county",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.mailing_address",
+          "label": "Mailing Address (if different)",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Do you have a different mailing address? If so, what is it? (say 'skip' to skip)",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_mailing_address",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.mailing_apartment",
+          "label": "Mailing Apartment / Unit",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Mailing apartment or unit number? (optional)",
+          "validation_rule": {
+            "max_length": 32
+          },
+          "depends_on": {
+            "field_key": "applicant.mailing_address",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "applicant_mailing_apartment",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.mailing_city",
+          "label": "Mailing City",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Mailing city?",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "applicant.mailing_address",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "applicant_mailing_city",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.mailing_state",
+          "label": "Mailing State",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Mailing state? (2-letter abbreviation)",
+          "validation_rule": {
+            "max_length": 2
+          },
+          "depends_on": {
+            "field_key": "applicant.mailing_address",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "applicant_mailing_state",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.mailing_zip",
+          "label": "Mailing ZIP Code",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Mailing ZIP code?",
+          "validation_rule": {
+            "pattern": "^\\d{5}(-\\d{4})?$"
+          },
+          "depends_on": {
+            "field_key": "applicant.mailing_address",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "applicant_mailing_zip",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.mailing_county",
+          "label": "Mailing County",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Mailing county? (optional)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "applicant.mailing_address",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "applicant_mailing_county",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.phone",
+          "label": "Phone Number",
+          "section": "step1_applicant",
+          "type": "phone",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "phone",
+            "phone_number"
+          ],
+          "question_text": "What is your phone number?",
+          "validation_rule": {
+            "pattern": "^\\d{10}$"
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_phone",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.other_phone",
+          "label": "Other Phone Number",
+          "section": "step1_applicant",
+          "type": "phone",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Do you have another phone number? (optional, say 'skip' to skip)",
+          "validation_rule": {
+            "pattern": "^\\d{10}$"
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_other_phone",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.email_preference",
+          "label": "Wants Email Communication",
+          "section": "step1_applicant",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Would you like to receive communications by email?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_email_preference",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.email",
+          "label": "Email Address",
+          "section": "step1_applicant",
+          "type": "email",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "email",
+            "email_address"
+          ],
+          "question_text": "What is your email address?",
+          "validation_rule": {
+            "pattern": "^[^@]+@[^@]+\\.[^@]+$"
+          },
+          "depends_on": {
+            "field_key": "applicant.email_preference",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "applicant_email",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.preferred_language",
+          "label": "Preferred Language",
+          "section": "step1_applicant",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "preferred_language",
+            "language"
+          ],
+          "question_text": "What language do you prefer for communications? (e.g. English, Spanish)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_preferred_language",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.voter_registration_choice",
+          "label": "Voter Registration Choice",
+          "section": "step1_applicant",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Would you like to register to vote or update your voter registration? (Yes, No, Already registered)",
+          "validation_rule": {
+            "allowed_values": [
+              "yes",
+              "no",
+              "already_registered"
+            ]
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_voter_registration",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.programs.medicaid_adults_children_families",
+          "label": "Applying for Medicaid (Adults, Children & Families)",
+          "section": "step1_applicant",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you applying for Medicaid for Adults, Children and Families?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "program_medicaid_acf",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.programs.medicaid_aged_blind_disabled",
+          "label": "Applying for Medicaid (Aged, Blind or Disabled)",
+          "section": "step1_applicant",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you applying for Medicaid for Aged, Blind, or Disabled individuals?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "program_medicaid_abd",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.programs.long_term_care",
+          "label": "Applying for Long-Term Care",
+          "section": "step1_applicant",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you applying for Long-Term Care?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "program_long_term_care",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.programs.medicare_premium_assistance",
+          "label": "Applying for Medicare Premium Assistance",
+          "section": "step1_applicant",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you applying for Medicare Premium Assistance?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "program_medicare_premium",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.programs.help_me_grow",
+          "label": "Applying for Help Me Grow",
+          "section": "step1_applicant",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you applying for Help Me Grow?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "program_help_me_grow",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "applicant.programs.wic",
+          "label": "Applying for WIC",
+          "section": "step1_applicant",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you applying for WIC (Women, Infants and Children)?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "program_wic",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        }
+      ]
+    },
+    {
+      "section_key": "step2_person1",
+      "section_title": "Step 2 - Person 1 Information",
+      "fields": [
+        {
+          "field_key": "person1.first_name",
+          "label": "First Name",
+          "section": "step2_person1",
+          "type": "text",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "first_name"
+          ],
+          "question_text": "What is your first name?",
+          "validation_rule": {
+            "min_length": 1,
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_first_name",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.middle_name",
+          "label": "Middle Name",
+          "section": "step2_person1",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "middle_name"
+          ],
+          "question_text": "What is your middle name? (optional)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_middle_name",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.last_name",
+          "label": "Last Name",
+          "section": "step2_person1",
+          "type": "text",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "last_name"
+          ],
+          "question_text": "What is your last name?",
+          "validation_rule": {
+            "min_length": 1,
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_last_name",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.suffix",
+          "label": "Suffix",
+          "section": "step2_person1",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Do you have a name suffix? Say Junior or Jr, Senior or Sr, II, III, or IV. Say 'skip' if none.",
+          "validation_rule": {
+            "allowed_values": [
+              "Jr",
+              "Sr",
+              "II",
+              "III",
+              "IV",
+              ""
+            ]
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_suffix",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.relationship_to_applicant",
+          "label": "Relationship to Applicant",
+          "section": "step2_person1",
+          "type": "text",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is your relationship to this application? (e.g. Self, Spouse, Child, Parent)",
+          "validation_rule": {
+            "min_length": 1,
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_relationship",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.dob",
+          "label": "Date of Birth",
+          "section": "step2_person1",
+          "type": "date",
+          "required": true,
+          "sensitive": true,
+          "emr_source_candidates": [
+            "dob",
+            "date_of_birth",
+            "birth_date"
+          ],
+          "question_text": "What is your date of birth? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_dob",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.sex",
+          "label": "Sex",
+          "section": "step2_person1",
+          "type": "select",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "sex",
+            "gender"
+          ],
+          "question_text": "What is your sex as listed on your birth certificate or legal documents? (Male, Female, Other)",
+          "validation_rule": {
+            "allowed_values": [
+              "Male",
+              "Female",
+              "Other"
+            ]
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_sex",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.ssn",
+          "label": "Social Security Number",
+          "section": "step2_person1",
+          "type": "ssn",
+          "required": false,
+          "sensitive": true,
+          "emr_source_candidates": [
+            "ssn",
+            "social_security_number"
+          ],
+          "question_text": "What is your Social Security Number? (optional, but providing it may speed up processing)",
+          "validation_rule": {
+            "pattern": "^\\d{9}$"
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_ssn",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.tax_file_next_year",
+          "label": "Will File Federal Taxes Next Year",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Will you file a federal income tax return next year?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_tax_file_next_year",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.file_jointly_with_spouse",
+          "label": "File Taxes Jointly with Spouse",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Will you file taxes jointly with your spouse?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person1.tax_file_next_year",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_file_jointly",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.spouse_name",
+          "label": "Spouse Name",
+          "section": "step2_person1",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the name of the spouse you will file taxes with?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "person1.file_jointly_with_spouse",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_spouse_name",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.claim_dependents",
+          "label": "Claims Dependents on Taxes",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Will you claim any dependents on your tax return?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person1.tax_file_next_year",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_claim_dependents",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.dependent_names",
+          "label": "Dependent Names",
+          "section": "step2_person1",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What are the names of your dependents?",
+          "validation_rule": {
+            "max_length": 256
+          },
+          "depends_on": {
+            "field_key": "person1.claim_dependents",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_dependent_names",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.claimed_as_dependent",
+          "label": "Claimed as Dependent by Another",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Will you be claimed as a dependent on someone else's tax return?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_claimed_as_dependent",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.tax_filer_name",
+          "label": "Name of Tax Filer Who Claims Person 1",
+          "section": "step2_person1",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the name of the person who will claim you as a dependent?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "person1.claimed_as_dependent",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_tax_filer_name",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.relationship_to_tax_filer",
+          "label": "Relationship to Tax Filer",
+          "section": "step2_person1",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is your relationship to the tax filer who claims you?",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "person1.claimed_as_dependent",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_relationship_to_tax_filer",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.married",
+          "label": "Currently Married",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "marital_status"
+          ],
+          "question_text": "Are you currently married?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_married",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.wants_health_coverage",
+          "label": "Wants Health Coverage",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you applying for health coverage?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_wants_coverage",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.medical_bills_last_3_months",
+          "label": "Medical Bills in Last 3 Months",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Have you had medical bills or services in the last 3 months that might qualify for Medicaid?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_medical_bills_3mo",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.daily_activity_limitation",
+          "label": "Daily Activity Limitation",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Do you have a physical, mental, or emotional condition that limits your daily activities?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_daily_limitation",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.in_home_or_nursing_home_care",
+          "label": "In Home or Nursing Home Care",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Do you need in-home care or are you living in a nursing home or long-term care facility?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_nursing_care",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.pregnant",
+          "label": "Currently Pregnant",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "pregnant"
+          ],
+          "question_text": "Are you currently pregnant?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_pregnant",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.pregnancy_babies_expected",
+          "label": "Number of Babies Expected",
+          "section": "step2_person1",
+          "type": "number",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "How many babies are you expecting?",
+          "validation_rule": {
+            "min": 1,
+            "max": 10
+          },
+          "depends_on": {
+            "field_key": "person1.pregnant",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_babies_expected",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.pregnancy_due_date",
+          "label": "Pregnancy Due Date",
+          "section": "step2_person1",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is your pregnancy due date? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person1.pregnant",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_due_date",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.recently_pregnant",
+          "label": "Was Recently Pregnant",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Were you pregnant in the last 3 months but are no longer pregnant?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person1.pregnant",
+            "value": false
+          },
+          "pdf_mapping": {
+            "field_name": "person1_recently_pregnant",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.recent_pregnancy_babies_expected",
+          "label": "Number of Babies from Recent Pregnancy",
+          "section": "step2_person1",
+          "type": "number",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "How many babies did you have from the recent pregnancy?",
+          "validation_rule": {
+            "min": 1,
+            "max": 10
+          },
+          "depends_on": {
+            "field_key": "person1.recently_pregnant",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_recent_babies",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.pregnancy_end_date",
+          "label": "Pregnancy End Date",
+          "section": "step2_person1",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "When did your pregnancy end? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person1.recently_pregnant",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_pregnancy_end_date",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.us_citizen_or_national",
+          "label": "US Citizen or National",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you a US citizen or US national?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_us_citizen",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.naturalized_or_derived_citizen",
+          "label": "Naturalized or Derived Citizen",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Did you become a citizen through naturalization or derivation?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person1.us_citizen_or_national",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_naturalized",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.eligible_immigration_status",
+          "label": "Eligible Immigration Status",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Do you have an eligible immigration status?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person1.us_citizen_or_national",
+            "value": false
+          },
+          "pdf_mapping": {
+            "field_name": "person1_eligible_immigration",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.immigration_document_type",
+          "label": "Immigration Document Type",
+          "section": "step2_person1",
+          "type": "text",
+          "required": false,
+          "sensitive": true,
+          "emr_source_candidates": [],
+          "question_text": "What type of immigration document do you have?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "person1.eligible_immigration_status",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_immigration_doc_type",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.immigration_document_id",
+          "label": "Immigration Document ID Number",
+          "section": "step2_person1",
+          "type": "text",
+          "required": false,
+          "sensitive": true,
+          "emr_source_candidates": [],
+          "question_text": "What is the ID number on your immigration document?",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "person1.eligible_immigration_status",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_immigration_doc_id",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.lived_us_since_1996",
+          "label": "Lived in US Since August 22, 1996",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Have you lived in the United States since August 22, 1996?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person1.us_citizen_or_national",
+            "value": false
+          },
+          "pdf_mapping": {
+            "field_name": "person1_lived_us_1996",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.veteran_or_active_duty_family",
+          "label": "Veteran or Active Duty Family Member",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you a veteran, active duty military member, or the spouse or child of one?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_veteran_family",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.main_caretaker_child_under_19",
+          "label": "Main Caretaker of Child Under 19",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you the main caretaker of a child under 19 who lives with you?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_main_caretaker",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.school_or_training",
+          "label": "In School or Training",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you currently attending school or job training?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_school",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.school_type",
+          "label": "School Type",
+          "section": "step2_person1",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What type of school or training are you attending? Say: College or Higher Education, Vocational, GED, or Technical Training.",
+          "validation_rule": {
+            "allowed_values": [
+              "college",
+              "vocational",
+              "ged",
+              "technical"
+            ]
+          },
+          "depends_on": {
+            "field_key": "person1.school_or_training",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_school_type",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.enrollment_status",
+          "label": "Enrollment Status",
+          "section": "step2_person1",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is your enrollment status? Say: Full Time, Half Time, or Less than Half Time.",
+          "validation_rule": {
+            "allowed_values": [
+              "full_time",
+              "half_time",
+              "less_than_half_time"
+            ]
+          },
+          "depends_on": {
+            "field_key": "person1.school_or_training",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_enrollment_status",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.foster_care_after_18",
+          "label": "Was in Foster Care After Age 18",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Were you in foster care after age 18?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_foster_care_18",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.foster_care_entered_date",
+          "label": "Date Entered Foster Care",
+          "section": "step2_person1",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What date did you enter foster care? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person1.foster_care_after_18",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_foster_entered",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.foster_care_left_date",
+          "label": "Date Left Foster Care",
+          "section": "step2_person1",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What date did you leave foster care? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person1.foster_care_after_18",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_foster_left",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.foster_care_state",
+          "label": "Foster Care State",
+          "section": "step2_person1",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "In which state were you in foster care?",
+          "validation_rule": {
+            "max_length": 2
+          },
+          "depends_on": {
+            "field_key": "person1.foster_care_after_18",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_foster_state",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.incarcerated",
+          "label": "Currently Incarcerated",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you currently incarcerated (in jail or prison)?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_incarcerated",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.incarceration_date",
+          "label": "Incarceration Start Date",
+          "section": "step2_person1",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What date were you incarcerated? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person1.incarcerated",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_incarceration_date",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.expected_release_date",
+          "label": "Expected Release Date",
+          "section": "step2_person1",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is your expected release date? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person1.incarcerated",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_release_date",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.served_military",
+          "label": "Served in Military",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Have you served in the US military?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_military",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.received_benefits_other_state",
+          "label": "Received Benefits in Another State",
+          "section": "step2_person1",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Have you received Medicaid or other state health benefits in another state?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_benefits_other_state",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.benefits_other_state_where",
+          "label": "Which State for Other Benefits",
+          "section": "step2_person1",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "In which state did you receive those benefits?",
+          "validation_rule": {
+            "max_length": 2
+          },
+          "depends_on": {
+            "field_key": "person1.received_benefits_other_state",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person1_benefits_state",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.ethnicity_optional",
+          "label": "Ethnicity (Optional)",
+          "section": "step2_person1",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "ethnicity"
+          ],
+          "question_text": "What is your ethnicity? (optional — say 'skip' to skip)",
+          "validation_rule": {
+            "allowed_values": [
+              "Hispanic or Latino",
+              "Not Hispanic or Latino",
+              ""
+            ]
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_ethnicity",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person1.race_optional",
+          "label": "Race (Optional)",
+          "section": "step2_person1",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "race"
+          ],
+          "question_text": "What is your race? (optional — say 'skip' to skip)",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person1_race",
+            "page": 2,
+            "x": 0,
+            "y": 0
+          }
+        }
+      ]
+    },
+    {
+      "section_key": "step2_person2",
+      "section_title": "Step 2 - Person 2 Information",
+      "fields": [
+        {
+          "field_key": "person2.adding_person2",
+          "label": "Adding a Second Person",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are there additional household members to add to this application? (Person 2)",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "person2_adding",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.first_name",
+          "label": "Person 2 First Name",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's first name?",
+          "validation_rule": {
+            "min_length": 1,
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_first_name",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.middle_name",
+          "label": "Person 2 Middle Name",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's middle name? (optional, say 'skip' to skip)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_middle_name",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.last_name",
+          "label": "Person 2 Last Name",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's last name?",
+          "validation_rule": {
+            "min_length": 1,
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_last_name",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.suffix",
+          "label": "Person 2 Suffix",
+          "section": "step2_person2",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does Person 2 have a suffix such as Jr, Sr, II, or III? (optional, say 'skip' to skip)",
+          "validation_rule": {
+            "allowed_values": [
+              "Jr",
+              "Sr",
+              "II",
+              "III",
+              "IV",
+              ""
+            ]
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_suffix",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.relationship_to_applicant",
+          "label": "Person 2 Relationship to Applicant",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's relationship to the applicant? (e.g. Spouse, Child, Parent)",
+          "validation_rule": {
+            "min_length": 1,
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_relationship",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.dob",
+          "label": "Person 2 Date of Birth",
+          "section": "step2_person2",
+          "type": "date",
+          "required": false,
+          "sensitive": true,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's date of birth? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_dob",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.sex",
+          "label": "Person 2 Sex",
+          "section": "step2_person2",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's sex as listed on their birth certificate or legal documents? (Male, Female, Other)",
+          "validation_rule": {
+            "allowed_values": [
+              "Male",
+              "Female",
+              "Other"
+            ]
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_sex",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.ssn",
+          "label": "Person 2 Social Security Number",
+          "section": "step2_person2",
+          "type": "ssn",
+          "required": false,
+          "sensitive": true,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's Social Security Number? (optional, but may speed up processing — say 'skip' to skip)",
+          "validation_rule": {
+            "pattern": "^\\d{9}$"
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_ssn",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.tax_file_next_year",
+          "label": "Person 2 Will File Federal Taxes Next Year",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Will Person 2 file a federal income tax return next year?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_tax_file",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.file_jointly_with_spouse",
+          "label": "Person 2 File Taxes Jointly",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Will Person 2 file taxes jointly with a spouse?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.tax_file_next_year",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_file_jointly",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.claimed_as_dependent",
+          "label": "Person 2 Claimed as Dependent",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Will Person 2 be claimed as a dependent on someone else's tax return?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_claimed_dependent",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.married",
+          "label": "Person 2 Currently Married",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is Person 2 currently married?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_married",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.wants_health_coverage",
+          "label": "Person 2 Wants Health Coverage",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is Person 2 applying for health coverage?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_wants_coverage",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.medical_bills_last_3_months",
+          "label": "Person 2 Medical Bills in Last 3 Months",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Has Person 2 had medical bills or services in the last 3 months that might qualify for retroactive Medicaid?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_medical_bills_3mo",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.daily_activity_limitation",
+          "label": "Person 2 Daily Activity Limitation",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does Person 2 have a physical, mental, or emotional condition that limits their daily activities?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_daily_limitation",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.in_home_or_nursing_home_care",
+          "label": "Person 2 In Home or Nursing Home Care",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does Person 2 need in-home care or is living in a nursing home or long-term care facility?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_nursing_care",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.pregnant",
+          "label": "Person 2 Currently Pregnant",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is Person 2 currently pregnant?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_pregnant",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.pregnancy_babies_expected",
+          "label": "Person 2 Number of Babies Expected",
+          "section": "step2_person2",
+          "type": "number",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "How many babies is Person 2 expecting?",
+          "validation_rule": {
+            "min": 1,
+            "max": 10
+          },
+          "depends_on": {
+            "field_key": "person2.pregnant",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_babies_expected",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.pregnancy_due_date",
+          "label": "Person 2 Pregnancy Due Date",
+          "section": "step2_person2",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's pregnancy due date? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person2.pregnant",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_due_date",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.recently_pregnant",
+          "label": "Person 2 Was Recently Pregnant",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Was Person 2 pregnant in the last 3 months but is no longer pregnant?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.pregnant",
+            "value": false
+          },
+          "pdf_mapping": {
+            "field_name": "person2_recently_pregnant",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.us_citizen_or_national",
+          "label": "Person 2 US Citizen or National",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is Person 2 a US citizen or US national?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_us_citizen",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.eligible_immigration_status",
+          "label": "Person 2 Eligible Immigration Status",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does Person 2 have an eligible immigration status?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.us_citizen_or_national",
+            "value": false
+          },
+          "pdf_mapping": {
+            "field_name": "person2_eligible_immigration",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.immigration_document_type",
+          "label": "Person 2 Immigration Document Type",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": true,
+          "emr_source_candidates": [],
+          "question_text": "What type of immigration document does Person 2 have?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "person2.eligible_immigration_status",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_immigration_doc_type",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.immigration_document_id",
+          "label": "Person 2 Immigration Document ID Number",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": true,
+          "emr_source_candidates": [],
+          "question_text": "What is the ID number on Person 2's immigration document?",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "person2.eligible_immigration_status",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_immigration_doc_id",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.lived_us_since_1996",
+          "label": "Person 2 Lived in US Since August 22, 1996",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Has Person 2 lived in the United States since August 22, 1996?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.us_citizen_or_national",
+            "value": false
+          },
+          "pdf_mapping": {
+            "field_name": "person2_lived_us_1996",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.veteran_or_active_duty_family",
+          "label": "Person 2 Veteran or Active Duty Family Member",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is Person 2 a veteran, active duty military member, or the spouse or child of one?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_veteran_family",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.main_caretaker_child_under_19",
+          "label": "Person 2 Main Caretaker of Child Under 19",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is Person 2 the main caretaker of a child under 19 who lives with them?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_main_caretaker",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.school_or_training",
+          "label": "Person 2 In School or Training",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is Person 2 currently attending school or job training?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_school",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.school_type",
+          "label": "Person 2 School Type",
+          "section": "step2_person2",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What type of school or training is Person 2 attending? Say: College or Higher Education, Vocational, GED, or Technical Training.",
+          "validation_rule": {
+            "allowed_values": [
+              "college",
+              "vocational",
+              "ged",
+              "technical"
+            ]
+          },
+          "depends_on": {
+            "field_key": "person2.school_or_training",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_school_type",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.enrollment_status",
+          "label": "Person 2 Enrollment Status",
+          "section": "step2_person2",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's enrollment status? Say: Full Time, Half Time, or Less than Half Time.",
+          "validation_rule": {
+            "allowed_values": [
+              "full_time",
+              "half_time",
+              "less_than_half_time"
+            ]
+          },
+          "depends_on": {
+            "field_key": "person2.school_or_training",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_enrollment_status",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.foster_care_after_18",
+          "label": "Person 2 Was in Foster Care After Age 18",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Was Person 2 in foster care after age 18?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_foster_care_18",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.foster_care_entered_date",
+          "label": "Person 2 Date Entered Foster Care",
+          "section": "step2_person2",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What date did Person 2 enter foster care? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person2.foster_care_after_18",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_foster_entered",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.foster_care_left_date",
+          "label": "Person 2 Date Left Foster Care",
+          "section": "step2_person2",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What date did Person 2 leave foster care? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person2.foster_care_after_18",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_foster_left",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.foster_care_state",
+          "label": "Person 2 Foster Care State",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "In which state was Person 2 in foster care? (2-letter abbreviation)",
+          "validation_rule": {
+            "max_length": 2
+          },
+          "depends_on": {
+            "field_key": "person2.foster_care_after_18",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_foster_state",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.incarcerated",
+          "label": "Person 2 Currently Incarcerated",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is Person 2 currently incarcerated (in jail or prison)?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_incarcerated",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.incarceration_date",
+          "label": "Person 2 Incarceration Start Date",
+          "section": "step2_person2",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What date was Person 2 incarcerated? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person2.incarcerated",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_incarceration_date",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.expected_release_date",
+          "label": "Person 2 Expected Release Date",
+          "section": "step2_person2",
+          "type": "date",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's expected release date from incarceration? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": {
+            "field_key": "person2.incarcerated",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_release_date",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.served_military",
+          "label": "Person 2 Served in Military",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Has Person 2 served in the US military?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_military",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.received_benefits_other_state",
+          "label": "Person 2 Received Benefits in Another State",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Has Person 2 received Medicaid or other state health benefits in another state?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_benefits_other_state",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.benefits_other_state_where",
+          "label": "Person 2 Which State for Other Benefits",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "In which state did Person 2 receive those benefits? (2-letter abbreviation)",
+          "validation_rule": {
+            "max_length": 2
+          },
+          "depends_on": {
+            "field_key": "person2.received_benefits_other_state",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_benefits_state",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.ethnicity_optional",
+          "label": "Person 2 Ethnicity (Optional)",
+          "section": "step2_person2",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's ethnicity? (optional — Hispanic or Latino, Not Hispanic or Latino, say 'skip' to skip)",
+          "validation_rule": {
+            "allowed_values": [
+              "Hispanic or Latino",
+              "Not Hispanic or Latino",
+              ""
+            ]
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_ethnicity",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.race_optional",
+          "label": "Person 2 Race (Optional)",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is Person 2's race? (optional — say 'skip' to skip)",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_race",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        }
+      ]
+    },
+    {
+      "section_key": "step3_income",
+      "section_title": "Step 3 - Income",
+      "fields": [
+        {
+          "field_key": "income.has_employment",
+          "label": "Has Employment Income",
+          "section": "step3_income",
+          "type": "select",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [
+            "employment_status"
+          ],
+          "question_text": "Step 3 is about income. The form has three checkboxes: Employed, Self-Employed, and Not Employed. Which best describes your household? Say: Employed, Self-Employed, or Not Employed.",
+          "validation_rule": {
+            "allowed_values": ["employed", "self_employed", "not_employed"]
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "income_has_employment",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp1_person",
+          "label": "Employment Row 1 - Person Name",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the first job: who is employed? (name of household member)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "income.has_employment",
+            "value": "employed"
+          },
+          "pdf_mapping": {
+            "field_name": "PersonRow1",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp1_employer",
+          "label": "Employment Row 1 - Employer Name and Address",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the first job: what is the employer's name and address?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "income.has_employment",
+            "value": "employed"
+          },
+          "pdf_mapping": {
+            "field_name": "Employer Name and AddressRow1",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp1_gross_wages",
+          "label": "Employment Row 1 - Gross Wages",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the first job: what is the gross pay amount (before taxes)?",
+          "validation_rule": {
+            "max_length": 32
+          },
+          "depends_on": {
+            "field_key": "income.has_employment",
+            "value": "employed"
+          },
+          "pdf_mapping": {
+            "field_name": "Gross Wages Tips Etc Row1",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp1_frequency",
+          "label": "Employment Row 1 - Pay Frequency",
+          "section": "step3_income",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the first job: how often is this person paid? (Weekly, Every 2 weeks, Twice a month, Monthly, Yearly)",
+          "validation_rule": {
+            "allowed_values": [
+              "Weekly",
+              "Every 2 weeks",
+              "Twice a month",
+              "Monthly",
+              "Yearly"
+            ]
+          },
+          "depends_on": {
+            "field_key": "income.has_employment",
+            "value": "employed"
+          },
+          "pdf_mapping": {
+            "field_name": "How OftenRow1",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp2_person",
+          "label": "Employment Row 2 - Person Name",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is there a second job in the household? If so, who is employed? (say 'no' or 'skip' if not)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "income.has_employment",
+            "value": "employed"
+          },
+          "pdf_mapping": {
+            "field_name": "PersonRow2",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp2_employer",
+          "label": "Employment Row 2 - Employer Name and Address",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the second job: what is the employer's name and address?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "income.emp2_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "Employer Name and AddressRow2",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp2_gross_wages",
+          "label": "Employment Row 2 - Gross Wages",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the second job: what is the gross pay amount (before taxes)?",
+          "validation_rule": {
+            "max_length": 32
+          },
+          "depends_on": {
+            "field_key": "income.emp2_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "Gross Wages Tips Etc Row2",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp2_frequency",
+          "label": "Employment Row 2 - Pay Frequency",
+          "section": "step3_income",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the second job: how often is this person paid?",
+          "validation_rule": {
+            "allowed_values": [
+              "Weekly",
+              "Every 2 weeks",
+              "Twice a month",
+              "Monthly",
+              "Yearly"
+            ]
+          },
+          "depends_on": {
+            "field_key": "income.emp2_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "How OftenRow2",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp3_person",
+          "label": "Employment Row 3 - Person Name",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is there a third job in the household? If so, who is employed? (say 'no' or 'skip' if not)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "income.emp2_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "PersonRow3",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp3_employer",
+          "label": "Employment Row 3 - Employer Name and Address",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the third job: what is the employer's name and address?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "income.emp3_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "Employer Name and AddressRow3",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp3_gross_wages",
+          "label": "Employment Row 3 - Gross Wages",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the third job: what is the gross pay amount (before taxes)?",
+          "validation_rule": {
+            "max_length": 32
+          },
+          "depends_on": {
+            "field_key": "income.emp3_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "Gross Wages Tips Etc Row3",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp3_frequency",
+          "label": "Employment Row 3 - Pay Frequency",
+          "section": "step3_income",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the third job: how often is this person paid?",
+          "validation_rule": {
+            "allowed_values": [
+              "Weekly",
+              "Every 2 weeks",
+              "Twice a month",
+              "Monthly",
+              "Yearly"
+            ]
+          },
+          "depends_on": {
+            "field_key": "income.emp3_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "How OftenRow3",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp4_person",
+          "label": "Employment Row 4 - Person Name",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is there a fourth job in the household? If so, who is employed? (say 'no' or 'skip' if not)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "income.emp3_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "PersonRow4",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp4_employer",
+          "label": "Employment Row 4 - Employer Name and Address",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the fourth job: what is the employer's name and address?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "income.emp4_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "Employer Name and AddressRow4",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp4_gross_wages",
+          "label": "Employment Row 4 - Gross Wages",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the fourth job: what is the gross pay amount (before taxes)?",
+          "validation_rule": {
+            "max_length": 32
+          },
+          "depends_on": {
+            "field_key": "income.emp4_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "Gross Wages Tips Etc Row4",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.emp4_frequency",
+          "label": "Employment Row 4 - Pay Frequency",
+          "section": "step3_income",
+          "type": "select",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the fourth job: how often is this person paid?",
+          "validation_rule": {
+            "allowed_values": [
+              "Weekly",
+              "Every 2 weeks",
+              "Twice a month",
+              "Monthly",
+              "Yearly"
+            ]
+          },
+          "depends_on": {
+            "field_key": "income.emp4_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "How OftenRow4",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.left_job_past_90_days",
+          "label": "Left a Job in Past 90 Days",
+          "section": "step3_income",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Has anyone in the household left a job or had hours significantly reduced in the past 90 days?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "income_left_job_90d",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.left_job_who_and_when",
+          "label": "Who Left Job and When",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Who left their job and when? Please include the person's name and approximate date.",
+          "validation_rule": {
+            "max_length": 256
+          },
+          "depends_on": {
+            "field_key": "income.left_job_past_90_days",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "income_left_job_who",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.has_self_employment",
+          "label": "Has Self-Employment Income",
+          "section": "step3_income",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does anyone in the household also have self-employment income — such as running a business, freelancing, or farming?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "income_has_self_emp",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.self_emp1_person",
+          "label": "Self-Employment Row 1 - Person Name",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "For the first self-employment: who is self-employed?",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "income.has_self_employment",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "income_self_emp1_person",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.self_emp1_type",
+          "label": "Self-Employment Row 1 - Type of Work",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What type of self-employment or business is it?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "income.has_self_employment",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "income_self_emp1_type",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.self_emp1_net_monthly",
+          "label": "Self-Employment Row 1 - Net Monthly Income",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the average net monthly income from this self-employment (after business expenses)?",
+          "validation_rule": {
+            "max_length": 32
+          },
+          "depends_on": {
+            "field_key": "income.has_self_employment",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "income_self_emp1_net",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.self_emp2_person",
+          "label": "Self-Employment Row 2 - Person Name",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is there a second self-employment in the household? If so, who? (say 'no' or 'skip' if not)",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "income.has_self_employment",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "income_self_emp2_person",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.self_emp2_type",
+          "label": "Self-Employment Row 2 - Type of Work",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What type of self-employment or business is the second one?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "income.self_emp2_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "income_self_emp2_type",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.self_emp2_net_monthly",
+          "label": "Self-Employment Row 2 - Net Monthly Income",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the average net monthly income from the second self-employment?",
+          "validation_rule": {
+            "max_length": 32
+          },
+          "depends_on": {
+            "field_key": "income.self_emp2_person",
+            "condition": "present"
+          },
+          "pdf_mapping": {
+            "field_name": "income_self_emp2_net",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.has_other_income",
+          "label": "Has Other Income (Section 4)",
+          "section": "step3_income",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Section 4 of the form covers other income types — things like Social Security, unemployment, pensions, investments, and more. This applies to everyone in the household regardless of employment status. Does anyone receive any of these other income types?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "income_has_other",
+            "page": 10,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_ssdi",
+          "label": "SSDI Income",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Social Security Disability (SSDI): Does anyone receive this? If yes, say the person's name and monthly amount — for example: Michael, $800. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_ssdi",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_ssi",
+          "label": "SSI Income",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Supplemental Security Income (SSI): Does anyone receive this? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_ssi",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_social_security_retirement",
+          "label": "Social Security Retirement Benefits",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Social Security Retirement: Does anyone receive this? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_ss_retirement",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_ss_survivors",
+          "label": "Social Security Survivors Benefits",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Social Security Survivors: Does anyone receive survivors benefits? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {"max_length": 64},
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {"field_name": "income_ss_survivors", "page": 4, "x": 0, "y": 0}
+        },
+        {
+          "field_key": "income.other_unemployment",
+          "label": "Unemployment Compensation",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Unemployment Compensation: Does anyone receive this? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_unemployment",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_pension_retirement",
+          "label": "Pension or Retirement Fund Income",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Pensions: Does anyone receive pension or retirement fund income? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_pension",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_spousal_support",
+          "label": "Spousal Support / Alimony Received",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Spousal Support: Does anyone receive spousal support or alimony? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_spousal_support",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_railroad_retirement",
+          "label": "Railroad Retirement Benefits",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Railroad Retirement: Does anyone receive this? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_railroad",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_contributions_from_others",
+          "label": "Contributions from Others",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Contributions from Others: Does anyone receive regular cash from family or friends outside the household? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_contributions",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_investments",
+          "label": "Investment or Dividend Income",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Investments: Does anyone have investment income such as dividends or interest? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_investments",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_scholarships",
+          "label": "Scholarships or Grants",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Scholarships or Grants: Does anyone receive this for living expenses? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_scholarships",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_capital_gains",
+          "label": "Capital Gains",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Capital Gains: Does anyone have capital gains income from selling property or investments? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {"max_length": 64},
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {"field_name": "income_capital_gains", "page": 4, "x": 0, "y": 0}
+        },
+        {
+          "field_key": "income.other_farming_fishing",
+          "label": "Farming or Fishing Income",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Gross Farming: Does anyone have farming or fishing income? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_farming",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_rental",
+          "label": "Rental Income",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Gross Rental: Does anyone have rental income? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_rental",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_royalties",
+          "label": "Royalty Income",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Royalties: Does anyone receive royalty income? If yes, say the person's name and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_royalties",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.other_other",
+          "label": "Other Income Not Listed",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Other Income: Is there any other income not already covered — such as cash assistance or veterans benefits? If yes, describe the type, person, and monthly amount. If no, say no.",
+          "validation_rule": {
+            "max_length": 256
+          },
+          "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_mapping": {
+            "field_name": "income_other_other",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.yearly_income_this_year",
+          "label": "Estimated Total Yearly Income This Year",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the estimated total household income for this calendar year?",
+          "validation_rule": {
+            "max_length": 32
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "income_yearly_this_year",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.yearly_income_next_year",
+          "label": "Estimated Total Yearly Income Next Year",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the estimated total household income expected next calendar year?",
+          "validation_rule": {
+            "max_length": 32
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "income_yearly_next_year",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.expense_dependent_care",
+          "label": "Dependent Care Expenses",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does anyone pay for dependent care (child care or adult day care) so they can work or go to school? If yes, how much per month?",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "expense_dependent_care",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.expense_spousal_support_paid",
+          "label": "Spousal Support / Alimony Paid",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does anyone pay spousal support or alimony? If yes, how much per month?",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "expense_spousal_paid",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "income.expense_other_deductions",
+          "label": "Other Deductible Expenses",
+          "section": "step3_income",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are there any other deductible expenses to report, such as student loan interest or educator expenses? If yes, describe and give the amount.",
+          "validation_rule": {
+            "max_length": 256
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "expense_other",
+            "page": 4,
+            "x": 0,
+            "y": 0
+          }
+        }
+      ]
+    },
+    {
+      "section_key": "step4_ai_an",
+      "section_title": "Step 4 - American Indian / Alaska Native",
+      "fields": [
+        {
+          "field_key": "ai_an.person1_is_ai_an",
+          "label": "Person 1 is American Indian or Alaska Native",
+          "section": "step4_ai_an",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is Person 1 an American Indian or Alaska Native? (This may affect coverage options)",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "ai_an_person1",
+            "page": 5,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "ai_an.person1_tribal_name",
+          "label": "Person 1 Tribal Name",
+          "section": "step4_ai_an",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the name of Person 1's federally recognized tribe?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "ai_an.person1_is_ai_an",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "ai_an_person1_tribe",
+            "page": 5,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "ai_an.person2_is_ai_an",
+          "label": "Person 2 is American Indian or Alaska Native",
+          "section": "step4_ai_an",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Is Person 2 an American Indian or Alaska Native?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "ai_an_person2",
+            "page": 5,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "ai_an.person2_tribal_name",
+          "label": "Person 2 Tribal Name",
+          "section": "step4_ai_an",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the name of Person 2's federally recognized tribe?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "ai_an.person2_is_ai_an",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "ai_an_person2_tribe",
+            "page": 5,
+            "x": 0,
+            "y": 0
+          }
+        }
+      ]
+    },
+    {
+      "section_key": "step5_health_coverage",
+      "section_title": "Step 5 - Health Coverage",
+      "fields": [
+        {
+          "field_key": "health_coverage.medicaid_individuals",
+          "label": "Medicaid - Who Has It",
+          "section": "step5_health_coverage",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": ["insurance"],
+          "question_text": "Step 5 covers your family's current health coverage. Does anyone in the household have Medicaid? If yes, say their name(s). If no, say no.",
+          "validation_rule": {"max_length": 128},
+          "depends_on": null,
+          "pdf_mapping": {"field_name": "coverage_medicaid_individuals", "page": 6, "x": 0, "y": 0}
+        },
+        {
+          "field_key": "health_coverage.medicare_individuals",
+          "label": "Medicare - Who Has It",
+          "section": "step5_health_coverage",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": ["insurance"],
+          "question_text": "Does anyone have Medicare? If yes, say their name(s). If no, say no.",
+          "validation_rule": {"max_length": 128},
+          "depends_on": null,
+          "pdf_mapping": {"field_name": "coverage_medicare_individuals", "page": 6, "x": 0, "y": 0}
+        },
+        {
+          "field_key": "health_coverage.person1_medicare_id",
+          "label": "Person 1 Medicare ID Number",
+          "section": "step5_health_coverage",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the Medicare ID number for the person who has Medicare?",
+          "validation_rule": {"max_length": 32},
+          "depends_on": null,
+          "pdf_mapping": {"field_name": "coverage_p1_medicare_id", "page": 6, "x": 0, "y": 0}
+        },
+        {
+          "field_key": "health_coverage.va_individuals",
+          "label": "VA Coverage - Who Has It",
+          "section": "step5_health_coverage",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does anyone have VA (Veterans Affairs) health coverage? If yes, say their name(s). If no, say no.",
+          "validation_rule": {"max_length": 128},
+          "depends_on": null,
+          "pdf_mapping": {"field_name": "coverage_va_individuals", "page": 6, "x": 0, "y": 0}
+        },
+        {
+          "field_key": "health_coverage.peace_corps_individuals",
+          "label": "Peace Corps Coverage - Who Has It",
+          "section": "step5_health_coverage",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does anyone have Peace Corps health coverage? If yes, say their name(s). If no, say no.",
+          "validation_rule": {"max_length": 128},
+          "depends_on": null,
+          "pdf_mapping": {"field_name": "coverage_peace_corps_individuals", "page": 6, "x": 0, "y": 0}
+        },
+        {
+          "field_key": "health_coverage.tricare_individuals",
+          "label": "Tricare Coverage - Who Has It",
+          "section": "step5_health_coverage",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does anyone have TRICARE (military) health coverage? If yes, say their name(s). If no, say no.",
+          "validation_rule": {"max_length": 128},
+          "depends_on": null,
+          "pdf_mapping": {"field_name": "coverage_tricare_individuals", "page": 6, "x": 0, "y": 0}
+        },
+        {
+          "field_key": "health_coverage.person1_has_employer_insurance",
+          "label": "Person 1 Has Employer-Sponsored Insurance",
+          "section": "step5_health_coverage",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Does Person 1 currently have health insurance through a job (their own or a family member's)?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "coverage_p1_employer",
+            "page": 6,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "health_coverage.person1_employer_name",
+          "label": "Person 1 Employer Insurance - Employer Name",
+          "section": "step5_health_coverage",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the name of the employer providing Person 1's health insurance?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "health_coverage.person1_has_employer_insurance",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "coverage_p1_employer_name",
+            "page": 6,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "health_coverage.person1_employer_policy_number",
+          "label": "Person 1 Employer Insurance Policy Number",
+          "section": "step5_health_coverage",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the policy or group number for Person 1's employer-sponsored insurance?",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "health_coverage.person1_has_employer_insurance",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "coverage_p1_policy_num",
+            "page": 6,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "health_coverage.job_offered_coverage_anyone",
+          "label": "Anyone Offered Job-Based Coverage Not Enrolled",
+          "section": "step5_health_coverage",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Has anyone in the household been offered job-based health coverage in the past 3 months that they did not enroll in?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "coverage_job_offered_unenrolled",
+            "page": 6,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "health_coverage.job_offered_employer_name",
+          "label": "Offered Job Coverage - Employer Name",
+          "section": "step5_health_coverage",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the name of the employer that offered the coverage?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "health_coverage.job_offered_coverage_anyone",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "coverage_job_offered_employer",
+            "page": 6,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "health_coverage.job_offered_person_name",
+          "label": "Offered Job Coverage - Who Was Offered",
+          "section": "step5_health_coverage",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Who in the household was offered the employer coverage?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "health_coverage.job_offered_coverage_anyone",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "coverage_job_offered_person",
+            "page": 6,
+            "x": 0,
+            "y": 0
+          }
+        }
+      ]
+    },
+    {
+      "section_key": "step6_review",
+      "section_title": "Step 6 - Review & Signature",
+      "fields": [
+        {
+          "field_key": "review.acknowledgement",
+          "label": "Acknowledgement",
+          "section": "step6_review",
+          "type": "boolean",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Do you acknowledge that the information provided is accurate and complete to the best of your knowledge?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "review_acknowledgement",
+            "page": 6,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "review.signature_name",
+          "label": "Signature Name",
+          "section": "step6_review",
+          "type": "text",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Please type your full legal name as your signature.",
+          "validation_rule": {
+            "min_length": 2,
+            "max_length": 128
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "review_signature",
+            "page": 6,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "review.signature_date",
+          "label": "Signature Date",
+          "section": "step6_review",
+          "type": "date",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is today's date for the signature? (MM/DD/YYYY)",
+          "validation_rule": {
+            "format": "date"
+          },
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "review_signature_date",
+            "page": 6,
+            "x": 0,
+            "y": 0
+          }
+        }
+      ]
+    }
+  ]
+}

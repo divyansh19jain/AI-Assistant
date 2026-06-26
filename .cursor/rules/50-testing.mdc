@@ -1,0 +1,26 @@
+---
+description: Testing conventions — pytest backend suite, fake-data-only, mock EMR + no LLM key.
+globs: backend/tests/**
+---
+
+# Testing (path-scoped)
+
+Full reference: [`docs/ai/TESTING.md`](mdc:docs/ai/TESTING.md).
+
+- **pytest is the only suite today**, in [`backend/tests/`](mdc:backend/tests).
+  [`conftest.py`](mdc:backend/tests/conftest.py) gives an **in-memory SQLite** DB
+  (per test), a `db` session fixture, and a `client` = FastAPI `TestClient` with
+  `get_db` overridden. Use those fixtures — never hit real Postgres or the real EMR.
+- **Fake data only — never real PHI** in fixtures. Established fakes:
+  `Test Patient`, `Jane Doe`, `1990-01-15`.
+- Default to **mock EMR** (`USE_MOCK_EMR=true`) and **no LLM key** so tests are
+  deterministic and exercise the rule-based fallback. To test the LLM path,
+  monkeypatch `app.ai.llm.get_chat_model` / `structured_model` — never call a real
+  provider.
+- **Add/extend a test whenever you:** add or relax a validation rule, add a form
+  field with dependencies, change masking, add an endpoint, or change prefill.
+  Cover the **skip-logic (dependency) branches** — that's where form bugs hide.
+- Suites: `test_patient_search.py` (masking + search), `test_form_logic.py`
+  (prefill + missing-fields + validation), `test_session_api.py` (session/answer/
+  review/PDF). Place new tests in the matching suite.
+- Run: `cd backend && pytest tests/ -v` (single: `pytest tests/test_x.py::test_y -v`).

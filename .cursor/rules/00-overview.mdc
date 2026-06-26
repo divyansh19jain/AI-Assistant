@@ -1,0 +1,45 @@
+---
+description: AI-Assistant repo overview — what the app is, how it's built, where the canonical docs live. Always on.
+alwaysApply: true
+---
+
+# AI-Assistant — overview (always on)
+
+EMR-assisted + AI-voice-assisted **PDF completion of the Ohio Medicaid ODM 07216**
+form. PDF-flow only — no browser automation, no portal submission, Person 1 only.
+
+**Stack:** FastAPI + SQLAlchemy 2.0 (sync) + Pydantic v2 (backend) · Next.js 14 +
+React 18 + TypeScript (frontend) · PostgreSQL · LangChain/**OpenAI** with a
+deterministic rule-based fallback · PyMuPDF.
+
+## One source of truth
+
+The canonical knowledge base is [`docs/ai/`](mdc:docs/ai/README.md) and the master
+contract is [`AGENTS.md`](mdc:AGENTS.md). These Cursor rules are thin pointers —
+**when a rule and the code/docs disagree, the code wins, then `docs/ai/`.**
+
+- Architecture & API surface → [`docs/ai/ARCHITECTURE.md`](mdc:docs/ai/ARCHITECTURE.md)
+- **PHI / security (non-negotiable)** → [`docs/ai/SECURITY-AND-PHI.md`](mdc:docs/ai/SECURITY-AND-PHI.md)
+- Backend style → [`docs/ai/BACKEND-CONVENTIONS.md`](mdc:docs/ai/BACKEND-CONVENTIONS.md)
+- Frontend style → [`docs/ai/FRONTEND-CONVENTIONS.md`](mdc:docs/ai/FRONTEND-CONVENTIONS.md)
+- AI/LLM → [`docs/ai/AI-LLM-INTEGRATION.md`](mdc:docs/ai/AI-LLM-INTEGRATION.md)
+- Testing → [`docs/ai/TESTING.md`](mdc:docs/ai/TESTING.md)
+- Recipes → [`docs/ai/WORKFLOWS.md`](mdc:docs/ai/WORKFLOWS.md)
+- Backlog → [`docs/ai/IMPROVEMENT-BACKLOG.md`](mdc:docs/ai/IMPROVEMENT-BACKLOG.md)
+
+## Working defaults
+
+- The form is **data-driven** by
+  [`backend/app/forms/schemas/odm_07216.json`](mdc:backend/app/forms/schemas/odm_07216.json).
+  Field changes are usually JSON edits, not new imperative code.
+- Default run profile: `USE_MOCK_EMR=true`, no `OPENAI_API_KEY` (rule-based
+  fallback). Don't connect to a real EMR or LLM unless asked.
+- **Provider is OpenAI** (`app/ai/llm.py`); the README's "Claude" section is stale.
+- Finish on the green bar: `cd backend && pytest tests/ -v` and
+  `cd frontend && npm run build && npm run lint`. Add a test for behavior changes.
+- Windows/PowerShell is the primary shell. App DB host port is **5499**.
+
+## Scope guardrails (don't add without an explicit ask)
+
+Browser automation, online-portal filling, government-portal submission,
+multi-person household. Prefer the smallest change that fits existing patterns.

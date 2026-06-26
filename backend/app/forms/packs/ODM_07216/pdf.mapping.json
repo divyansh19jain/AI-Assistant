@@ -1,0 +1,362 @@
+{
+  "form_id": "ODM_07216",
+  "base_pdf": "ODM07216fillx.pdf",
+  "note": "AcroForm field names verified from the actual PDF using PyMuPDF inspect_fields.py. Coordinates are fallback text insertion points (PDF points, bottom-left origin) used when the AcroForm fill fails.",
+  "strategy": "acroform_first",
+  "fields": [
+
+    {"field_key": "applicant.first_name",        "acroform_name": "1 First name",                         "page": 5,  "x": 130, "y": 660, "font_size": 10},
+    {"field_key": "applicant.middle_name",       "acroform_name": "Middle name",                          "page": 5,  "x": 295, "y": 660, "font_size": 10},
+    {"field_key": "applicant.last_name",         "acroform_name": "Last name",                            "page": 5,  "x": 400, "y": 660, "font_size": 10},
+    {"field_key": "applicant.suffix",            "acroform_name": "Suffix",                               "page": 5,  "x": 525, "y": 660, "font_size": 10},
+    {"field_key": "applicant.is_homeless",        "acroform_name": "undefined",                                    "page": 5, "x": 176, "y": 635, "font_size": 10, "field_type": "checkbox"},
+    {"field_key": "applicant.home_address",      "acroform_name": "2 Home address Check here if you are Homeless", "page": 5, "x": 130, "y": 635, "font_size": 10},
+    {"field_key": "applicant.apartment",         "acroform_name": "3 Apartment or suite number",         "page": 5,  "x": 430, "y": 635, "font_size": 10},
+    {"field_key": "applicant.city",              "acroform_name": "4 City",                               "page": 5,  "x": 130, "y": 610, "font_size": 10},
+    {"field_key": "applicant.state",             "acroform_name": "5 State",                              "page": 5,  "x": 330, "y": 610, "font_size": 10},
+    {"field_key": "applicant.zip",               "acroform_name": "6 Zip code",                          "page": 5,  "x": 375, "y": 610, "font_size": 10},
+    {"field_key": "applicant.county",            "acroform_name": "7 County",                             "page": 5,  "x": 460, "y": 610, "font_size": 10},
+    {"field_key": "applicant.mailing_address",   "acroform_name": "8 Mailing address if different from home address", "page": 5, "x": 130, "y": 585, "font_size": 10},
+    {"field_key": "applicant.mailing_apartment", "acroform_name": "9 Apartment or suite number",         "page": 5,  "x": 430, "y": 585, "font_size": 10},
+    {"field_key": "applicant.mailing_city",      "acroform_name": "10 City",                             "page": 5,  "x": 130, "y": 560, "font_size": 10},
+    {"field_key": "applicant.mailing_state",     "acroform_name": "11 State",                            "page": 5,  "x": 330, "y": 560, "font_size": 10},
+    {"field_key": "applicant.mailing_zip",       "acroform_name": "12 Zip code",                         "page": 5,  "x": 375, "y": 560, "font_size": 10},
+    {"field_key": "applicant.mailing_county",    "acroform_name": "13 County",                           "page": 5,  "x": 460, "y": 560, "font_size": 10},
+    {"field_key": "applicant.email_preference",  "acroform_name": "undefined_2",                         "page": 5,  "x": 333, "y": 563, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "applicant.email_preference",  "acroform_name": "undefined_3",                         "page": 5,  "x": 370, "y": 563, "font_size": 10, "field_type": "checkbox", "check_when": false},
+    {"field_key": "applicant.phone",             "acroform_name": "14 Phone number",                     "page": 5,  "x": 130, "y": 535, "font_size": 10},
+    {"field_key": "applicant.other_phone",       "acroform_name": "15 Other phone number",               "page": 5,  "x": 330, "y": 535, "font_size": 10},
+    {"field_key": "applicant.email",             "acroform_name": "Email address",                        "page": 5,  "x": 130, "y": 510, "font_size": 10},
+    {"field_key": "applicant.language",          "acroform_name": "Spoken or written language",          "page": 5,  "x": 130, "y": 485, "font_size": 10},
+
+    {"field_key": "applicant.voter_registration_choice", "acroform_name": "Yes I want to register",                                              "page": 5, "x": 53,  "y": 479, "font_size": 10, "field_type": "checkbox", "check_when_value": "yes"},
+    {"field_key": "applicant.voter_registration_choice", "acroform_name": "No I do not want to register to vote",                                 "page": 5, "x": 172, "y": 479, "font_size": 10, "field_type": "checkbox", "check_when_value": "no"},
+
+    {"field_key": "applicant.programs.medicaid_adults_children_families", "acroform_name": "Medicaid for Adults Children or Families",            "page": 5, "x": 51,  "y": 369, "font_size": 10, "field_type": "checkbox"},
+    {"field_key": "applicant.programs.medicaid_aged_blind_disabled",      "acroform_name": "Medicaid for the Aged Blind or Disabled Also complete APPENDIX E", "page": 5, "x": 265, "y": 369, "font_size": 10, "field_type": "checkbox"},
+    {"field_key": "applicant.programs.long_term_care",                    "acroform_name": "LongTerm Care Also complete APPENDIX E",              "page": 5, "x": 51,  "y": 354, "font_size": 10, "field_type": "checkbox"},
+    {"field_key": "applicant.programs.medicare_premium_assistance",       "acroform_name": "Medicare Premium Assistance Programs Also complete APPENDIX E", "page": 5, "x": 265, "y": 354, "font_size": 10, "field_type": "checkbox"},
+    {"field_key": "applicant.programs.help_me_grow",                      "acroform_name": "Help Me Grow HMG",                                    "page": 5, "x": 44,  "y": 300, "font_size": 10, "field_type": "checkbox"},
+    {"field_key": "applicant.programs.wic",                               "acroform_name": "Special Supplemental Nutrition Program for Women Infants and Children WIC", "page": 5, "x": 158, "y": 300, "font_size": 10, "field_type": "checkbox"},
+
+    {"field_key": "person1.first_name",          "acroform_name": "First Name",                           "page": 6,  "x": 130, "y": 695, "font_size": 10},
+    {"field_key": "person1.middle_name",         "acroform_name": "Middle name_2",                        "page": 6,  "x": 295, "y": 695, "font_size": 10},
+    {"field_key": "person1.last_name",           "acroform_name": "Last name_2",                          "page": 6,  "x": 400, "y": 695, "font_size": 10},
+    {"field_key": "person1.suffix",              "acroform_name": "Suffix_2",                             "page": 6,  "x": 525, "y": 695, "font_size": 10},
+    {"field_key": "person1.dob",                 "acroform_name": "3 Date of birth mmddyyyy",             "page": 6,  "x": 130, "y": 670, "font_size": 10, "date_format": "mm/dd/yyyy"},
+    {"field_key": "person1.sex",                 "acroform_name": "undefined_4",                          "page": 6,  "x": 344, "y": 670, "font_size": 10, "field_type": "checkbox", "check_when_value": "male"},
+    {"field_key": "person1.sex",                 "acroform_name": "undefined_5",                          "page": 6,  "x": 393, "y": 670, "font_size": 10, "field_type": "checkbox", "check_when_value": "female"},
+    {"field_key": "person1.ssn",                 "acroform_name": "2_SSN_P1",                             "page": 6,  "x": 320, "y": 645, "font_size": 10},
+
+    {"field_key": "person1.tax_file_next_year",  "acroform_name": "Yes Please answer questions ac",       "page": 6,  "x": 49,  "y": 650, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person1.tax_file_next_year",  "acroform_name": "No Skip to question c",                "page": 6,  "x": 234, "y": 650, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person1.file_jointly_with_spouse", "acroform_name": "a Will you file jointly with a spouse", "page": 6, "x": 196, "y": 640, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes",   "check_when": true},
+    {"field_key": "person1.file_jointly_with_spouse", "acroform_name": "a Will you file jointly with a spouse", "page": 6, "x": 231, "y": 640, "font_size": 10, "field_type": "radio", "radio_on_state": "No",    "check_when": false},
+    {"field_key": "person1.spouse_name",         "acroform_name": "a Will you file jointly with a spouse Yes No If yes list name of spouse", "page": 6, "x": 130, "y": 600, "font_size": 10},
+
+    {"field_key": "person1.claim_dependents",    "acroform_name": "b Will you claim any dependents on your tax return", "page": 6, "x": 264, "y": 627, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_2", "check_when": true},
+    {"field_key": "person1.claim_dependents",    "acroform_name": "b Will you claim any dependents on your tax return", "page": 6, "x": 301, "y": 627, "font_size": 10, "field_type": "radio", "radio_on_state": "No_2",  "check_when": false},
+    {"field_key": "person1.dependent_names",     "acroform_name": "b Will you claim any dependents on your tax return Yes No If yes list names of dependents", "page": 6, "x": 130, "y": 575, "font_size": 10},
+
+    {"field_key": "person1.claimed_as_dependent","acroform_name": "c Will you be claimed as a dependent on someone elses tax return", "page": 6, "x": 327, "y": 614, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_3", "check_when": true},
+    {"field_key": "person1.claimed_as_dependent","acroform_name": "c Will you be claimed as a dependent on someone elses tax return", "page": 6, "x": 366, "y": 614, "font_size": 10, "field_type": "radio", "radio_on_state": "No_3",  "check_when": false},
+    {"field_key": "person1.tax_filer_name",      "acroform_name": "If yes please list the name of the tax filer", "page": 6, "x": 223, "y": 578, "font_size": 10},
+    {"field_key": "person1.relationship_to_tax_filer", "acroform_name": "How are you related to the tax filer", "page": 6, "x": 199, "y": 597, "font_size": 10},
+
+    {"field_key": "person1.married",             "acroform_name": "undefined_6",                          "page": 6,  "x": 131, "y": 618, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person1.married",             "acroform_name": "undefined_7",                          "page": 6,  "x": 168, "y": 618, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person1.wants_health_coverage","acroform_name": "Yes Answer questions 923",             "page": 6,  "x": 49,  "y": 651, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person1.wants_health_coverage","acroform_name": "No Skip to the income questions in STEP 3", "page": 6, "x": 246, "y": 651, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person1.medical_bills_last_3_months", "acroform_name": "undefined_8",                  "page": 6,  "x": 327, "y": 667, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person1.medical_bills_last_3_months", "acroform_name": "undefined_9",                  "page": 6,  "x": 364, "y": 667, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person1.daily_activity_limitation",  "acroform_name": "Yes Please also complete APPENDIX E",  "page": 7, "x": 55,  "y": 720, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person1.daily_activity_limitation",  "acroform_name": "No_4",                                  "page": 7, "x": 246, "y": 720, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person1.in_home_or_nursing_home_care","acroform_name": "undefined_10",                         "page": 7, "x": 55,  "y": 700, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person1.in_home_or_nursing_home_care","acroform_name": "undefined_11",                         "page": 7, "x": 252, "y": 700, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person1.pregnant",            "acroform_name": "12 Are you pregnant",                   "page": 7,  "x": 138, "y": 683, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_4", "check_when": true},
+    {"field_key": "person1.pregnant",            "acroform_name": "12 Are you pregnant",                   "page": 7,  "x": 176, "y": 683, "font_size": 10, "field_type": "radio", "radio_on_state": "No_5",  "check_when": false},
+    {"field_key": "person1.pregnant_due_date",   "acroform_name": "Expected Due Date",                     "page": 7,  "x": 513, "y": 673, "font_size": 10},
+    {"field_key": "person1.pregnant_babies",     "acroform_name": "How many babies expected",              "page": 7,  "x": 307, "y": 673, "font_size": 10},
+
+    {"field_key": "person1.recently_pregnant",   "acroform_name": "13 If not currently pregnant were you pregnant recently", "page": 7, "x": 282, "y": 653, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_5", "check_when": true},
+    {"field_key": "person1.recently_pregnant",   "acroform_name": "13 If not currently pregnant were you pregnant recently", "page": 7, "x": 316, "y": 653, "font_size": 10, "field_type": "radio", "radio_on_state": "No_6",  "check_when": false},
+    {"field_key": "person1.pregnancy_end_date",  "acroform_name": "Expected Due Date2",                    "page": 7,  "x": 476, "y": 642, "font_size": 10},
+    {"field_key": "person1.pregnancy_babies_expected","acroform_name": "How many babies expected2",        "page": 7,  "x": 315, "y": 642, "font_size": 10},
+
+    {"field_key": "person1.us_citizen_or_national",    "acroform_name": "14 Are you a US citizen or US national", "page": 7, "x": 222, "y": 622, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_6", "check_when": true},
+    {"field_key": "person1.us_citizen_or_national",    "acroform_name": "14 Are you a US citizen or US national", "page": 7, "x": 261, "y": 622, "font_size": 10, "field_type": "radio", "radio_on_state": "No#20If#20yes#20are#20you#20a#20naturalized#20or#20derived#20citizen", "check_when": false},
+
+    {"field_key": "person1.eligible_immigration_status","acroform_name": "Yes Fill in your document type and ID number below", "page": 7, "x": 55, "y": 593, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person1.eligible_immigration_status","acroform_name": "No_8",                            "page": 7,  "x": 305, "y": 593, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person1.lived_us_since_1996", "acroform_name": "Have you lived in the US since August 22 1996", "page": 7, "x": 40,  "y": 542, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_8", "check_when": true},
+    {"field_key": "person1.lived_us_since_1996", "acroform_name": "Have you lived in the US since August 22 1996", "page": 7, "x": 73,  "y": 542, "font_size": 10, "field_type": "radio", "radio_on_state": "No_9",  "check_when": false},
+
+    {"field_key": "person1.veteran_or_active_duty_family","acroform_name": "duty member of the US military","page": 7, "x": 457, "y": 541, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_9",  "check_when": true},
+    {"field_key": "person1.veteran_or_active_duty_family","acroform_name": "duty member of the US military","page": 7, "x": 491, "y": 541, "font_size": 10, "field_type": "radio", "radio_on_state": "No_10", "check_when": false},
+
+    {"field_key": "person1.main_caretaker_child_under_19","acroform_name": "16 If you live with at least one child under the age of 19 are you the main person taking care of this child", "page": 7, "x": 479, "y": 528, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_10", "check_when": true},
+    {"field_key": "person1.main_caretaker_child_under_19","acroform_name": "16 If you live with at least one child under the age of 19 are you the main person taking care of this child", "page": 7, "x": 512, "y": 528, "font_size": 10, "field_type": "radio", "radio_on_state": "No_11",  "check_when": false},
+
+    {"field_key": "person1.school_or_training",  "acroform_name": "Yes_11",                               "page": 7,  "x": 258, "y": 490, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person1.school_or_training",  "acroform_name": "No If yes please provide the following information", "page": 7, "x": 289, "y": 490, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person1.school_type",         "acroform_name": "CollegeHigher Education",              "page": 7,  "x": 116, "y": 490, "font_size": 10, "field_type": "checkbox", "check_when_value": "college"},
+    {"field_key": "person1.school_type",         "acroform_name": "Vocational",                           "page": 7,  "x": 240, "y": 490, "font_size": 10, "field_type": "checkbox", "check_when_value": "vocational"},
+    {"field_key": "person1.school_type",         "acroform_name": "GED",                                  "page": 7,  "x": 301, "y": 490, "font_size": 10, "field_type": "checkbox", "check_when_value": "ged"},
+    {"field_key": "person1.school_type",         "acroform_name": "Technical Training",                   "page": 7,  "x": 339, "y": 490, "font_size": 10, "field_type": "checkbox", "check_when_value": "technical"},
+
+    {"field_key": "person1.enrollment_status",   "acroform_name": "Full Time",                            "page": 7,  "x": 116, "y": 475, "font_size": 10, "field_type": "checkbox", "check_when_value": "full_time"},
+    {"field_key": "person1.enrollment_status",   "acroform_name": "Half Time",                            "page": 7,  "x": 173, "y": 475, "font_size": 10, "field_type": "checkbox", "check_when_value": "half_time"},
+    {"field_key": "person1.enrollment_status",   "acroform_name": "Less than Half Time",                  "page": 7,  "x": 232, "y": 475, "font_size": 10, "field_type": "checkbox", "check_when_value": "less_than_half_time"},
+
+    {"field_key": "person1.immigration_doc_type","acroform_name": "Document Type",                        "page": 7,  "x": 130, "y": 470, "font_size": 10},
+    {"field_key": "person1.immigration_doc_id",  "acroform_name": "Document ID Number",                   "page": 7,  "x": 307, "y": 470, "font_size": 10},
+
+    {"field_key": "person1.foster_care_after_18","acroform_name": "18 Were you in foster care at age 18 or older", "page": 7, "x": 237, "y": 457, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_12", "check_when": true},
+    {"field_key": "person1.foster_care_after_18","acroform_name": "18 Were you in foster care at age 18 or older", "page": 7, "x": 272, "y": 457, "font_size": 10, "field_type": "radio", "radio_on_state": "No_12",  "check_when": false},
+    {"field_key": "person1.foster_care_entry",   "acroform_name": "a If yes when did you enter foster care", "page": 7, "x": 225, "y": 444, "font_size": 10},
+    {"field_key": "person1.foster_care_exit",    "acroform_name": "b When did you leave foster care",    "page": 7,  "x": 200, "y": 422, "font_size": 10},
+    {"field_key": "person1.foster_care_state",   "acroform_name": "c In which state were you in foster care", "page": 7, "x": 225, "y": 402, "font_size": 10},
+
+    {"field_key": "person1.incarcerated",        "acroform_name": "19 Are you currently incarcerated detained or jailed", "page": 7, "x": 271, "y": 383, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_13", "check_when": true},
+    {"field_key": "person1.incarcerated",        "acroform_name": "19 Are you currently incarcerated detained or jailed", "page": 7, "x": 305, "y": 383, "font_size": 10, "field_type": "radio", "radio_on_state": "No_13",  "check_when": false},
+    {"field_key": "person1.incarceration_date",  "acroform_name": "Date of incarceeration",              "page": 7,  "x": 232, "y": 366, "font_size": 10},
+    {"field_key": "person1.expected_release_date","acroform_name": "Expected Date of release",            "page": 7,  "x": 482, "y": 366, "font_size": 10},
+
+    {"field_key": "person1.served_military",     "acroform_name": "undefined_12",                         "page": 7,  "x": 295, "y": 348, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person1.served_military",     "acroform_name": "undefined_13",                         "page": 7,  "x": 328, "y": 348, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person1.received_benefits_other_state","acroform_name": "undefined_14",                "page": 7,  "x": 360, "y": 331, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person1.received_benefits_other_state","acroform_name": "undefined_15",                "page": 7,  "x": 393, "y": 331, "font_size": 10, "field_type": "checkbox", "check_when": false},
+    {"field_key": "person1.benefits_other_state","acroform_name": "21 Are you currently or did you previously receive benefits in another state Yes No If yes where", "page": 7, "x": 35, "y": 310, "font_size": 10},
+
+    {"field_key": "person1.race_other",          "acroform_name": "Other_2",                              "page": 7,  "x": 428, "y": 200, "font_size": 10},
+
+    {"field_key": "person2.first_name",          "acroform_name": "1 First name_2",                      "page": 8,  "x": 130, "y": 695, "font_size": 10},
+    {"field_key": "person2.middle_name",         "acroform_name": "Middle name_3",                        "page": 8,  "x": 295, "y": 695, "font_size": 10},
+    {"field_key": "person2.last_name",           "acroform_name": "Last name_3",                          "page": 8,  "x": 400, "y": 695, "font_size": 10},
+    {"field_key": "person2.relationship",        "acroform_name": "2 Relationship to you",                "page": 8,  "x": 130, "y": 670, "font_size": 10},
+    {"field_key": "person2.dob",                 "acroform_name": "3 Date of birth mmddyyyy_2",           "page": 8,  "x": 130, "y": 645, "font_size": 10, "date_format": "mm/dd/yyyy"},
+    {"field_key": "person2.ssn",                 "acroform_name": "2_SSN_P2",                             "page": 8,  "x": 320, "y": 620, "font_size": 10},
+    {"field_key": "person2.sex",                 "acroform_name": "4 Sex",                                "page": 8,  "x": 191, "y": 677, "font_size": 10, "field_type": "radio", "radio_on_state": "Male",   "check_when_value": "male",   "use_check_when_value": true},
+    {"field_key": "person2.sex",                 "acroform_name": "4 Sex",                                "page": 8,  "x": 240, "y": 677, "font_size": 10, "field_type": "radio", "radio_on_state": "Female", "check_when_value": "female", "use_check_when_value": true},
+
+    {"field_key": "person2.address_if_different","acroform_name": "6 Does PERSON 2 live at the same address as you Yes No If no list address", "page": 8, "x": 35, "y": 633, "font_size": 10},
+
+    {"field_key": "person2.tax_file_next_year",  "acroform_name": "Yes Please answer questions ac_2",     "page": 8,  "x": 47,  "y": 592, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.tax_file_next_year",  "acroform_name": "No Skip to question c_2",              "page": 8,  "x": 227, "y": 592, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person2.file_jointly_with_spouse","acroform_name": "undefined_20",                     "page": 8,  "x": 228, "y": 579, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.file_jointly_with_spouse","acroform_name": "undefined_21",                     "page": 8,  "x": 263, "y": 579, "font_size": 10, "field_type": "checkbox", "check_when": false},
+    {"field_key": "person2.tax_spouse_name",     "acroform_name": "a Will PERSON 2 file jointly with a spouse Yes No If yes list name of spouse", "page": 8, "x": 34, "y": 557, "font_size": 10},
+
+    {"field_key": "person2.claim_dependents",    "acroform_name": "undefined_22",                         "page": 8,  "x": 306, "y": 543, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.claim_dependents",    "acroform_name": "undefined_23",                         "page": 8,  "x": 341, "y": 543, "font_size": 10, "field_type": "checkbox", "check_when": false},
+    {"field_key": "person2.tax_dependents",      "acroform_name": "b Will PERSON 2 claim any dependents on his or her tax return Yes No If yes list names of dependents", "page": 8, "x": 34, "y": 523, "font_size": 10},
+
+    {"field_key": "person2.claimed_as_dependent","acroform_name": "c Will PERSON 2 be claimed as a dependent on someone elses tax return", "page": 8, "x": 352, "y": 505, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_14", "check_when": true},
+    {"field_key": "person2.claimed_as_dependent","acroform_name": "c Will PERSON 2 be claimed as a dependent on someone elses tax return", "page": 8, "x": 384, "y": 505, "font_size": 10, "field_type": "radio", "radio_on_state": "No_14",  "check_when": false},
+    {"field_key": "person2.tax_filer_name",      "acroform_name": "If yes please list the name of the tax filer_2", "page": 8, "x": 222, "y": 494, "font_size": 10},
+    {"field_key": "person2.tax_filer_relationship","acroform_name": "How is PERSON 2 related to the tax filer", "page": 8, "x": 218, "y": 476, "font_size": 10},
+
+    {"field_key": "person2.married",             "acroform_name": "undefined_24",                         "page": 8,  "x": 145, "y": 453, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.married",             "acroform_name": "undefined_25",                         "page": 8,  "x": 180, "y": 453, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person2.wants_health_coverage","acroform_name": "Yes Answer questions 1024",            "page": 8,  "x": 159, "y": 426, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.wants_health_coverage","acroform_name": "No Skip to the income questions in STEP 3_2", "page": 8, "x": 321, "y": 426, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person2.medical_bills_last_3_months","acroform_name": "10 Does PERSON 2 want help paying for medical bills from the last 3 months", "page": 8, "x": 361, "y": 411, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_15", "check_when": true},
+    {"field_key": "person2.medical_bills_last_3_months","acroform_name": "10 Does PERSON 2 want help paying for medical bills from the last 3 months", "page": 8, "x": 396, "y": 411, "font_size": 10, "field_type": "radio", "radio_on_state": "No_15",  "check_when": false},
+
+    {"field_key": "person2.daily_activity_limitation",  "acroform_name": "Yes Please also complete APPENDIX E_2", "page": 8, "x": 55, "y": 384, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.daily_activity_limitation",  "acroform_name": "No_16",                          "page": 8,  "x": 251, "y": 384, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person2.in_home_or_nursing_home_care","acroform_name": "undefined_26",                  "page": 8,  "x": 56,  "y": 359, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.in_home_or_nursing_home_care","acroform_name": "undefined_27",                  "page": 8,  "x": 252, "y": 359, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person2.pregnant",            "acroform_name": "13 Is PERSON 2 pregnant",              "page": 8,  "x": 153, "y": 346, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_16", "check_when": true},
+    {"field_key": "person2.pregnant",            "acroform_name": "13 Is PERSON 2 pregnant",              "page": 8,  "x": 188, "y": 346, "font_size": 10, "field_type": "radio", "radio_on_state": "No_17",  "check_when": false},
+    {"field_key": "person2.pregnant_babies",     "acroform_name": "babies expected",                      "page": 8,  "x": 310, "y": 337, "font_size": 10},
+    {"field_key": "person2.pregnant_due_date",   "acroform_name": "End date",                             "page": 8,  "x": 501, "y": 337, "font_size": 10},
+
+    {"field_key": "person2.recently_pregnant",   "acroform_name": "14 If not currently pregnant was PERSON 2 pregnant recently", "page": 8, "x": 303, "y": 321, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_17", "check_when": true},
+    {"field_key": "person2.recently_pregnant",   "acroform_name": "14 If not currently pregnant was PERSON 2 pregnant recently", "page": 8, "x": 338, "y": 321, "font_size": 10, "field_type": "radio", "radio_on_state": "No_18",  "check_when": false},
+
+    {"field_key": "person2.us_citizen_or_national",    "acroform_name": "undefined_28",                   "page": 8,  "x": 239, "y": 296, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.us_citizen_or_national",    "acroform_name": "undefined_29",                   "page": 8,  "x": 274, "y": 296, "font_size": 10, "field_type": "checkbox", "check_when": false},
+    {"field_key": "person2.naturalized_or_derived_citizen","acroform_name": "undefined_30",               "page": 8,  "x": 269, "y": 284, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.naturalized_or_derived_citizen","acroform_name": "undefined_31",               "page": 8,  "x": 306, "y": 284, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person2.eligible_immigration_status","acroform_name": "Yes Fill in PERSON 2s document type and ID number below", "page": 8, "x": 56, "y": 257, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.eligible_immigration_status","acroform_name": "No_19",                          "page": 8,  "x": 336, "y": 257, "font_size": 10, "field_type": "checkbox", "check_when": false},
+    {"field_key": "person2.immigration_doc_type","acroform_name": "Document Type_2",                      "page": 8,  "x": 34,  "y": 233, "font_size": 10},
+    {"field_key": "person2.immigration_doc_id",  "acroform_name": "Document ID Number_2",                 "page": 8,  "x": 318, "y": 233, "font_size": 10},
+
+    {"field_key": "person2.lived_us_since_1996", "acroform_name": "undefined_32",                         "page": 8,  "x": 47,  "y": 205, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.lived_us_since_1996", "acroform_name": "undefined_33",                         "page": 8,  "x": 82,  "y": 205, "font_size": 10, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "person2.veteran_or_active_duty_family","acroform_name": "or an activeduty member of the US military", "page": 8, "x": 324, "y": 193, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_18", "check_when": true},
+    {"field_key": "person2.veteran_or_active_duty_family","acroform_name": "or an activeduty member of the US military", "page": 8, "x": 358, "y": 193, "font_size": 10, "field_type": "radio", "radio_on_state": "No_20",  "check_when": false},
+
+    {"field_key": "person2.main_caretaker_child_under_19","acroform_name": "17 If PERSON 2 lives with at least one child under the age of 19 is he or she the main person taking care of this child", "page": 8, "x": 51, "y": 162, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_19", "check_when": true},
+    {"field_key": "person2.main_caretaker_child_under_19","acroform_name": "17 If PERSON 2 lives with at least one child under the age of 19 is he or she the main person taking care of this child", "page": 8, "x": 86, "y": 162, "font_size": 10, "field_type": "radio", "radio_on_state": "No_21",  "check_when": false},
+
+    {"field_key": "person2.school_or_training",  "acroform_name": "Yes_20",                               "page": 8,  "x": 279, "y": 146, "font_size": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "person2.school_or_training",  "acroform_name": "No If yes please provide the following information_2", "page": 8, "x": 315, "y": 146, "font_size": 10, "field_type": "checkbox", "check_when": false},
+    {"field_key": "person2.school_type",         "acroform_name": "CollegeHigher Education_2",            "page": 8,  "x": 137, "y": 133, "font_size": 10, "field_type": "checkbox", "check_when_value": "college"},
+    {"field_key": "person2.school_type",         "acroform_name": "Vocational_2",                         "page": 8,  "x": 258, "y": 133, "font_size": 10, "field_type": "checkbox", "check_when_value": "vocational"},
+    {"field_key": "person2.school_type",         "acroform_name": "GED_2",                                "page": 8,  "x": 319, "y": 133, "font_size": 10, "field_type": "checkbox", "check_when_value": "ged"},
+    {"field_key": "person2.school_type",         "acroform_name": "Technical Training_2",                 "page": 8,  "x": 354, "y": 133, "font_size": 10, "field_type": "checkbox", "check_when_value": "technical"},
+    {"field_key": "person2.enrollment_status",   "acroform_name": "Full Time_2",                          "page": 8,  "x": 139, "y": 116, "font_size": 10, "field_type": "checkbox", "check_when_value": "full_time"},
+    {"field_key": "person2.enrollment_status",   "acroform_name": "Half Time_2",                          "page": 8,  "x": 193, "y": 116, "font_size": 10, "field_type": "checkbox", "check_when_value": "half_time"},
+    {"field_key": "person2.enrollment_status",   "acroform_name": "Less than Half Time_2",                "page": 8,  "x": 250, "y": 116, "font_size": 10, "field_type": "checkbox", "check_when_value": "less_than_half_time"},
+
+    {"field_key": "person2.foster_care_entry",   "acroform_name": "a If yes when did PERSON 2 enter foster care", "page": 9, "x": 130, "y": 695, "font_size": 10},
+    {"field_key": "person2.foster_care_exit",    "acroform_name": "b When did PERSON 2 leave foster care", "page": 9, "x": 130, "y": 675, "font_size": 10},
+    {"field_key": "person2.foster_care_state",   "acroform_name": "c In which state was PERSON 2 in foster care", "page": 9, "x": 130, "y": 655, "font_size": 10},
+    {"field_key": "person2.incarceration_date",  "acroform_name": "If yes please provide date of incarceration", "page": 9, "x": 130, "y": 620, "font_size": 10},
+    {"field_key": "person2.incarceration_release","acroform_name": "Expected date of release optional",   "page": 9,  "x": 350, "y": 620, "font_size": 10},
+    {"field_key": "person2.benefits_other_state","acroform_name": "If yes where",                         "page": 9,  "x": 350, "y": 590, "font_size": 10},
+    {"field_key": "person2.race_other",          "acroform_name": "Other_4",                              "page": 9,  "x": 130, "y": 280, "font_size": 10},
+
+    {"field_key": "income.has_employment",        "acroform_name": "If anyone in the household is currently employed tell us about the income", "page": 10, "field_type": "checkbox", "check_when_value": "employed"},
+    {"field_key": "income.has_employment",        "acroform_name": "undefined_38",                         "page": 10, "field_type": "checkbox", "check_when_value": "self_employed"},
+    {"field_key": "income.has_employment",        "acroform_name": "undefined_39",                         "page": 10, "field_type": "checkbox", "check_when_value": "not_employed"},
+
+    {"field_key": "income.emp1_person",           "acroform_name": "PersonRow1",                           "page": 10, "x": 60,  "y": 695, "font_size": 10},
+    {"field_key": "income.emp1_employer",         "acroform_name": "Employer Name and AddressRow1",        "page": 10, "x": 150, "y": 695, "font_size": 10},
+    {"field_key": "income.emp1_gross_wages",      "acroform_name": "Gross Income Before Taxes per Pay PeriodRow1", "page": 10, "x": 380, "y": 695, "font_size": 10},
+    {"field_key": "income.emp1_frequency",        "acroform_name": "How Often weekly biweekly monthlyRow1", "page": 10, "x": 470, "y": 695, "font_size": 10},
+    {"field_key": "income.emp2_person",           "acroform_name": "PersonRow2",                           "page": 10, "x": 60,  "y": 670, "font_size": 10},
+    {"field_key": "income.emp2_employer",         "acroform_name": "Employer Name and AddressRow2",        "page": 10, "x": 150, "y": 670, "font_size": 10},
+    {"field_key": "income.emp2_gross_wages",      "acroform_name": "Gross Income Before Taxes per Pay PeriodRow2", "page": 10, "x": 380, "y": 670, "font_size": 10},
+    {"field_key": "income.emp2_frequency",        "acroform_name": "How Often weekly biweekly monthlyRow2", "page": 10, "x": 470, "y": 670, "font_size": 10},
+
+    {"field_key": "income.self_emp1_person",      "acroform_name": "PersonRow1_2",                         "page": 10, "x": 60,  "y": 645, "font_size": 10},
+    {"field_key": "income.self_emp1_type",        "acroform_name": "Type of WorkRow1",                     "page": 10, "x": 150, "y": 645, "font_size": 10},
+    {"field_key": "income.self_emp1_net_monthly", "acroform_name": "Gross Income Before Taxes per Pay PeriodRow1_2", "page": 10, "x": 380, "y": 645, "font_size": 10},
+    {"field_key": "income.self_emp2_person",      "acroform_name": "PersonRow2_2",                         "page": 10, "x": 60,  "y": 620, "font_size": 10},
+    {"field_key": "income.self_emp2_type",        "acroform_name": "Type of WorkRow2",                     "page": 10, "x": 150, "y": 620, "font_size": 10},
+    {"field_key": "income.self_emp2_net_monthly", "acroform_name": "Gross Income Before Taxes per Pay PeriodRow2_2", "page": 10, "x": 380, "y": 620, "font_size": 10},
+
+    {"field_key": "income.left_job_past_90_days",          "acroform_name": "undefined_40",                     "page": 10, "field_type": "checkbox", "check_when": true},
+    {"field_key": "income.left_job_past_90_days",          "acroform_name": "undefined_41",                     "page": 10, "field_type": "checkbox", "check_when": false},
+    {"field_key": "income.left_job_who_and_when",          "acroform_name": "2 Did anyone in the household leave a job in the past 90 days Yes No If yes list individuals", "page": 10},
+
+    {"field_key": "income.has_other_income",               "acroform_name": "YNone",                            "page": 10, "field_type": "text", "write_value_when": false, "static_value": "Y"},
+    {"field_key": "income.has_other_income",               "acroform_name": "NNone",                            "page": 10, "field_type": "text", "write_value_when": true,  "static_value": "N"},
+
+    {"field_key": "income.other_ssdi",                     "acroform_name": "YSocial Security Disability SSDI", "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_ssdi",                     "acroform_name": "NSocial Security Disability SSDI", "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_ssdi",                     "acroform_name": "PersonSocial Security Disability SSDI", "page": 10},
+    {"field_key": "income.other_ssdi",                     "acroform_name": "AmountSocial Security Disability SSDI", "page": 10},
+
+    {"field_key": "income.other_social_security_retirement","acroform_name": "YSocial Security Retirement",      "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_social_security_retirement","acroform_name": "NSocial Security Retirement",      "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_social_security_retirement","acroform_name": "PersonSocial Security Retirement", "page": 10},
+    {"field_key": "income.other_social_security_retirement","acroform_name": "AmountSocial Security Retirement", "page": 10},
+
+    {"field_key": "income.other_ss_survivors",             "acroform_name": "YSocial Security Survivors",       "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_ss_survivors",             "acroform_name": "NSocial Security Survivors",       "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_ss_survivors",             "acroform_name": "PersonSocial Security Survivors",  "page": 10},
+    {"field_key": "income.other_ss_survivors",             "acroform_name": "AmountSocial Security Survivors",  "page": 10},
+
+    {"field_key": "income.other_unemployment",             "acroform_name": "YUnemployment Compensation",       "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_unemployment",             "acroform_name": "NUnemployment Compensation",       "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_unemployment",             "acroform_name": "PersonUnemployment Compensation",  "page": 10},
+    {"field_key": "income.other_unemployment",             "acroform_name": "AmountUnemployment Compensation",  "page": 10},
+
+    {"field_key": "income.other_pension_retirement",       "acroform_name": "YPensions",                        "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_pension_retirement",       "acroform_name": "NPensions",                        "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_pension_retirement",       "acroform_name": "PersonPensions",                   "page": 10},
+    {"field_key": "income.other_pension_retirement",       "acroform_name": "AmountPensions",                   "page": 10},
+
+    {"field_key": "income.other_spousal_support",          "acroform_name": "YSpousal Support",                 "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_spousal_support",          "acroform_name": "NSpousal Support",                 "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_spousal_support",          "acroform_name": "PersonSpousal Support",            "page": 10},
+    {"field_key": "income.other_spousal_support",          "acroform_name": "AmountSpousal Support",            "page": 10},
+
+    {"field_key": "income.other_railroad_retirement",      "acroform_name": "YRailroad Retirement",             "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_railroad_retirement",      "acroform_name": "NRailroad Retirement",             "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_railroad_retirement",      "acroform_name": "PersonRailroad Retirement",        "page": 10},
+    {"field_key": "income.other_railroad_retirement",      "acroform_name": "AmountRailroad Retirement",        "page": 10},
+
+    {"field_key": "income.other_contributions_from_others","acroform_name": "YContributions from Others",        "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_contributions_from_others","acroform_name": "NContributions from Others",        "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_contributions_from_others","acroform_name": "PersonContributions from Others",   "page": 10},
+    {"field_key": "income.other_contributions_from_others","acroform_name": "AmountContributions from Others",   "page": 10},
+
+    {"field_key": "income.other_investments",              "acroform_name": "YInvestments",                     "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_investments",              "acroform_name": "NInvestments",                     "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_investments",              "acroform_name": "PersonInvestments",                "page": 10},
+    {"field_key": "income.other_investments",              "acroform_name": "AmountInvestments",                "page": 10},
+
+    {"field_key": "income.other_scholarships",             "acroform_name": "YScholarshipsGrants",              "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_scholarships",             "acroform_name": "NScholarshipsGrants",              "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_scholarships",             "acroform_name": "PersonScholarshipsGrants",         "page": 10},
+    {"field_key": "income.other_scholarships",             "acroform_name": "AmountScholarshipsGrants",         "page": 10},
+
+    {"field_key": "income.other_capital_gains",            "acroform_name": "YCapital Gains",                   "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_capital_gains",            "acroform_name": "NCapital Gains",                   "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_capital_gains",            "acroform_name": "PersonCapital Gains",              "page": 10},
+    {"field_key": "income.other_capital_gains",            "acroform_name": "AmountCapital Gains",              "page": 10},
+
+    {"field_key": "income.other_farming_fishing",          "acroform_name": "YGross Farming",                   "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_farming_fishing",          "acroform_name": "NGross Farming",                   "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_farming_fishing",          "acroform_name": "PersonGross Farming",              "page": 10},
+    {"field_key": "income.other_farming_fishing",          "acroform_name": "AmountGross Farming",              "page": 10},
+
+    {"field_key": "income.other_rental",                   "acroform_name": "YGross Rental",                    "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_rental",                   "acroform_name": "NGross Rental",                    "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_rental",                   "acroform_name": "PersonGross Rental",               "page": 10},
+    {"field_key": "income.other_rental",                   "acroform_name": "AmountGross Rental",               "page": 10},
+
+    {"field_key": "income.other_royalties",                "acroform_name": "YRoyalties",                       "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_royalties",                "acroform_name": "NRoyalties",                       "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_royalties",                "acroform_name": "PersonRoyalties",                  "page": 10},
+    {"field_key": "income.other_royalties",                "acroform_name": "AmountRoyalties",                  "page": 10},
+
+    {"field_key": "income.other_other",                    "acroform_name": "YOther  Type",                     "page": 10, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.other_other",                    "acroform_name": "NOther  Type",                     "page": 10, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.other_other",                    "acroform_name": "PersonOther  Type",                "page": 10},
+    {"field_key": "income.other_other",                    "acroform_name": "AmountOther  Type",                "page": 10},
+
+    {"field_key": "income.yearly_income_this_year", "acroform_name": "Total Income This YearRow1",           "page": 11},
+    {"field_key": "income.yearly_income_next_year", "acroform_name": "Total Income Next YearRow1",           "page": 11},
+
+    {"field_key": "income.expense_dependent_care", "acroform_name": "YDependent Care Adult Child or Elder Care",      "page": 11, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.expense_dependent_care", "acroform_name": "NDependent Care Adult Child or Elder Care",      "page": 11, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.expense_dependent_care", "acroform_name": "AmountDependent Care Adult Child or Elder Care", "page": 11},
+
+    {"field_key": "income.expense_spousal_support_paid", "acroform_name": "YSupport Expenses ChildSpousal Support",         "page": 11, "field_type": "text", "write_nonempty": "Y"},
+    {"field_key": "income.expense_spousal_support_paid", "acroform_name": "NSupport Expenses ChildSpousal Support",         "page": 11, "field_type": "text", "write_empty": "N"},
+    {"field_key": "income.expense_spousal_support_paid", "acroform_name": "AmountSupport Expenses ChildSpousal Support",    "page": 11},
+
+    {"field_key": "ai_an.person1_is_ai_an",      "acroform_name": "Yes Please also complete APPENDIX B", "page": 11, "field_type": "checkbox", "check_when": true},
+    {"field_key": "ai_an.person1_is_ai_an",      "acroform_name": "No Skip to STEP 5",                   "page": 11, "field_type": "checkbox", "check_when": false},
+
+    {"field_key": "health_coverage.medicaid_individuals",    "acroform_name": "Medicaid",                                              "page": 11, "field_type": "checkbox", "write_nonempty": "On"},
+    {"field_key": "health_coverage.medicaid_individuals",    "acroform_name": "Individuals Receiving This CoverageMedicaid",           "page": 11},
+    {"field_key": "health_coverage.medicare_individuals",    "acroform_name": "Medicare",                                              "page": 11, "field_type": "checkbox", "write_nonempty": "On"},
+    {"field_key": "health_coverage.medicare_individuals",    "acroform_name": "Individuals Receiving This CoverageMedicare",           "page": 11},
+    {"field_key": "health_coverage.va_individuals",          "acroform_name": "VA Health Care Programs",                               "page": 11, "field_type": "checkbox", "write_nonempty": "On"},
+    {"field_key": "health_coverage.va_individuals",          "acroform_name": "Individuals Receiving This CoverageVA Health Care Programs", "page": 11},
+    {"field_key": "health_coverage.peace_corps_individuals", "acroform_name": "Peace Corps",                                          "page": 11, "field_type": "checkbox", "write_nonempty": "On"},
+    {"field_key": "health_coverage.peace_corps_individuals", "acroform_name": "Individuals Receiving This CoveragePeace Corps",       "page": 11},
+    {"field_key": "health_coverage.tricare_individuals",     "acroform_name": "Tricare",                                              "page": 11, "field_type": "checkbox", "write_nonempty": "On"},
+    {"field_key": "health_coverage.tricare_individuals",     "acroform_name": "Individuals Receiving This CoverageTricare Do not check if you have direct care or Line of Duty", "page": 11},
+
+    {"field_key": "health_coverage.person1_employer_name",         "acroform_name": "Name of health insurance",  "page": 11},
+    {"field_key": "health_coverage.person1_employer_policy_number","acroform_name": "Policy Number",             "page": 11},
+
+    {"field_key": "review.signature_name",        "acroform_name": null,                                   "page": 13, "x": 36, "y": 308, "font_size": 11},
+    {"field_key": "review.signature_date",        "acroform_name": "Date mmddyyyy",                        "page": 13, "date_format": "mm/dd/yyyy"}
+  ]
+}

@@ -1,0 +1,31 @@
+---
+description: Frontend (Next.js 14 App Router / React 18 / TypeScript strict / Tailwind) conventions.
+globs: frontend/**
+---
+
+# Frontend conventions (path-scoped)
+
+Match the existing UI. Full reference:
+[`docs/ai/FRONTEND-CONVENTIONS.md`](mdc:docs/ai/FRONTEND-CONVENTIONS.md).
+
+- **App Router** under `frontend/app/`. Interactive pages are **client
+  components** (`"use client"`) — they hold form state and use voice/browser APIs.
+  Root layout [`app/layout.tsx`](mdc:frontend/app/layout.tsx) owns header/footer +
+  the disclaimer; global styles in `app/globals.css`.
+- **Backend access ONLY via** [`lib/api.ts`](mdc:frontend/lib/api.ts). Never
+  `fetch` the backend directly from a component — add a typed method to `api`
+  returning a type from [`lib/types.ts`](mdc:frontend/lib/types.ts). Wrap calls in
+  `try/catch`, set an `error` state, show a friendly message.
+- **Types:** all shared shapes live in `lib/types.ts`; don't inline interfaces for
+  shared data. `strict: true`, no implicit `any`, `@/*` alias → repo root.
+- **Styling:** Tailwind utilities + shared classes in `globals.css` (`.bubble-ai`,
+  `.bubble-user`, `.ai-orb`, pills/badges) and the `ai-*`/`surface-*` palette in
+  `tailwind.config.ts`. **No external UI library.**
+- **State:** `useState`/`useRef` only — no Redux/Zustand. Navigate via
+  `useRouter()`/`useParams()`. The `sessionId` is the spine across pages.
+- **Voice** lives in [`lib/useVoice.ts`](mdc:frontend/lib/useVoice.ts); it's **off
+  for sensitive non-date fields** — keep that guard. Typing must always work; TTS
+  degrades to browser `speechSynthesis`.
+- **Don't regress** the disclaimer, the MOCK-mode banner, or icon-button
+  `aria-label`s. Only `NEXT_PUBLIC_*` env vars reach the browser.
+- Gate: `npm run build` (typecheck) + `npm run lint`. No frontend test runner yet.

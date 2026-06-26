@@ -1,0 +1,32 @@
+---
+description: AI / LLM integration rules — single factory + mandatory rule-based fallback.
+globs: backend/app/ai/**
+---
+
+# AI / LLM integration (path-scoped)
+
+The "AI" is narrow NLP helpers around a deterministic form engine. The LLM is
+**optional** — with no API key the app must run fully on rule-based logic. Full
+reference: [`docs/ai/AI-LLM-INTEGRATION.md`](mdc:docs/ai/AI-LLM-INTEGRATION.md).
+
+- **Single entry point:** [`app/ai/llm.py`](mdc:backend/app/ai/llm.py) —
+  `get_chat_model()`, `structured_model(schema)`, `ai_enabled()`. **Never
+  construct `ChatOpenAI` (or any provider client) anywhere else.** All three
+  return `None`/`False` when no key or construction fails.
+- **Provider is OpenAI** via `langchain-openai` (`LLM_PROVIDER`, `OPENAI_MODEL`,
+  `OPENAI_API_KEY`, `OPENAI_TEMPERATURE`). Not Claude — README is stale.
+- **Mandatory fallback shape** for every helper: deterministic shortcuts →
+  LLM path *only if `model is not None`*, wrapped in `try/except` that logs a
+  warning and falls through → deterministic `_rule_based(...)` that **always**
+  runs and never raises. See `answer_extractor.py`, `question_rewriter.py`,
+  `help_intent.py`.
+- **Determinism:** `temperature=0.0` for extraction/validation. Prefer
+  `structured_model` (structured output) over parsing free text. Messages are
+  `[("system", ...), ("human", ...)]` tuples.
+- 🔒 **Never send `sensitive`-flagged field values to the LLM** — the code guards
+  this; preserve it.
+- `langgraph_flow.py` has a `StateGraph` path + a synchronous fallback
+  (`_run_synchronous`); keep both producing the same result.
+- New provider (e.g. Claude) goes **only** inside `get_chat_model()` — branch on
+  `LLM_PROVIDER`, add the SDK to `requirements.txt`, keep everything downstream
+  unchanged and the no-key fallback intact.

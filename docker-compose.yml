@@ -1,0 +1,54 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15
+    container_name: ai_assistant_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ai_assistant
+      POSTGRES_PASSWORD: ai_assistant
+      POSTGRES_DB: ai_assistant
+    ports:
+      - "5499:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: ai_assistant_backend
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      APP_ENV: development
+      APP_DATABASE_URL: postgresql+psycopg://ai_assistant:ai_assistant@db:5432/ai_assistant
+      USE_MOCK_EMR: "true"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - pdf_data:/app/app/pdf/generated_pdfs
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ai_assistant_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  pgdata:
+  pdf_data:
