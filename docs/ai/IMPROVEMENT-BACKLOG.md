@@ -1,8 +1,16 @@
 # Improvement backlog (found during the deep review)
 
 Prioritized, agent-actionable. Each item: what, why, where, rough size.
-**Nothing here has been changed yet** — these are proposals. Don't action a
-SECURITY item without confirming the change is wanted in the target environment.
+
+> **Platform build status (Phases A–H).** Several items are now addressed:
+> **I-3** admin defaults fail closed off-dev (`app/admin/router.py`); **I-4** CORS
+> locked off-dev via `CORS_ALLOWED_ORIGINS` (`app/main.py`); **I-5** Alembic wired
+> (`backend/alembic/`); **I-6** docs standardized on port 5499; **I-17** CI added
+> (`.github/workflows/ci.yml`, pytest on 3.11 + build/lint + secret-scan); a frontend
+> ESLint config now exists; and the patient-search **PHI masking** gap (found during
+> the build) is fixed at the EMR-adapter boundary (`app/emr/masking.py`). Remaining
+> items below still stand. Don't action a SECURITY item against a real environment
+> without confirming it's wanted there.
 
 ## P0 — correctness / security (do before any real deployment)
 

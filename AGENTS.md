@@ -92,9 +92,19 @@ Defaults: `USE_MOCK_EMR=true` (no real EMR needed), `OPENAI_API_KEY` empty
 - A manual smoke through the affected flow (mock EMR, no AI key) when the
   form/session/PDF path changed.
 
+## Now a builder platform
+
+This is no longer a single hardcoded form. It is a **DB-backed, UI-managed multi-form
+builder**: admins create forms + their knowledgebase, prompts, skills, and completion
+workflows in `/admin`; patients pick a published form and complete it. Read
+[`docs/ai/PLATFORM.md`](./docs/ai/PLATFORM.md) for the architecture, entities, and API.
+
 ## Scope guardrails
 
-Out of scope **by design** (don't add without explicit ask): Playwright/browser
-automation, online-portal filling, government-portal submission, multi-person
-household (Person 1 only for now). Prefer the smallest change that fits existing
-patterns; flag anything that touches security, auth, CORS, or the data model.
+In scope now (added via the platform build): **multiple forms** (form packs + builder),
+and **web/portal submission** as an opt-in completion task — but web submission is
+**PHI egress** and is gated (per-form opt-in, human approval gate, audited, safe dry-run
+default; real portals need a per-portal compliance review). Still out of scope without
+an explicit ask: multi-person household (Person 1 only). Prefer the smallest change that
+fits existing patterns; flag anything that touches security, auth, CORS, or the data
+model.

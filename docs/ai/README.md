@@ -7,8 +7,11 @@ point here so there's **one source of truth**.
 
 ## Read order
 
-1. [ARCHITECTURE.md](./ARCHITECTURE.md) — what the app is, the module map, the
-   request flow, the data model, run profiles.
+0. [PLATFORM.md](./PLATFORM.md) — **start here.** The app is now a DB-backed,
+   UI-managed multi-form builder; this is the current architecture (entities, the
+   builder, workflows, web submission). Supersedes the single-form framing below.
+1. [ARCHITECTURE.md](./ARCHITECTURE.md) — original single-form module map, request
+   flow, data model, run profiles (still accurate for the engine internals).
 2. [SECURITY-AND-PHI.md](./SECURITY-AND-PHI.md) — **non-negotiable** rules. This
    is a healthcare app with PHI; read before writing code.
 3. [BACKEND-CONVENTIONS.md](./BACKEND-CONVENTIONS.md) — FastAPI/Python style.

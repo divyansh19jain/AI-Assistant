@@ -126,6 +126,28 @@ class WorkflowDefUpdate(BaseModel):
     workflow: dict
 
 
+class FormImport(BaseModel):
+    """A portable form bundle (the export format) for importing a form into the DB."""
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    form_id: str
+    title: str
+    version: str = "1.0"
+    output_targets: list[str] = ["pdf"]
+    form_schema: dict = Field(alias="schema")
+    prompt: dict | None = None
+    voice: dict | None = None
+    workflow: dict | None = None
+
+    @field_validator("form_id")
+    @classmethod
+    def _valid_form_id(cls, v: str) -> str:
+        if not _FORM_ID_RE.match(v):
+            raise ValueError("form_id must be 2-64 chars of letters, digits, '_' or '-'")
+        return v
+
+
 # ──────────────────────────────── helpers ────────────────────────────────
 def _targets_to_list(value: str | None) -> list[str]:
     return value.split(",") if value else ["pdf"]
@@ -352,3 +374,49 @@ def delete_form(
     db.delete(row)
     db.commit()
     cache.drop(form_id)
+
+
+@router.get("/{form_id}/export")
+def export_form(
+    form_id: str,
+    _admin: Annotated[str, Depends(_verify_token)],
+    db: Session = Depends(get_db),
+) -> dict:
+    """Export a form as a portable bundle (re-importable via POST /api/admin/forms/import)."""
+    row = _get_or_404(db, form_id)
+    return {
+        "form_id": row.form_id,
+        "title": row.title,
+        "version": row.version,
+        "output_targets": _targets_to_list(row.output_targets),
+        "schema": json.loads(row.schema_json),
+        "prompt": json.loads(row.prompt_json) if row.prompt_json else None,
+        "voice": json.loads(row.voice_json) if row.voice_json else None,
+        "workflow": json.loads(row.workflow_json) if row.workflow_json else None,
+    }
+
+
+@router.post("/import", response_model=FormDetail, status_code=201)
+def import_form(
+    body: FormImport,
+    _admin: Annotated[str, Depends(_verify_token)],
+    db: Session = Depends(get_db),
+) -> FormDetail:
+    """Create a (draft) form from an exported bundle."""
+    if db.query(Form).filter(Form.form_id == body.form_id).first() is not None:
+        raise HTTPException(status_code=409, detail=f"Form {body.form_id!r} already exists")
+    row = Form(
+        form_id=body.form_id,
+        title=body.title,
+        version=body.version,
+        status="draft",
+        output_targets=",".join(body.output_targets),
+        schema_json=json.dumps(body.form_schema),
+        prompt_json=json.dumps(body.prompt) if body.prompt else None,
+        voice_json=json.dumps(body.voice) if body.voice else None,
+        workflow_json=json.dumps(body.workflow) if body.workflow else None,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return _to_detail(row)

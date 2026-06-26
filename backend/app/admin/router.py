@@ -46,6 +46,11 @@ def _verify_token(credentials: Annotated[HTTPAuthorizationCredentials, Depends(b
 @router.post("/login")
 def admin_login(body: LoginRequest) -> dict:
     cfg = get_settings()
+    # Fail closed off dev: insecure built-in defaults must be overridden by env.
+    if cfg.APP_ENV != "development" and (
+        cfg.ADMIN_PASSWORD == "admin1234" or cfg.ADMIN_JWT_SECRET == "change-me-in-production"
+    ):
+        raise HTTPException(status_code=503, detail="Admin auth is not configured for this environment")
     if body.username != cfg.ADMIN_USERNAME or body.password != cfg.ADMIN_PASSWORD:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
     token = _issue_token(body.username)

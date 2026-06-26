@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     ADMIN_JWT_SECRET: str = "change-me-in-production"
     ADMIN_JWT_EXPIRE_MINUTES: int = 480
 
+    # Comma-separated allowed CORS origins used when APP_ENV != "development".
+    # In development the permissive localhost rules apply; off dev, only these origins.
+    CORS_ALLOWED_ORIGINS: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

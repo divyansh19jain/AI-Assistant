@@ -150,3 +150,21 @@ def test_prompt_field_override_changes_question(client):
     )
     s2 = client.post("/api/session/create", json={"form_id": "PF", "manual_mode": True}).json()
     assert s2["next_question"]["question"] == "Your full legal name?"
+
+
+def test_export_import_roundtrip(client):
+    h = _auth(client)
+    client.post("/api/admin/forms", headers=h, json={"form_id": "EXP", "title": "Exp"})
+
+    bundle = client.get("/api/admin/forms/EXP/export", headers=h).json()
+    assert bundle["form_id"] == "EXP"
+    assert "schema" in bundle and isinstance(bundle["schema"]["sections"], list)
+
+    # Re-import under a new id.
+    bundle["form_id"] = "EXP2"
+    r = client.post("/api/admin/forms/import", headers=h, json=bundle)
+    assert r.status_code == 201, r.text
+    assert r.json()["form_id"] == "EXP2"
+
+    # Importing the same id again conflicts.
+    assert client.post("/api/admin/forms/import", headers=h, json=bundle).status_code == 409
