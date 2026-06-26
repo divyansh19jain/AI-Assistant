@@ -29,9 +29,15 @@ TestingSession = sessionmaker(bind=TEST_ENGINE, autocommit=False, autoflush=Fals
 
 @pytest.fixture(autouse=True)
 def setup_db():
+    # The form schema cache (app/forms/cache.py) is process-global; clear it around each
+    # test so a form published in one test cannot leak into the next.
+    from app.forms import cache as form_cache
+
+    form_cache.clear()
     Base.metadata.create_all(bind=TEST_ENGINE)
     yield
     Base.metadata.drop_all(bind=TEST_ENGINE)
+    form_cache.clear()
 
 
 @pytest.fixture

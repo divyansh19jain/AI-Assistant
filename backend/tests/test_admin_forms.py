@@ -1,0 +1,107 @@
+"""Tests for the builder forms CRUD API (app/admin/forms_router.py).
+
+Covers the headline loop: create a form in the (admin) builder -> publish it ->
+it appears in the public picker AND is runnable in the patient flow. Plus auth,
+schema validation, conflict, and delete.
+
+Uses the default admin credentials (admin/admin1234) via the login endpoint; never
+real PHI.
+"""
+
+
+def _auth(client) -> dict:
+    """Log in with the default admin creds and return an Authorization header."""
+    r = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"})
+    assert r.status_code == 200, r.text
+    return {"Authorization": f"Bearer {r.json()['token']}"}
+
+
+def test_forms_crud_requires_auth(client):
+    # No bearer token -> rejected (HTTPBearer auto_error -> 403; expired/invalid -> 401).
+    assert client.get("/api/admin/forms").status_code in (401, 403)
+    assert client.post("/api/admin/forms", json={"form_id": "X", "title": "X"}).status_code in (401, 403)
+
+
+def test_create_publish_run_loop(client):
+    h = _auth(client)
+
+    # 1. create -> draft, with a default one-section schema (JSON key is "schema")
+    r = client.post("/api/admin/forms", headers=h, json={"form_id": "TEST_FORM", "title": "Test Builder Form"})
+    assert r.status_code == 201, r.text
+    detail = r.json()
+    assert detail["status"] == "draft"
+    assert isinstance(detail["schema"]["sections"], list)
+
+    # 2. a draft is NOT offered in the public patient picker
+    public_ids = [f["form_id"] for f in client.get("/api/forms").json()["forms"]]
+    assert "TEST_FORM" not in public_ids
+
+    # 3. publish
+    r = client.post("/api/admin/forms/TEST_FORM/publish", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["status"] == "published"
+
+    # 4. now it IS in the public picker
+    public_ids = [f["form_id"] for f in client.get("/api/forms").json()["forms"]]
+    assert "TEST_FORM" in public_ids
+
+    # 5. and it is runnable end-to-end — the patient flow loads its schema from the cache
+    r = client.post("/api/session/create", json={"form_id": "TEST_FORM", "manual_mode": True})
+    assert r.status_code == 200, r.text
+    assert r.json()["form_id"] == "TEST_FORM"
+
+
+def test_update_schema_reflected(client):
+    h = _auth(client)
+    client.post("/api/admin/forms", headers=h, json={"form_id": "F2", "title": "F2"})
+    new_schema = {
+        "form_id": "F2",
+        "form_title": "F2",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s1",
+                "section_title": "S1",
+                "fields": [
+                    {
+                        "field_key": "a.b",
+                        "label": "B",
+                        "section": "s1",
+                        "type": "text",
+                        "required": True,
+                        "question_text": "What is B?",
+                    }
+                ],
+            }
+        ],
+    }
+    r = client.put("/api/admin/forms/F2/schema", headers=h, json={"schema": new_schema})
+    assert r.status_code == 200, r.text
+    assert r.json()["schema"]["sections"][0]["fields"][0]["field_key"] == "a.b"
+
+
+def test_invalid_schema_rejected(client):
+    h = _auth(client)
+    client.post("/api/admin/forms", headers=h, json={"form_id": "F3", "title": "F3"})
+    # A schema with no 'sections' list is structurally invalid -> 422.
+    r = client.put("/api/admin/forms/F3/schema", headers=h, json={"schema": {"nope": 1}})
+    assert r.status_code == 422
+
+
+def test_duplicate_create_conflict(client):
+    h = _auth(client)
+    assert client.post("/api/admin/forms", headers=h, json={"form_id": "F4", "title": "F4"}).status_code == 201
+    assert client.post("/api/admin/forms", headers=h, json={"form_id": "F4", "title": "again"}).status_code == 409
+
+
+def test_invalid_form_id_rejected(client):
+    h = _auth(client)
+    r = client.post("/api/admin/forms", headers=h, json={"form_id": "has spaces!", "title": "X"})
+    assert r.status_code == 422
+
+
+def test_delete_form(client):
+    h = _auth(client)
+    client.post("/api/admin/forms", headers=h, json={"form_id": "F5", "title": "F5"})
+    assert client.delete("/api/admin/forms/F5", headers=h).status_code == 204
+    assert client.get("/api/admin/forms/F5", headers=h).status_code == 404
