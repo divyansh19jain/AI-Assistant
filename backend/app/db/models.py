@@ -106,6 +106,23 @@ class KbChunk(Base):
     document: Mapped["KbDocument"] = relationship(back_populates="chunks")
 
 
+class FormSkill(Base):
+    """Attaches a built-in skill (reusable AI capability) to a form.
+
+    The capability *catalog* is code (app/skills/registry.py BUILTINS); this row just
+    records that a form uses ``skill_key`` (plus optional config). 🔒 No PHI.
+    """
+
+    __tablename__ = "form_skills"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    form_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    skill_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    config_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class Form(Base):
     """DB-authoritative record for a form (the builder platform's core entity).
 

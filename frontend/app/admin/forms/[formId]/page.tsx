@@ -14,7 +14,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import { api } from "@/lib/api";
-import type { FormDetail, FormSchemaDoc, SectionDef, FieldDef, KbDocSummary } from "@/lib/types";
+import type { FormDetail, FormSchemaDoc, SectionDef, FieldDef, KbDocSummary, SkillCatalogItem } from "@/lib/types";
 
 const FIELD_TYPES = ["text", "textarea", "date", "boolean", "phone", "ssn", "number", "select"];
 const OUTPUT_TARGETS = ["pdf", "web"];
@@ -47,6 +47,10 @@ export default function FormEditorPage() {
   const [kbDocs, setKbDocs] = useState<KbDocSummary[]>([]);
   const [kbTitle, setKbTitle] = useState("");
   const [kbText, setKbText] = useState("");
+
+  // Skills (reusable AI capabilities) — catalog + which are attached to this form.
+  const [skillCatalog, setSkillCatalog] = useState<SkillCatalogItem[]>([]);
+  const [attachedSkills, setAttachedSkills] = useState<string[]>([]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && !localStorage.getItem("admin_token")) router.replace("/admin");
@@ -96,6 +100,23 @@ export default function FormEditorPage() {
   useEffect(() => {
     loadKb();
   }, [loadKb]);
+
+  useEffect(() => {
+    api.admin.listSkillCatalog().then(setSkillCatalog).catch(() => {});
+    api.admin.getFormSkills(formId).then((r) => setAttachedSkills(r.attached)).catch(() => {});
+  }, [formId]);
+
+  async function toggleSkill(key: string) {
+    const next = attachedSkills.includes(key)
+      ? attachedSkills.filter((k) => k !== key)
+      : [...attachedSkills, key];
+    setAttachedSkills(next);
+    try {
+      await api.admin.setFormSkills(formId, next);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed.");
+    }
+  }
 
   async function addKb() {
     if (!kbTitle.trim() || !kbText.trim()) return;
@@ -498,6 +519,24 @@ export default function FormEditorPage() {
               className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
               {saving ? "Adding…" : "+ Add & embed"}
             </button>
+          </div>
+        </section>
+
+        {/* Skills */}
+        <section className="bg-white border border-gray-200 rounded-2xl p-5 mt-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-1 uppercase tracking-wide">Skills</h2>
+          <p className="text-xs text-gray-400 mb-3">Reusable AI capabilities this form&apos;s assistant can use (toggles save instantly).</p>
+          <div className="space-y-2">
+            {skillCatalog.map((s) => (
+              <label key={s.key} className="flex items-start gap-2.5 text-sm border border-gray-150 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50">
+                <input type="checkbox" checked={attachedSkills.includes(s.key)} onChange={() => toggleSkill(s.key)} className="mt-0.5" />
+                <span>
+                  <span className="font-medium text-gray-800">{s.name}</span>
+                  {s.needs_network && <span className="ml-2 text-[10px] text-amber-600 uppercase tracking-wide">network</span>}
+                  <span className="block text-xs text-gray-400">{s.description}</span>
+                </span>
+              </label>
+            ))}
           </div>
         </section>
       </div>

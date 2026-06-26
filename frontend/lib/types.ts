@@ -151,6 +151,14 @@ export interface FormDetail extends FormSummary {
   voice?: Record<string, unknown> | null;
 }
 
+/** A built-in skill (reusable AI capability) from the catalog. */
+export interface SkillCatalogItem {
+  key: string;
+  name: string;
+  description: string;
+  needs_network: boolean;
+}
+
 /** A knowledgebase document summary (builder KB manager). */
 export interface KbDocSummary {
   id: number;

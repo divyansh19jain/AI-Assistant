@@ -9,6 +9,7 @@ import type {
   FormDetail,
   FormSchemaDoc,
   KbDocSummary,
+  SkillCatalogItem,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -162,5 +163,12 @@ export const api = {
       adminRequest(`/api/admin/forms/${id}/kb/${docId}/reembed`, { method: "POST" }),
     deleteKb: (id: string, docId: number): Promise<void> =>
       adminRequest(`/api/admin/forms/${id}/kb/${docId}`, { method: "DELETE" }),
+
+    // Skills (reusable AI capabilities)
+    listSkillCatalog: (): Promise<SkillCatalogItem[]> => adminRequest(`/api/admin/skills`),
+    getFormSkills: (id: string): Promise<{ attached: string[] }> =>
+      adminRequest(`/api/admin/forms/${id}/skills`),
+    setFormSkills: (id: string, skill_keys: string[]): Promise<{ attached: string[] }> =>
+      adminRequest(`/api/admin/forms/${id}/skills`, { method: "PUT", body: JSON.stringify({ skill_keys }) }),
   },
 };
