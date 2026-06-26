@@ -80,14 +80,24 @@ class FallbackTTSService(BaseTTSService):
             return await self._secondary.synthesize(text)
 
 
-def get_tts_service() -> BaseTTSService:
+def get_tts_service(form_id: str | None = None) -> BaseTTSService:
+    """Build the TTS service, using the form's builder-configured voice if set.
+
+    A per-form ``voice_id`` (from the prompt/voice pack) overrides the global default,
+    so each form can speak in its own voice. Falls back to the global default and to
+    the rule-based/mock path exactly as before when nothing is configured.
+    """
     from app.core.config import get_settings
+    from app.forms.prompts import get_voice_config
+
     settings = get_settings()
+    voice_id = get_voice_config(form_id).get("voice_id") or settings.ELEVENLABS_VOICE_ID
+
     openai_svc = OpenAITTSService(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else MockTTSService()
     if settings.ELEVENLABS_API_KEY:
         eleven_svc = ElevenLabsTTSService(
             api_key=settings.ELEVENLABS_API_KEY,
-            voice_id=settings.ELEVENLABS_VOICE_ID,
+            voice_id=voice_id,
         )
         return FallbackTTSService(primary=eleven_svc, secondary=openai_svc)
     return openai_svc

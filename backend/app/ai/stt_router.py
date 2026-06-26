@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 async def transcribe(
     audio: UploadFile = File(...),
     prompt: str = Form(default=""),
+    form_id: str = Form(default=""),
 ) -> JSONResponse:
     """
     Transcribe audio using OpenAI Whisper.
@@ -32,11 +33,14 @@ async def transcribe(
         # Pass the audio as a named file so Whisper knows the format
         # The prompt primes Whisper's vocabulary — it sees these tokens first so it
         # strongly prefers them over phonetically similar alternatives.
-        full_prompt = (
-            "Ohio Medicaid form. " + prompt
-            if prompt
-            else "Ohio Medicaid form. Patient name, address, date of birth, skip, yes, no."
+        # Per-form speech vocabulary (set in the builder) biases recognition; falls
+        # back to a generic hint. The field-specific `prompt` is appended.
+        from app.forms.prompts import get_voice_config
+
+        vocab = get_voice_config(form_id or None).get("stt_vocabulary") or (
+            "Patient name, address, date of birth, skip, yes, no."
         )
+        full_prompt = f"{vocab} {prompt}".strip()
         response = await client.audio.transcriptions.create(
             model="whisper-1",
             file=("audio.webm", audio_bytes, audio.content_type or "audio/webm"),
@@ -44,7 +48,8 @@ async def transcribe(
             prompt=full_prompt,
         )
         transcript = response.text.strip()
-        logger.info("STT transcript: %r (prompt hint: %r)", transcript[:80], prompt[:60])
+        # 🔒 Never log the transcript — it is the patient's spoken answer (PHI).
+        logger.info("STT transcript received (%d chars).", len(transcript))
         return JSONResponse(content={"transcript": transcript})
     except Exception:
         logger.warning("Whisper transcription failed", exc_info=True)

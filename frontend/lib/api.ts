@@ -102,12 +102,12 @@ export const api = {
   downloadPdfUrl: (sessionId: string): string =>
     `${API_BASE}/api/session/${sessionId}/download-pdf`,
 
-  tts: async (text: string): Promise<ArrayBuffer | null> => {
+  tts: async (text: string, formId?: string): Promise<ArrayBuffer | null> => {
     try {
       const res = await fetch(`${API_BASE}/api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, form_id: formId }),
       });
       if (!res.ok || res.status === 503) return null;
       const buf = await res.arrayBuffer();

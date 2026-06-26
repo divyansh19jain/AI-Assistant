@@ -16,6 +16,8 @@ interface UseVoiceOptions {
   onError?: (msg: string) => void;
   /** Passed to Whisper as a prompt hint — use the current field label + common values. */
   hint?: string;
+  /** Selects the form's configured voice (TTS) + speech vocabulary (STT). */
+  formId?: string;
 }
 
 const log = (...args: any[]) => console.log("[voice]", ...args);
@@ -54,17 +56,18 @@ const MIN_SPEECH_MS     = 600;  // don't stop before this even if silent (catch 
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
-async function transcribeBlob(blob: Blob, hint: string): Promise<string> {
+async function transcribeBlob(blob: Blob, hint: string, formId = ""): Promise<string> {
   const form = new FormData();
   form.append("audio", blob, "audio.webm");
   form.append("prompt", hint);
+  if (formId) form.append("form_id", formId);
   const res = await fetch(`${API_BASE}/api/stt`, { method: "POST", body: form });
   if (!res.ok) throw new Error(`STT ${res.status}`);
   const data = await res.json();
   return (data.transcript ?? "").trim();
 }
 
-export function useVoice({ onTranscript, onError, hint = "" }: UseVoiceOptions = {}) {
+export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseVoiceOptions = {}) {
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [transcript, setTranscript] = useState("");
   const [supported, setSupported] = useState(false);
@@ -230,7 +233,7 @@ export function useVoice({ onTranscript, onError, hint = "" }: UseVoiceOptions =
 
   const prefetchTts = useCallback((text: string) => {
     if (!text || ttsCacheRef.current.has(text)) return;
-    ttsCacheRef.current.set(text, api.tts(text));
+    ttsCacheRef.current.set(text, api.tts(text, formId));
     // Evict old entries beyond 5 to avoid unbounded growth
     if (ttsCacheRef.current.size > 5) {
       const firstKey = ttsCacheRef.current.keys().next().value;
@@ -247,7 +250,7 @@ export function useVoice({ onTranscript, onError, hint = "" }: UseVoiceOptions =
     setStatus("speaking");
 
     // Use prefetched buffer if available, otherwise fetch now
-    const bufPromise = ttsCacheRef.current.get(text) ?? api.tts(text);
+    const bufPromise = ttsCacheRef.current.get(text) ?? api.tts(text, formId);
     ttsCacheRef.current.delete(text); // consume from cache
 
     bufPromise.then((buf) => {
@@ -325,7 +328,7 @@ export function useVoice({ onTranscript, onError, hint = "" }: UseVoiceOptions =
     setStatus("processing");
     const fullHint = [BASE_HINT, hintRef.current].filter(Boolean).join(", ");
     try {
-      const text = await transcribeBlob(blob, fullHint);
+      const text = await transcribeBlob(blob, fullHint, formId);
       log("whisper transcript:", text);
       if (text) {
         setTranscript(text);

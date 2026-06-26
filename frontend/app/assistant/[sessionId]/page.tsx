@@ -454,6 +454,7 @@ export default function AssistantPage() {
     status: voiceStatus, supported: voiceSupported,
     speak, stopSpeaking, startListening, stopListening, clearTranscript, prefetchTts,
   } = useVoice({
+    formId: session?.form_id,
     hint: session?.next_question
       ? session.next_question.field_type === "date"
         ? `${session.next_question.field.label}, date format MM/DD/YYYY, for example 01/15/1985, skip`

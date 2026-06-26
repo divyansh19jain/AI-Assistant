@@ -17,6 +17,7 @@ _tts_inflight: dict[str, asyncio.Future] = {}
 
 class TTSRequest(BaseModel):
     text: str
+    form_id: str | None = None  # selects the form's configured voice
 
 
 @router.post("")
@@ -25,7 +26,8 @@ async def synthesize(request: TTSRequest) -> Response:
     if not text:
         return Response(content=b"", media_type="audio/mpeg")
 
-    key = hashlib.md5(text.encode()).hexdigest()
+    # Include form_id in the cache key — different forms may use different voices.
+    key = hashlib.md5(f"{request.form_id or ''}|{text}".encode()).hexdigest()
 
     if key in _tts_cache:
         return Response(content=_tts_cache[key], media_type="audio/mpeg")
@@ -43,7 +45,7 @@ async def synthesize(request: TTSRequest) -> Response:
     _tts_inflight[key] = future
 
     from app.ai.text_to_speech import get_tts_service
-    svc = get_tts_service()
+    svc = get_tts_service(request.form_id)
     try:
         audio = await svc.synthesize(text)
         if len(_tts_cache) >= _TTS_CACHE_MAX:
