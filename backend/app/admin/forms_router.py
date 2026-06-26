@@ -109,6 +109,15 @@ class SchemaUpdate(BaseModel):
         return v
 
 
+class PromptUpdate(BaseModel):
+    """Update a form's AI prompt pack and/or voice config (builder)."""
+
+    # {"system": <persona str>, "field_overrides": {field_key: {"question"?, "help"?}}}
+    prompt: dict | None = None
+    # {"voice_id": str, "persona": str, "stt_vocabulary": str}
+    voice: dict | None = None
+
+
 # ──────────────────────────────── helpers ────────────────────────────────
 def _targets_to_list(value: str | None) -> list[str]:
     return value.split(",") if value else ["pdf"]
@@ -242,6 +251,36 @@ def update_form_schema(
     db.commit()
     db.refresh(row)
     _sync_cache(row)  # if published, the patient flow sees the new schema immediately
+    return _to_detail(row)
+
+
+@router.put("/{form_id}/prompts", response_model=FormDetail)
+def update_form_prompts(
+    form_id: str,
+    body: PromptUpdate,
+    _admin: Annotated[str, Depends(_verify_token)],
+    db: Session = Depends(get_db),
+) -> FormDetail:
+    """Update a form's AI persona / per-field overrides and/or voice config.
+
+    Kept coherent with the prompt/voice cache (app/forms/prompts.py) so a published
+    form's wording/voice change is live in the patient flow immediately.
+    """
+    from app.forms import prompts as form_prompts
+
+    row = _get_or_404(db, form_id)
+    if body.prompt is not None:
+        row.prompt_json = json.dumps(body.prompt)
+    if body.voice is not None:
+        row.voice_json = json.dumps(body.voice)
+    row.updated_at = utcnow()
+    db.commit()
+    db.refresh(row)
+    form_prompts.set_prompt_pack(
+        form_id,
+        json.loads(row.prompt_json) if row.prompt_json else {},
+        json.loads(row.voice_json) if row.voice_json else {},
+    )
     return _to_detail(row)
 
 

@@ -37,6 +37,12 @@ export default function FormEditorPage() {
   const [version, setVersion] = useState("");
   const [targets, setTargets] = useState<string[]>([]);
 
+  // Prompt pack + voice: per-form AI persona, per-field question overrides, voice config.
+  const [persona, setPersona] = useState("");
+  const [voiceId, setVoiceId] = useState("");
+  const [sttVocab, setSttVocab] = useState("");
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+
   useEffect(() => {
     if (typeof window !== "undefined" && !localStorage.getItem("admin_token")) router.replace("/admin");
   }, [router]);
@@ -51,6 +57,17 @@ export default function FormEditorPage() {
       setVersion(f.version);
       setTargets(f.output_targets);
       setRawText(JSON.stringify(f.schema, null, 2));
+      // Hydrate prompt pack + voice from the form record.
+      const prompt = (f.prompt ?? {}) as { system?: string; field_overrides?: Record<string, { question?: string }> };
+      setPersona(prompt.system ?? "");
+      const ov: Record<string, string> = {};
+      Object.entries(prompt.field_overrides ?? {}).forEach(([k, v]) => {
+        if (v?.question) ov[k] = v.question;
+      });
+      setOverrides(ov);
+      const voice = (f.voice ?? {}) as { voice_id?: string; stt_vocabulary?: string };
+      setVoiceId(voice.voice_id ?? "");
+      setSttVocab(voice.stt_vocabulary ?? "");
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed.");
@@ -147,6 +164,28 @@ export default function FormEditorPage() {
       setNotice("Schema saved." + (f.status === "published" ? " Live in the patient flow." : ""));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed (invalid JSON?).");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function savePrompts() {
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const field_overrides: Record<string, { question: string }> = {};
+      Object.entries(overrides).forEach(([k, q]) => {
+        if (q.trim()) field_overrides[k] = { question: q.trim() };
+      });
+      const f = await api.admin.updateFormPrompts(formId, {
+        prompt: { system: persona, field_overrides },
+        voice: { voice_id: voiceId || null, stt_vocabulary: sttVocab || null },
+      });
+      setForm(f);
+      setNotice("Prompts & voice saved." + (f.status === "published" ? " Live now." : ""));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed.");
     } finally {
       setSaving(false);
     }
@@ -326,6 +365,62 @@ export default function FormEditorPage() {
               {isPublished ? "Published — saves go live immediately." : "Draft — publish to use in the patient flow."}
             </span>
           </div>
+        </section>
+
+        {/* Prompts & voice */}
+        <section className="bg-white border border-gray-200 rounded-2xl p-5 mt-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Prompts &amp; Voice</h2>
+
+          <label className="block mb-4">
+            <span className="block text-xs font-semibold text-gray-500 mb-1">AI persona (system prompt)</span>
+            <textarea
+              value={persona}
+              onChange={(e) => setPersona(e.target.value)}
+              rows={4}
+              placeholder="You are a warm, patient assistant helping complete this form…"
+              className="w-full text-sm border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+            />
+            <span className="text-xs text-gray-400">Sets the assistant&apos;s tone. Structural voice/format rules are always kept.</span>
+          </label>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <label className="block">
+              <span className="block text-xs font-semibold text-gray-500 mb-1">Voice ID (ElevenLabs)</span>
+              <input value={voiceId} onChange={(e) => setVoiceId(e.target.value)} placeholder="(global default)"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            </label>
+            <label className="block">
+              <span className="block text-xs font-semibold text-gray-500 mb-1">Speech vocabulary hints</span>
+              <input value={sttVocab} onChange={(e) => setSttVocab(e.target.value)} placeholder="Medicaid, applicant, household…"
+                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+            </label>
+          </div>
+
+          <div>
+            <span className="block text-xs font-semibold text-gray-500 mb-2">
+              Per-field question overrides <span className="text-gray-400 normal-case font-normal">(optional — reword how a field is asked)</span>
+            </span>
+            <div className="space-y-1.5 max-h-72 overflow-auto pr-1">
+              {schema.sections.flatMap((sec) => sec.fields).map((fld) => (
+                <div key={fld.field_key} className="flex items-center gap-2">
+                  <span className="text-xs font-mono text-gray-400 w-40 shrink-0 truncate" title={fld.field_key}>
+                    {fld.field_key}
+                  </span>
+                  <input
+                    value={overrides[fld.field_key] ?? ""}
+                    onChange={(e) => setOverrides((p) => ({ ...p, [fld.field_key]: e.target.value }))}
+                    placeholder={fld.question_text ?? fld.label}
+                    className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <button onClick={savePrompts} disabled={saving}
+            className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
+            {saving ? "Saving…" : "Save prompts & voice"}
+          </button>
         </section>
       </div>
     </div>

@@ -18,14 +18,16 @@ def rewrite_question(
     field: dict,
     previous_answers: dict | None = None,
     attempt: int = 1,
+    form_id: str | None = None,
 ) -> str:
     """
     Return a user-friendly, first-person question string.
 
     Args:
-        field: Field schema dict from odm_07216.json
+        field: Field schema dict (its question_text may already be a builder override)
         previous_answers: Already answered fields for context
         attempt: 1 = first ask, 2+ = rephrasing after an unclear answer
+        form_id: when set, the form's builder persona is used for the LLM rephrasing
     """
     base = field.get("question_text", f"Please provide your {field.get('label', field['field_key'])}.")
 
@@ -35,7 +37,7 @@ def rewrite_question(
         hint = f" ({validation})" if validation else ""
         return f"One more time — {base}{hint} You can also say 'skip' if this field is optional."
 
-    llm_result = _llm_rewrite(field, previous_answers or {}, attempt)
+    llm_result = _llm_rewrite(field, previous_answers or {}, attempt, form_id)
     if llm_result:
         return llm_result
 
@@ -101,7 +103,7 @@ def acknowledge_answer(field: dict, value) -> str:
     return "Thanks, noted!"
 
 
-def _llm_rewrite(field: dict, previous_answers: dict, attempt: int) -> str | None:
+def _llm_rewrite(field: dict, previous_answers: dict, attempt: int, form_id: str | None = None) -> str | None:
     """
     Use OpenAI (via LangChain) to produce a conversational, first-person,
     context-aware rephrasing of the question.
@@ -140,9 +142,17 @@ def _llm_rewrite(field: dict, previous_answers: dict, attempt: int) -> str | Non
         "knows exactly how to say it.\n"
     ) if field_type == "date" else ""
 
-    system_prompt = (
+    # Per-form persona (set in the builder) replaces the default role sentence; the
+    # structural voice/perspective/format rules below are ALWAYS kept so a custom
+    # persona can't break the first/second-person + date-format guarantees.
+    from app.forms.prompts import get_system_persona
+
+    role = get_system_persona(form_id) or (
         "You are a warm, friendly medical-form assistant talking DIRECTLY to the "
-        "patient who is filling out their own application.\n"
+        "patient who is filling out their own application."
+    )
+    system_prompt = (
+        f"{role}\n"
         "VOICE AND PERSPECTIVE RULES (must follow):\n"
         "- Speak in the first/second person: address the patient as 'you' and use 'your'.\n"
         "- NEVER refer to the patient in the third person (no 'the applicant', "

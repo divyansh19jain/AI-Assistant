@@ -17,8 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.ai.answer_extractor import extract_answer, ExtractionResult
-from app.ai.question_rewriter import rewrite_question
-from app.forms.questions import get_current_question_context
+from app.forms.questions import get_current_question_context, build_question_prompt
 from app.forms.missing_fields import get_missing_required_fields
 
 logger = logging.getLogger(__name__)
@@ -50,8 +49,10 @@ def node_determine_next_question(state: AssistantState) -> AssistantState:
         state.current_question = ""
     else:
         state.current_field = ctx["field"]
-        state.current_question = rewrite_question(
-            ctx["field"], state.answers, state.attempt
+        # Re-build with the current attempt so retries rephrase — and so the form's
+        # builder persona + per-field question override apply here too (via form_id).
+        state.current_question = build_question_prompt(
+            ctx["field"], state.answers, state.form_id, state.attempt
         )
         state.is_complete = False
     return state

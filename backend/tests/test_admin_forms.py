@@ -105,3 +105,48 @@ def test_delete_form(client):
     client.post("/api/admin/forms", headers=h, json={"form_id": "F5", "title": "F5"})
     assert client.delete("/api/admin/forms/F5", headers=h).status_code == 204
     assert client.get("/api/admin/forms/F5", headers=h).status_code == 404
+
+
+def test_prompt_field_override_changes_question(client):
+    """A builder per-field question override changes the asked question end-to-end.
+
+    Works with no LLM key: the override becomes the rule-based base question text.
+    """
+    h = _auth(client)
+    schema = {
+        "form_id": "PF",
+        "form_title": "PF",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s1",
+                "section_title": "S1",
+                "fields": [
+                    {
+                        "field_key": "s1.name",
+                        "label": "Name",
+                        "section": "s1",
+                        "type": "text",
+                        "required": True,
+                        "question_text": "What is your name?",
+                    }
+                ],
+            }
+        ],
+    }
+    client.post("/api/admin/forms", headers=h, json={"form_id": "PF", "title": "PF"})
+    client.put("/api/admin/forms/PF/schema", headers=h, json={"schema": schema})
+    client.post("/api/admin/forms/PF/publish", headers=h)
+
+    # Baseline: the schema's question_text is used.
+    s = client.post("/api/session/create", json={"form_id": "PF", "manual_mode": True}).json()
+    assert s["next_question"]["question"] == "What is your name?"
+
+    # Set a per-field override; a new session reflects it immediately (cache synced).
+    client.put(
+        "/api/admin/forms/PF/prompts",
+        headers=h,
+        json={"prompt": {"system": "You are terse.", "field_overrides": {"s1.name": {"question": "Your full legal name?"}}}},
+    )
+    s2 = client.post("/api/session/create", json={"form_id": "PF", "manual_mode": True}).json()
+    assert s2["next_question"]["question"] == "Your full legal name?"

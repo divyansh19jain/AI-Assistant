@@ -18,17 +18,28 @@ def _spoken_base(field: dict) -> str:
     return cleaned or raw
 
 
-def build_question_prompt(field: dict, answers: dict | None = None) -> str:
+def build_question_prompt(
+    field: dict, answers: dict | None = None, form_id: str | None = None, attempt: int = 1
+) -> str:
     """
     Return the question text to present/speak to the user for a given field.
 
     Routes through the AI rephraser (rewrite_question) so the spoken question
     sounds natural and first-person. Falls back to the cleaned base text when no
     LLM is configured. UI-only parentheticals are stripped before rephrasing.
+
+    A per-form builder override (prompt pack ``field_overrides[field_key].question``)
+    takes precedence over the schema's question_text, so an admin can reword a
+    question without editing the schema — this applies even with no LLM (it becomes
+    the rule-based base text).
     """
+    from app.forms.prompts import get_field_override
+
+    override = get_field_override(form_id, field.get("field_key", ""))
+    base = override.get("question") or _spoken_base(field)
     # Feed the rephraser a clean, instruction-free version of the question.
-    field_for_llm = {**field, "question_text": _spoken_base(field)}
-    return rewrite_question(field_for_llm, answers or {}, attempt=1)
+    field_for_llm = {**field, "question_text": base}
+    return rewrite_question(field_for_llm, answers or {}, attempt=attempt, form_id=form_id)
 
 
 def get_current_question_context(
@@ -49,7 +60,7 @@ def get_current_question_context(
     field = missing[0]
     return {
         "field": field,
-        "question": build_question_prompt(field, answers),
+        "question": build_question_prompt(field, answers, form_id),
         "missing_count": len(missing),
         "field_key": field["field_key"],
         "field_type": field["type"],

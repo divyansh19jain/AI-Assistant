@@ -141,6 +141,11 @@ export const api = {
         method: "PUT",
         body: JSON.stringify({ schema }),
       }),
+    updateFormPrompts: (
+      id: string,
+      body: { prompt?: Record<string, unknown>; voice?: Record<string, unknown> }
+    ): Promise<FormDetail> =>
+      adminRequest(`/api/admin/forms/${id}/prompts`, { method: "PUT", body: JSON.stringify(body) }),
     publishForm: (id: string): Promise<FormDetail> =>
       adminRequest(`/api/admin/forms/${id}/publish`, { method: "POST" }),
     unpublishForm: (id: string): Promise<FormDetail> =>
