@@ -69,11 +69,51 @@ def _task_store_evidence(db, session, config: dict) -> dict:
     return {"stored": True}
 
 
+def _session_answers(db, session_id: str) -> dict:
+    """Load a session's answers as ``{field_key: value}``."""
+    from app.db.models import FormAnswer
+
+    out: dict = {}
+    for row in db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all():
+        try:
+            out[row.field_key] = json.loads(row.value_json) if row.value_json else None
+        except Exception:
+            out[row.field_key] = row.value_json
+    return out
+
+
+def _form_web_recipe(db, form_id: str) -> dict:
+    """The web-submission recipe for a form (from its pack ``workflow.yaml`` ``web:`` block)."""
+    try:
+        from app.forms import registry
+
+        pack = registry.get_pack(form_id)
+        web = (pack.config.get("web") if isinstance(pack.config, dict) else None) or {}
+        return web if isinstance(web, dict) else {}
+    except Exception:
+        return {}
+
+
+def _task_web_submit(db, session, config: dict) -> dict:
+    """🔒 PHI EGRESS — submit answers to an external portal (gated; see web_submit.py).
+
+    Uses the safe dry-run mock driver unless WEB_SUBMIT_DRIVER=browserless is configured.
+    """
+    from app.workflows.web_submit import submit_web
+
+    recipe = config.get("recipe") or _form_web_recipe(db, session.form_id)
+    answers = _session_answers(db, session.id)
+    evidence = submit_web(recipe, answers)
+    if evidence.get("error"):
+        raise RuntimeError(f"web submit failed: {evidence['error']}")
+    return evidence
+
+
 TASK_HANDLERS = {
     "generate_pdf": _task_generate_pdf,
     "notify": _task_notify,
     "store_evidence": _task_store_evidence,
-    # "web_submit": added in Phase G
+    "web_submit": _task_web_submit,
 }
 
 

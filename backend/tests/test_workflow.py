@@ -52,3 +52,39 @@ def test_custom_workflow_via_builder(client, monkeypatch):
     assert data["status"] == "completed"
     assert [t["type"] for t in data["tasks"]] == ["notify", "generate_pdf"]
     assert all(t["status"] == "completed" for t in data["tasks"])
+
+
+def test_mock_web_driver_offline():
+    from app.workflows.web_submit import MockWebDriver
+
+    ev = MockWebDriver().submit({"portal_url": "https://example.test"}, {"a": 1, "b": 2})
+    assert ev["dry_run"] is True
+    assert ev["submitted_field_count"] == 2
+    assert ev["confirmation"] == "MOCK-CONFIRM"
+
+
+def test_web_submit_task_via_workflow(client):
+    """🔒 web_submit runs through the approval gate, using the safe dry-run mock driver."""
+    h = _auth(client)
+    client.post("/api/admin/forms", headers=h, json={"form_id": "WEBF", "title": "WEBF"})
+    client.put(
+        "/api/admin/forms/WEBF/workflow",
+        headers=h,
+        json={
+            "workflow": {
+                "tasks": [{"type": "web_submit", "config": {"recipe": {"portal_url": "https://example.test/apply"}}}],
+                "approval": {"required": True},
+            }
+        },
+    )
+    client.post("/api/admin/forms/WEBF/publish", headers=h)
+
+    sid = client.post("/api/session/create", json={"form_id": "WEBF", "manual_mode": True}).json()["session_id"]
+    data = client.post(f"/api/session/{sid}/approve", json={}).json()
+    assert data["status"] == "completed"
+    task = data["tasks"][0]
+    assert task["type"] == "web_submit"
+    assert task["status"] == "completed"
+    assert task["output"]["driver"] == "mock"
+    assert task["output"]["dry_run"] is True
+    assert task["output"]["confirmation"] == "MOCK-CONFIRM"
