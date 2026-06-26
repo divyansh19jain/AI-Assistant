@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
-import type { MaskedPatient } from "@/lib/types";
+import type { FormInfo } from "@/lib/types";
 
 export default function LandingPage() {
   const router = useRouter();
@@ -13,6 +13,30 @@ export default function LandingPage() {
   const [dob, setDob] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // The form the patient is completing. Loaded from the published catalog; the
+  // choice is carried to /patient-match (and the manual flow) via sessionStorage.
+  const [forms, setForms] = useState<FormInfo[]>([]);
+  const [selectedFormId, setSelectedFormId] = useState<string>("");
+
+  useEffect(() => {
+    api
+      .listForms()
+      .then(({ forms }) => {
+        setForms(forms);
+        const stored = typeof window !== "undefined" ? sessionStorage.getItem("selectedFormId") : null;
+        setSelectedFormId(stored && forms.some((f) => f.form_id === stored) ? stored : forms[0]?.form_id ?? "");
+      })
+      .catch(() => {
+        /* leave empty — backend default form applies if the catalog can't load */
+      });
+  }, []);
+
+  useEffect(() => {
+    if (selectedFormId && typeof window !== "undefined") sessionStorage.setItem("selectedFormId", selectedFormId);
+  }, [selectedFormId]);
+
+  const selectedForm = forms.find((f) => f.form_id === selectedFormId);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -42,7 +66,7 @@ export default function LandingPage() {
   async function handleManualContinue() {
     setLoading(true);
     try {
-      const session = await api.createSession({ manual_mode: true });
+      const session = await api.createSession({ manual_mode: true, form_id: selectedFormId || undefined });
       router.push(`/assistant/${session.session_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start session.");
@@ -90,13 +114,32 @@ export default function LandingPage() {
         className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 p-8 animate-fade-slide-up"
         style={{ animationDelay: "0.1s" }}
       >
-        <div className="flex items-center gap-2 mb-1">
-          <span className="inline-block h-1.5 w-1.5 rounded-full bg-ai-500" />
-          <h3 className="text-base font-semibold text-gray-800">Ohio Medicaid Application</h3>
+        {/* Form picker — populated from the published catalog (GET /api/forms). */}
+        <div className="mb-6">
+          <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+            Which form?
+          </label>
+          {forms.length > 1 ? (
+            <select
+              value={selectedFormId}
+              onChange={(e) => setSelectedFormId(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-ai-400 focus:border-transparent"
+            >
+              {forms.map((f) => (
+                <option key={f.form_id} value={f.form_id}>
+                  {f.title}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-ai-500" />
+              <span className="text-sm font-semibold text-gray-800">
+                {selectedForm?.title ?? "Ohio Medicaid Application"}
+              </span>
+            </div>
+          )}
         </div>
-        <p className="text-xs text-gray-400 mb-6 ml-3.5">
-          ODM 07216 – Application for Health Coverage &amp; Help Paying Costs
-        </p>
 
         {/* How it works */}
         <div className="bg-ai-50 border border-ai-100 rounded-xl p-4 mb-6">

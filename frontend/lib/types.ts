@@ -97,3 +97,56 @@ export interface GeneratePdfResponse {
   file_name: string;
   is_fallback: boolean;
 }
+
+// ── Multi-form platform / builder ──────────────────────────────────────────
+
+/** Public form catalog entry (GET /api/forms) — what the patient form picker shows. */
+export interface FormInfo {
+  form_id: string;
+  title: string;
+  version: string;
+  output_targets: string[];
+}
+
+/** One field in a form schema. Extra keys (pdf_mapping, emr_source_candidates, …) are tolerated. */
+export interface FieldDef {
+  field_key: string;
+  label: string;
+  section: string;
+  type: string;
+  required?: boolean;
+  sensitive?: boolean;
+  question_text?: string;
+  validation_rule?: Record<string, unknown> | null;
+  depends_on?: unknown;
+  [key: string]: unknown;
+}
+
+export interface SectionDef {
+  section_key: string;
+  section_title: string;
+  fields: FieldDef[];
+}
+
+/** The full field-schema document stored in forms.schema_json. */
+export interface FormSchemaDoc {
+  form_id?: string;
+  form_title?: string;
+  version?: string;
+  sections: SectionDef[];
+  prefill?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+/** Builder list row (GET /api/admin/forms) — includes lifecycle status. */
+export interface FormSummary extends FormInfo {
+  status: string; // draft | published | archived
+  updated_at?: string | null;
+}
+
+/** Full form record for the editor (GET /api/admin/forms/{id}). */
+export interface FormDetail extends FormSummary {
+  schema: FormSchemaDoc;
+  prompt?: Record<string, unknown> | null;
+  voice?: Record<string, unknown> | null;
+}

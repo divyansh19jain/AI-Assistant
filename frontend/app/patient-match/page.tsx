@@ -32,7 +32,10 @@ export default function PatientMatchPage() {
     if (!selected) return;
     setLoading(true);
     try {
-      const session = await api.createSession({ patient_id: selected, form_id: "ODM_07216" });
+      // Use the form chosen on the landing page (carried via sessionStorage); fall back
+      // to the backend default if absent.
+      const formId = (typeof window !== "undefined" && sessionStorage.getItem("selectedFormId")) || undefined;
+      const session = await api.createSession({ patient_id: selected, form_id: formId });
       router.push(`/assistant/${session.session_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start session.");
@@ -44,7 +47,8 @@ export default function PatientMatchPage() {
   async function handleManual() {
     setLoading(true);
     try {
-      const session = await api.createSession({ manual_mode: true });
+      const formId = (typeof window !== "undefined" && sessionStorage.getItem("selectedFormId")) || undefined;
+      const session = await api.createSession({ manual_mode: true, form_id: formId });
       router.push(`/assistant/${session.session_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start session.");

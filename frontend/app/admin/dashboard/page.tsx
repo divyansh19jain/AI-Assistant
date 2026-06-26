@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const API = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -116,6 +117,12 @@ export default function AdminDashboardPage() {
           </div>
         </div>
         <div className="flex items-center gap-3">
+          <Link
+            href="/admin/forms"
+            className="text-xs font-medium text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-lg px-3 py-1.5 hover:bg-indigo-50 transition-colors"
+          >
+            Form Builder
+          </Link>
           <button
             onClick={load}
             disabled={loading}
