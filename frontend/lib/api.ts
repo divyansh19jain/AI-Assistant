@@ -10,6 +10,7 @@ import type {
   FormSchemaDoc,
   KbDocSummary,
   SkillCatalogItem,
+  WorkflowState,
 } from "./types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
@@ -122,6 +123,15 @@ export const api = {
   // Public form catalog for the patient-flow form picker.
   listForms: (): Promise<{ forms: FormInfo[] }> => request("/api/forms"),
 
+  // Approval gate + completion workflow (patient-facing).
+  approveSession: (
+    sessionId: string,
+    body: { approved_by?: string; note?: string } = {}
+  ): Promise<WorkflowState> =>
+    request(`/api/session/${sessionId}/approve`, { method: "POST", body: JSON.stringify(body) }),
+  getWorkflowStatus: (sessionId: string): Promise<WorkflowState> =>
+    request(`/api/session/${sessionId}/workflow`),
+
   // Builder CRUD (admin-only; JWT injected by adminRequest).
   admin: {
     listForms: (): Promise<FormSummary[]> => adminRequest("/api/admin/forms"),
@@ -170,5 +180,7 @@ export const api = {
       adminRequest(`/api/admin/forms/${id}/skills`),
     setFormSkills: (id: string, skill_keys: string[]): Promise<{ attached: string[] }> =>
       adminRequest(`/api/admin/forms/${id}/skills`, { method: "PUT", body: JSON.stringify({ skill_keys }) }),
+    updateFormWorkflow: (id: string, workflow: Record<string, unknown>): Promise<FormDetail> =>
+      adminRequest(`/api/admin/forms/${id}/workflow`, { method: "PUT", body: JSON.stringify({ workflow }) }),
   },
 };

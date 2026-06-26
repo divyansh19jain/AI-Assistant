@@ -12,6 +12,7 @@ from app.forms.seed import seed_from_packs
 from app.patients.router import router as patients_router
 from app.sessions.router import router as sessions_router
 from app.forms.router import router as forms_router
+from app.workflows.router import router as workflow_router
 from app.ai.tts_router import router as tts_router
 from app.ai.stt_router import router as stt_router
 from app.admin.router import router as admin_router
@@ -60,6 +61,7 @@ app.add_middleware(
 app.include_router(patients_router)
 app.include_router(sessions_router)
 app.include_router(forms_router)
+app.include_router(workflow_router)
 app.include_router(tts_router)
 app.include_router(stt_router)
 app.include_router(admin_router)

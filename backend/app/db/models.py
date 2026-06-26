@@ -158,5 +158,57 @@ class Form(Base):
     prompt_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Per-form voice config (voice_id, persona, stt_vocabulary) as JSON. Optional.
     voice_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Completion workflow definition (JSON): {"tasks":[{"type","config"}], "approval":{"required":bool}}
+    workflow_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class FormApproval(Base):
+    """Records a human approval of a session's answers before completion fires.
+
+    🔒 The approval gate is the control that prevents any output (PDF generation, web
+    submission) from happening without an explicit human OK.
+    """
+
+    __tablename__ = "form_approvals"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(String(64), ForeignKey("form_sessions.id"), nullable=False)
+    form_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    approved_by: Mapped[str] = mapped_column(String(128), default="patient")
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WorkflowRun(Base):
+    """One execution of a form's completion workflow after approval."""
+
+    __tablename__ = "workflow_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(String(64), ForeignKey("form_sessions.id"), nullable=False)
+    form_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="running")  # running|completed|failed
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    tasks: Mapped[list["WorkflowTaskRun"]] = relationship(back_populates="run", cascade="all, delete-orphan")
+
+
+class WorkflowTaskRun(Base):
+    """One task (step) within a :class:`WorkflowRun`, with its result/evidence."""
+
+    __tablename__ = "workflow_task_runs"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    workflow_run_id: Mapped[int] = mapped_column(ForeignKey("workflow_runs.id"), nullable=False)
+    ordinal: Mapped[int] = mapped_column(default=0)
+    task_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="pending")  # pending|completed|failed|skipped
+    output_json: Mapped[str | None] = mapped_column(Text, nullable=True)  # result + evidence refs
+    error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    run: Mapped["WorkflowRun"] = relationship(back_populates="tasks")

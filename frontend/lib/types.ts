@@ -144,11 +144,34 @@ export interface FormSummary extends FormInfo {
   updated_at?: string | null;
 }
 
+/** A workflow task (completion step). */
+export interface WorkflowTaskDef {
+  type: string;
+  config?: Record<string, unknown>;
+}
+
 /** Full form record for the editor (GET /api/admin/forms/{id}). */
 export interface FormDetail extends FormSummary {
   schema: FormSchemaDoc;
   prompt?: Record<string, unknown> | null;
   voice?: Record<string, unknown> | null;
+  workflow?: { tasks?: WorkflowTaskDef[]; approval?: Record<string, unknown> } | null;
+}
+
+/** One task within a workflow run. */
+export interface WorkflowTaskState {
+  type: string;
+  status: string;
+  output?: Record<string, unknown> | null;
+  error?: string | null;
+}
+
+/** Status of a session's completion workflow. */
+export interface WorkflowState {
+  run_id: number | null;
+  status: string; // not_started | running | completed | failed
+  error?: string | null;
+  tasks: WorkflowTaskState[];
 }
 
 /** A built-in skill (reusable AI capability) from the catalog. */

@@ -52,6 +52,9 @@ export default function FormEditorPage() {
   const [skillCatalog, setSkillCatalog] = useState<SkillCatalogItem[]>([]);
   const [attachedSkills, setAttachedSkills] = useState<string[]>([]);
 
+  // Completion workflow (ordered tasks that run after the user approves).
+  const [wfTasks, setWfTasks] = useState<{ type: string }[]>([]);
+
   useEffect(() => {
     if (typeof window !== "undefined" && !localStorage.getItem("admin_token")) router.replace("/admin");
   }, [router]);
@@ -77,6 +80,7 @@ export default function FormEditorPage() {
       const voice = (f.voice ?? {}) as { voice_id?: string; stt_vocabulary?: string };
       setVoiceId(voice.voice_id ?? "");
       setSttVocab(voice.stt_vocabulary ?? "");
+      setWfTasks((f.workflow?.tasks as { type: string }[] | undefined) ?? [{ type: "generate_pdf" }]);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed.");
@@ -115,6 +119,20 @@ export default function FormEditorPage() {
       await api.admin.setFormSkills(formId, next);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed.");
+    }
+  }
+
+  async function saveWorkflow() {
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.admin.updateFormWorkflow(formId, { tasks: wfTasks, approval: { required: true } });
+      setNotice("Workflow saved.");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Save failed.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -537,6 +555,40 @@ export default function FormEditorPage() {
                 </span>
               </label>
             ))}
+          </div>
+        </section>
+
+        {/* Completion workflow */}
+        <section className="bg-white border border-gray-200 rounded-2xl p-5 mt-6">
+          <h2 className="text-sm font-semibold text-gray-700 mb-1 uppercase tracking-wide">Completion Workflow</h2>
+          <p className="text-xs text-gray-400 mb-3">Ordered steps that run after the user reviews &amp; approves their answers.</p>
+          <div className="space-y-2 mb-3">
+            {wfTasks.map((t, i) => (
+              <div key={i} className="flex items-center gap-2">
+                <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
+                <select
+                  value={t.type}
+                  onChange={(e) => setWfTasks((p) => p.map((x, j) => (j === i ? { type: e.target.value } : x)))}
+                  className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5"
+                >
+                  {["generate_pdf", "web_submit", "notify", "store_evidence"].map((tt) => (
+                    <option key={tt} value={tt}>{tt}</option>
+                  ))}
+                </select>
+                {t.type === "web_submit" && <span className="text-[10px] text-amber-600 uppercase tracking-wide">phase g</span>}
+                <button onClick={() => setWfTasks((p) => p.filter((_, j) => j !== i))} className="text-xs text-red-500 hover:underline">remove</button>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={() => setWfTasks((p) => [...p, { type: "generate_pdf" }])}
+              className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100">
+              + Add step
+            </button>
+            <button onClick={saveWorkflow} disabled={saving}
+              className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
+              {saving ? "Saving…" : "Save workflow"}
+            </button>
           </div>
         </section>
       </div>

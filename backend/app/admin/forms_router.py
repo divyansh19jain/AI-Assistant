@@ -66,6 +66,7 @@ class FormDetail(FormSummary):
     form_schema: dict = Field(alias="schema")
     prompt: dict | None = None
     voice: dict | None = None
+    workflow: dict | None = None
 
 
 class FormCreate(BaseModel):
@@ -118,6 +119,13 @@ class PromptUpdate(BaseModel):
     voice: dict | None = None
 
 
+class WorkflowDefUpdate(BaseModel):
+    """Replace a form's completion workflow definition (ordered tasks + approval)."""
+
+    # {"tasks": [{"type": "generate_pdf"|"web_submit"|..., "config": {...}}], "approval": {"required": bool}}
+    workflow: dict
+
+
 # ──────────────────────────────── helpers ────────────────────────────────
 def _targets_to_list(value: str | None) -> list[str]:
     return value.split(",") if value else ["pdf"]
@@ -140,6 +148,7 @@ def _to_detail(row: Form) -> FormDetail:
         form_schema=json.loads(row.schema_json),
         prompt=json.loads(row.prompt_json) if row.prompt_json else None,
         voice=json.loads(row.voice_json) if row.voice_json else None,
+        workflow=json.loads(row.workflow_json) if row.workflow_json else None,
     )
 
 
@@ -281,6 +290,22 @@ def update_form_prompts(
         json.loads(row.prompt_json) if row.prompt_json else {},
         json.loads(row.voice_json) if row.voice_json else {},
     )
+    return _to_detail(row)
+
+
+@router.put("/{form_id}/workflow", response_model=FormDetail)
+def update_form_workflow(
+    form_id: str,
+    body: WorkflowDefUpdate,
+    _admin: Annotated[str, Depends(_verify_token)],
+    db: Session = Depends(get_db),
+) -> FormDetail:
+    """Replace a form's completion workflow definition (ordered tasks + approval)."""
+    row = _get_or_404(db, form_id)
+    row.workflow_json = json.dumps(body.workflow)
+    row.updated_at = utcnow()
+    db.commit()
+    db.refresh(row)
     return _to_detail(row)
 
 

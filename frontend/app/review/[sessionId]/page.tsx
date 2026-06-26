@@ -3,7 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api } from "@/lib/api";
-import type { ReviewResponse, ReviewField, GeneratePdfResponse } from "@/lib/types";
+import type { ReviewResponse, ReviewField, GeneratePdfResponse, WorkflowState } from "@/lib/types";
 
 const SOURCE_LABELS: Record<string, { label: string; color: string; dot: string }> = {
   emr:     { label: "EMR",      color: "bg-emerald-100 text-emerald-700",   dot: "bg-emerald-500" },
@@ -191,6 +191,7 @@ export default function ReviewPage() {
   const [loading, setLoading]       = useState(true);
   const [generating, setGenerating] = useState(false);
   const [pdfResult, setPdfResult]   = useState<GeneratePdfResponse | null>(null);
+  const [workflow, setWorkflow]     = useState<WorkflowState | null>(null);
   const [error, setError]           = useState<string | null>(null);
   const [editField, setEditField]   = useState<ReviewField | null>(null);
 
@@ -212,10 +213,15 @@ export default function ReviewPage() {
     setGenerating(true);
     setError(null);
     try {
-      const result = await api.generatePdf(sessionId);
-      setPdfResult(result);
+      // Approval gate: record the user's approval, then run the form's completion
+      // workflow (generate PDF and/or, when enabled, submit to a portal).
+      const wf = await api.approveSession(sessionId);
+      setWorkflow(wf);
+      const pdfTask = wf.tasks.find((t) => t.type === "generate_pdf" && t.output);
+      if (pdfTask?.output) setPdfResult(pdfTask.output as unknown as GeneratePdfResponse);
+      if (wf.status === "failed") setError("Some completion steps did not finish — see the steps below.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "PDF generation failed.");
+      setError(err instanceof Error ? err.message : "Approval / completion failed.");
     } finally {
       setGenerating(false);
     }
@@ -438,11 +444,25 @@ export default function ReviewPage() {
 
         {/* ── PDF generation card ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-3 animate-float-in">
-          <h3 className="text-base font-semibold text-gray-800 mb-1">Generate Your PDF</h3>
+          <h3 className="text-base font-semibold text-gray-800 mb-1">Review &amp; Complete</h3>
+          <p className="text-xs text-gray-400 mb-1">Approve your answers to complete this form.</p>
 
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 text-sm">
               {error}
+            </div>
+          )}
+
+          {workflow && workflow.tasks.length > 0 && (
+            <div className="rounded-xl border border-gray-150 bg-gray-50 px-4 py-3 text-sm space-y-1">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Completion steps</p>
+              {workflow.tasks.map((t, i) => (
+                <div key={i} className="flex items-center gap-2 text-xs">
+                  <span className={`h-2 w-2 rounded-full ${t.status === "completed" ? "bg-emerald-500" : t.status === "failed" ? "bg-red-500" : "bg-gray-300"}`} />
+                  <span className="text-gray-700 capitalize">{t.type.replace(/_/g, " ")}</span>
+                  <span className="text-gray-400 ml-auto">{t.status}</span>
+                </div>
+              ))}
             </div>
           )}
 
@@ -491,7 +511,7 @@ export default function ReviewPage() {
                 onClick={handleGeneratePdf}
                 className="w-full border border-gray-200 text-gray-500 rounded-xl py-2.5 text-sm hover:bg-gray-50 transition-colors"
               >
-                Re-generate PDF
+                Re-run completion
               </button>
             </div>
           ) : (
@@ -504,7 +524,7 @@ export default function ReviewPage() {
               {generating ? (
                 <>
                   <span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
-                  Generating PDF…
+                  Completing…
                 </>
               ) : (
                 <>
@@ -512,7 +532,7 @@ export default function ReviewPage() {
                     <path strokeLinecap="round" strokeLinejoin="round"
                       d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                   </svg>
-                  Generate PDF
+                  Approve &amp; Complete
                 </>
               )}
             </button>
