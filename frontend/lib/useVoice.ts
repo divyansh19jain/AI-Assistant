@@ -408,6 +408,10 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
         return;
       }
       if (text) {
+        // Return to idle before handing the transcript to the page. The page may
+        // ignore a duplicate while an agent turn is in flight; voice must not stay
+        // stuck in "processing" in that case.
+        setStatus("idle");
         setTranscript(text);
         onTranscriptRef.current?.(text);
       } else {

@@ -11,7 +11,7 @@ would.
 Tools the agent can call:
   - save_answers(items)  -> validate + persist one or more field values
   - skip_fields(keys)    -> mark optional fields as intentionally blank
-  - go_to_review()       -> when everything needed is done
+  - go_to_review()       -> when every applicable field is answered or skipped
 
 Falls back gracefully: if no OPENAI_API_KEY is configured, run_agent_turn returns
 None so the caller can use the legacy per-field flow.
@@ -121,7 +121,7 @@ once to confirm before moving on. For ordinary text (first name, city) just acce
 - NEVER say a Social Security number, password, or other sensitive value out loud — \
 just confirm you've got it.
 - After saving, briefly acknowledge ("Got it, thanks Tony") and ask the next needed thing.
-- When everything required is done, congratulate them warmly and call go_to_review.
+- When every applicable field is filled or skipped, congratulate them warmly and call go_to_review.
 
 You will be given the current state of the form (what's filled, skipped, or still \
 needed) before each turn. Always look at it and ask for something that is still NEEDED. \
@@ -172,7 +172,7 @@ def _tools() -> list[dict]:
             "type": "function",
             "function": {
                 "name": "go_to_review",
-                "description": "Call when every required field is filled or skipped and the person is ready to review.",
+                "description": "Call when every applicable field is filled or skipped and the person is ready to review.",
                 "parameters": {"type": "object", "properties": {}},
             },
         },
@@ -195,6 +195,22 @@ def _exec_skip_fields(db, session, schema, args: dict) -> dict:
     keys = args.get("field_keys") or []
     results = [svc.set_field(db, session, schema, k, "", input_mode="typed") for k in keys]
     return {"results": results}
+
+
+def _next_action_reply(schema: dict, answers: dict[str, Any]) -> str:
+    """Return a deterministic spoken prompt when the model gives no final text.
+
+    Tool-only turns happen with real models, especially after duplicate or corrected
+    answers. The voice UI needs a concrete next question, not a generic "Okay!",
+    otherwise it reopens the mic with no clear instruction and appears stuck.
+    """
+    missing = get_missing_applicable_fields("", answers, schema)
+    if not missing:
+        return "That's everything I need. Let's review your answers together."
+
+    field = missing[0]
+    question = field.get("question_text") or f"Please provide your {field.get('label', field['field_key'])}."
+    return f"Got it. {question}"
 
 
 # ──────────────────────────── keyless fallback ────────────────────────────
@@ -374,12 +390,13 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                     elif name == "skip_fields":
                         out = _exec_skip_fields(db, session, schema, args)
                     elif name == "go_to_review":
-                        # Validate server-side: never finish while required fields remain,
-                        # even if the model asks to — re-ask instead of ending early.
+                        # Match the review/approval gate: every applicable field must
+                        # be answered or explicitly skipped before the user reviews.
                         _ans = svc._answers_map(db, session_id)
-                        _still = get_missing_required_fields(session.form_id, _ans, schema)
+                        _still = get_missing_applicable_fields(session.form_id, _ans, schema)
                         if _still:
-                            out = {"ok": False, "error": "Cannot review yet — still missing required: "
+                            go_review = False
+                            out = {"ok": False, "error": "Cannot review yet; still missing: "
                                    + ", ".join(f["field_key"] for f in _still)}
                         else:
                             go_review = True
@@ -409,7 +426,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         assistant_text = "Sorry, I had a little trouble there. Could you say that again?"
 
     if not assistant_text:
-        assistant_text = "Okay!"
+        assistant_text = _next_action_reply(schema, svc._answers_map(db, session_id))
 
     # Persist the assistant reply.
     db.add(SessionMessage(session_id=session_id, role="assistant", content=assistant_text))
@@ -418,9 +435,11 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     answers = svc._answers_map(db, session_id)
     missing_applicable = get_missing_applicable_fields(session.form_id, answers, schema)
     missing_required = get_missing_required_fields(session.form_id, answers, schema)
-    # Never report done while a required field is unanswered — guards against the
-    # model finishing early and against a required field hidden behind a dependency.
-    done = len(missing_required) == 0 and (go_review or len(missing_applicable) == 0)
+    # Never report done until the same gate used by review/approval/PDF would pass.
+    # Required-only completion strands users because optional applicable fields still
+    # have to be answered or explicitly skipped before completion.
+    done = len(missing_applicable) == 0
+    go_review = go_review and done
     svc._set_collection_status(session, len(missing_applicable) == 0)
     db.commit()
 

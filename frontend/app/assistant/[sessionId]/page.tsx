@@ -134,6 +134,7 @@ export default function AssistantPage() {
   const started   = useRef(false);
   const sendRef   = useRef<(t: string, mode: string) => void>(() => {});
   const doneRef   = useRef(false);
+  const thinkingRef = useRef(false);
 
   // Build a Whisper hint from the field we're currently expecting.
   const currentLabel = nextKey && review
@@ -149,7 +150,13 @@ export default function AssistantPage() {
   } = useVoice({
     formId: session?.form_id,
     hint: currentLabel ? `${currentLabel}, skip, yes, no` : "skip, yes, no",
-    onTranscript: (t) => { noSpeechCount.current = 0; setInput(t); setVoiceError(null); setTimeout(() => sendRef.current(t, "voice"), 500); },
+    onTranscript: (t) => {
+      const clean = t.trim();
+      noSpeechCount.current = 0;
+      setInput(clean);
+      setVoiceError(null);
+      setTimeout(() => sendRef.current(clean, "voice"), 250);
+    },
     onError: (m) => setVoiceError(m),
     onNoSpeech: () => rearmRef.current(),
   });
@@ -158,7 +165,7 @@ export default function AssistantPage() {
   // couple of times, then fall back to idle so the composer is clearly usable —
   // the conversation never dead-ends on a missed capture.
   rearmRef.current = () => {
-    if (doneRef.current || thinking) return;
+    if (doneRef.current || thinkingRef.current) return;
     if (noSpeechCount.current < 2) {
       noSpeechCount.current += 1;
       setTimeout(() => startListening(), 400);
@@ -197,12 +204,18 @@ export default function AssistantPage() {
   // Core: one agent turn.
   const sendToAgent = useCallback(async (text: string, inputMode: string) => {
     const clean = text.trim();
-    if (!clean || thinking || doneRef.current) return;
+    if (!clean || doneRef.current) return;
+    if (thinkingRef.current) {
+      setInput(clean);
+      setVoiceError("I heard that. Please wait for Mia's next question before answering again.");
+      return;
+    }
     stopSpeaking(); stopListening(); clearTranscript();
     setVoiceError(null);
     noSpeechCount.current = 0;
     pushMsg("user", clean);
     setInput("");
+    thinkingRef.current = true;
     setThinking(true);
     try {
       const r = await api.agent(sessionId, clean, inputMode);
@@ -222,9 +235,10 @@ export default function AssistantPage() {
     } catch {
       setVoiceError("Something went wrong reaching the assistant. Please try again.");
     } finally {
+      thinkingRef.current = false;
       setThinking(false);
     }
-  }, [sessionId, thinking, autoSpeak, pushMsg, refreshReview, speak, speakReply, stopSpeaking, stopListening, clearTranscript, router]);
+  }, [sessionId, autoSpeak, pushMsg, refreshReview, speak, speakReply, stopSpeaking, stopListening, clearTranscript, router]);
   sendRef.current = sendToAgent;
 
   /* Load session + kick off the conversation. */
@@ -247,6 +261,7 @@ export default function AssistantPage() {
           // try/finally so a slow/failed greeting can never leave `thinking` stuck
           // (which would disable the mic, Send, and sending — a hard dead-end).
           try {
+            thinkingRef.current = true;
             setThinking(true);
             const r = await api.agent(sessionId, "__start__", "voice");
             pushMsg("assistant", r.assistant_message);
@@ -256,6 +271,7 @@ export default function AssistantPage() {
           } catch {
             setVoiceError("Couldn't start the assistant — type your answer or tap the mic to begin.");
           } finally {
+            thinkingRef.current = false;
             setThinking(false);
           }
         }
