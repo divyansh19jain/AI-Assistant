@@ -72,6 +72,9 @@ function isLikelyHallucination(text: string): boolean {
 const SILENCE_THRESHOLD = 20;   // RMS below this = silent (0–255 scale); raised to ignore background noise
 const SILENCE_GRACE_MS  = 1800; // stop after this many ms of continuous silence
 const MIN_SPEECH_MS     = 600;  // don't stop before this even if silent (catch short words)
+const MAX_RECORDING_MS  = 20000; // hard stop so background noise can never hold the mic forever
+const BROWSER_VOICE_WAIT_MS = 600; // Chrome can delay voice loading without firing voiceschanged
+const BROWSER_TTS_MAX_MS = 20000; // browser speech must always release the conversation
 
 // `??` so an explicitly-empty value routes through the same-origin /api proxy; see lib/api.ts.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -119,6 +122,7 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
   // Silence detection
   const analyserRef        = useRef<AnalyserNode | null>(null);
   const silenceTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const maxListenTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speechStartRef     = useRef<number>(0);
   const silenceRafRef      = useRef<number | null>(null);
   // Set true once clear speech (well above the calibrated floor) is heard, so a
@@ -183,6 +187,13 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
     if (silenceTimerRef.current !== null) {
       clearTimeout(silenceTimerRef.current);
       silenceTimerRef.current = null;
+    }
+  }, []);
+
+  const clearMaxListenTimer = useCallback(() => {
+    if (maxListenTimerRef.current !== null) {
+      clearTimeout(maxListenTimerRef.current);
+      maxListenTimerRef.current = null;
     }
   }, []);
 
@@ -352,32 +363,92 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
   }, []);
 
   const _speakBrowser = useCallback((text: string, onEnd?: () => void, onStart?: () => void) => {
-    if (!synthRef.current) { setStatus("idle"); onStart?.(); onEnd?.(); return; }
+    const synth = synthRef.current;
+    const myGen = speakGenRef.current;
+    if (!synth) { setStatus("idle"); onStart?.(); onEnd?.(); return; }
+
+    let started = false;
+    let finished = false;
+    let voiceTimer: ReturnType<typeof setTimeout> | null = null;
+    let finishTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearTimers = () => {
+      if (voiceTimer !== null) {
+        clearTimeout(voiceTimer);
+        voiceTimer = null;
+      }
+      if (finishTimer !== null) {
+        clearTimeout(finishTimer);
+        finishTimer = null;
+      }
+    };
+
+    const markStarted = () => {
+      if (started || speakGenRef.current !== myGen) return;
+      started = true;
+      setStatus("speaking");
+      onStart?.();
+    };
+
+    const finish = (callEnd = true) => {
+      if (finished || speakGenRef.current !== myGen) return;
+      finished = true;
+      clearTimers();
+      utteranceRef.current = null;
+      setStatus("idle");
+      if (callEnd) onEnd?.();
+    };
+
     const doSpeak = () => {
-      if (!synthRef.current) return;
+      if (finished || speakGenRef.current !== myGen) return;
+      const activeSynth = synthRef.current;
+      if (!activeSynth) { finish(true); return; }
+
       const utt = new SpeechSynthesisUtterance(text);
-      utt.lang = "en-US"; utt.rate = 0.95; utt.pitch = 1;
-      const voices = synthRef.current.getVoices();
+      utt.lang = "en-US";
+      utt.rate = 0.95;
+      utt.pitch = 1;
+      const voices = activeSynth.getVoices();
       const preferred = selectFemaleVoice(voices);
       if (preferred) utt.voice = preferred;
-      let started = false;
-      utt.onstart = () => { started = true; setStatus("speaking"); onStart?.(); };
-      utt.onend   = () => { setStatus("idle"); if (started) onEnd?.(); };
+      utt.onstart = markStarted;
+      utt.onend = () => finish(true);
       utt.onerror = (e) => {
-        if ((e as any).error === "interrupted") return;
-        setStatus("idle"); if (started) onEnd?.();
+        const error = (e as any).error;
+        finish(error !== "interrupted" && error !== "canceled");
       };
+
       utteranceRef.current = utt;
       setStatus("speaking");
-      synthRef.current.speak(utt);
+      try {
+        activeSynth.speak(utt);
+      } catch {
+        finish(true);
+        return;
+      }
+      // Some browsers never emit onstart/onend when speech is blocked or voices
+      // are still initializing. Show the message and release the turn anyway.
+      setTimeout(markStarted, 150);
+      const estimatedMs = Math.min(BROWSER_TTS_MAX_MS, Math.max(3500, text.length * 80 + 1500));
+      finishTimer = setTimeout(() => finish(true), estimatedMs);
     };
-    const voices = synthRef.current.getVoices();
-    if (voices.length > 0) setTimeout(doSpeak, 50);
-    else {
-      synthRef.current.onvoiceschanged = () => {
+
+    const voices = synth.getVoices();
+    if (voices.length > 0) {
+      setTimeout(doSpeak, 50);
+    } else {
+      synth.onvoiceschanged = () => {
         if (synthRef.current) synthRef.current.onvoiceschanged = null;
+        if (voiceTimer !== null) {
+          clearTimeout(voiceTimer);
+          voiceTimer = null;
+        }
         setTimeout(doSpeak, 50);
       };
+      voiceTimer = setTimeout(() => {
+        if (synthRef.current) synthRef.current.onvoiceschanged = null;
+        doSpeak();
+      }, BROWSER_VOICE_WAIT_MS);
     }
   }, []);
 
@@ -429,6 +500,7 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
   const stopListening = useCallback(() => {
     log("stopListening");
     wantListeningRef.current = false;
+    clearMaxListenTimer();
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch {}
       recognitionRef.current = null;
@@ -440,7 +512,7 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
       setStatus("idle");
     }
     // Do NOT release warmStreamRef — keep it for the next turn
-  }, [stopSilenceDetection]);
+  }, [clearMaxListenTimer, stopSilenceDetection]);
 
   // Keep the ref in sync so the silence detector can call it without a stale closure
   useEffect(() => { stopListeningRef.current = stopListening; }, [stopListening]);
@@ -453,6 +525,7 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
       log("already listening — ignoring duplicate start");
       return;
     }
+    clearMaxListenTimer();
     // Tear down any half-stopped prior engine before starting fresh.
     if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch {} recognitionRef.current = null; }
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
@@ -491,11 +564,14 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
         rec.onerror = (e: any) => {
           log("SpeechRecognition error:", e?.error);
           if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+            wantListeningRef.current = false;
+            clearMaxListenTimer();
             setStatus("error");
             onErrorRef.current?.("Microphone access is blocked. Allow the mic in your browser, then try again.");
           }
         };
         rec.onend = () => {
+          clearMaxListenTimer();
           recognitionRef.current = null;
           setStatus("idle");
           if (!got && wantListeningRef.current) onNoSpeechRef.current?.();
@@ -503,10 +579,17 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
         };
         recognitionRef.current = rec;
         rec.start();
+        maxListenTimerRef.current = setTimeout(() => {
+          if (recognitionRef.current === rec) {
+            log("max listen duration reached - stopping SpeechRecognition");
+            try { rec.stop(); } catch {}
+          }
+        }, MAX_RECORDING_MS);
         log("SpeechRecognition started");
         return;
       } catch (err) {
         log("SpeechRecognition unavailable, falling back to recorder:", err);
+        clearMaxListenTimer();
       }
     }
 
@@ -536,7 +619,9 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
     };
 
     recorder.onstop = () => {
+      clearMaxListenTimer();
       stopSilenceDetection();
+      if (mediaRecorderRef.current === recorder) mediaRecorderRef.current = null;
       finishRecording([...chunksRef.current], mimeType);
       chunksRef.current = [];
     };
@@ -545,13 +630,20 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
       recorder.start(200);
     } catch (e) {
       log("recorder.start failed", e);
+      clearMaxListenTimer();
       setStatus("idle");
       onNoSpeechRef.current?.();
       return;
     }
+    maxListenTimerRef.current = setTimeout(() => {
+      if (wantListeningRef.current && mediaRecorderRef.current?.state === "recording") {
+        log("max listen duration reached - auto-stopping");
+        stopListeningRef.current();
+      }
+    }, MAX_RECORDING_MS);
     startSilenceDetection(stream);
     log("recorder started", { mimeType });
-  }, [ensureWarmStream, startSilenceDetection, stopSilenceDetection, finishRecording]);
+  }, [clearMaxListenTimer, ensureWarmStream, startSilenceDetection, stopSilenceDetection, finishRecording]);
 
   const clearTranscript = useCallback(() => setTranscript(""), []);
 
@@ -572,6 +664,7 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
     return () => {
       synthRef.current?.cancel();
       wantListeningRef.current = false;
+      clearMaxListenTimer();
       try { recognitionRef.current?.stop(); } catch {}
       recognitionRef.current = null;
       stopSilenceDetection();
@@ -582,7 +675,7 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
       warmStreamRef.current?.getTracks().forEach((t) => t.stop());
       warmStreamRef.current = null;
     };
-  }, [stopSilenceDetection]);
+  }, [clearMaxListenTimer, stopSilenceDetection]);
 
   return {
     status,

@@ -17,6 +17,7 @@ import type {
 // backend same-origin via the Next /api proxy". Unset (native dev) still falls back
 // to localhost; an absolute URL (split-domain) is used directly.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+const TTS_TIMEOUT_MS = 15000;
 
 export interface AgentTurn {
   assistant_message: string;
@@ -133,17 +134,22 @@ export const api = {
     `${API_BASE}/api/session/${sessionId}/download-pdf`,
 
   tts: async (text: string, formId?: string): Promise<ArrayBuffer | null> => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), TTS_TIMEOUT_MS);
     try {
       const res = await fetch(`${API_BASE}/api/tts`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text, form_id: formId }),
+        signal: controller.signal,
       });
       if (!res.ok || res.status === 503) return null;
       const buf = await res.arrayBuffer();
       return buf.byteLength > 0 ? buf : null;
     } catch {
       return null;
+    } finally {
+      clearTimeout(timeout);
     }
   },
 

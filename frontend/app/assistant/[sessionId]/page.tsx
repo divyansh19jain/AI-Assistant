@@ -160,12 +160,15 @@ export default function AssistantPage() {
     onError: (m) => setVoiceError(m),
     onNoSpeech: () => rearmRef.current(),
   });
+  const voiceStatusRef = useRef(voiceStatus);
+  useEffect(() => { voiceStatusRef.current = voiceStatus; }, [voiceStatus]);
 
   // Hands-free re-arm: if a listen captured nothing (silence/echo), try again a
   // couple of times, then fall back to idle so the composer is clearly usable —
   // the conversation never dead-ends on a missed capture.
   rearmRef.current = () => {
     if (doneRef.current || thinkingRef.current) return;
+    if (voiceStatusRef.current === "speaking") return;
     if (noSpeechCount.current < 2) {
       noSpeechCount.current += 1;
       setTimeout(() => startListening(), 400);
@@ -233,12 +236,18 @@ export default function AssistantPage() {
         speakReply(r.assistant_message, true);
       }
     } catch {
-      setVoiceError("Something went wrong reaching the assistant. Please try again.");
+      const errorMessage = "Something went wrong reaching the assistant. Please try again.";
+      setVoiceError(errorMessage);
+      if (autoSpeak) {
+        speak(errorMessage, () => setTimeout(() => startListening(), 500));
+      } else {
+        inputRef.current?.focus();
+      }
     } finally {
       thinkingRef.current = false;
       setThinking(false);
     }
-  }, [sessionId, autoSpeak, pushMsg, refreshReview, speak, speakReply, stopSpeaking, stopListening, clearTranscript, router]);
+  }, [sessionId, autoSpeak, pushMsg, refreshReview, speak, speakReply, startListening, stopSpeaking, stopListening, clearTranscript, router]);
   sendRef.current = sendToAgent;
 
   /* Load session + kick off the conversation. */
@@ -269,7 +278,13 @@ export default function AssistantPage() {
             refreshReview();
             speakReply(r.assistant_message, true);
           } catch {
-            setVoiceError("Couldn't start the assistant — type your answer or tap the mic to begin.");
+            const errorMessage = "Couldn't start the assistant - type your answer or tap the mic to begin.";
+            setVoiceError(errorMessage);
+            if (autoSpeak) {
+              speakReply(errorMessage, true);
+            } else {
+              inputRef.current?.focus();
+            }
           } finally {
             thinkingRef.current = false;
             setThinking(false);
@@ -280,7 +295,7 @@ export default function AssistantPage() {
         setVoiceError("Couldn't load this session.");
       }
     })();
-  }, [sessionId, refreshReview, pushMsg, speakReply, startListening]);
+  }, [sessionId, autoSpeak, refreshReview, pushMsg, speakReply, startListening]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, thinking]);
   useEffect(() => { if (mode === "idle") inputRef.current?.focus(); }, [mode]);

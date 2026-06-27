@@ -46,9 +46,11 @@ ENV NODE_ENV=production \
 RUN useradd --create-home --uid 10001 nextjs
 USER nextjs
 
-# Standalone server + static assets (no public/ dir in this project).
+# Standalone server + static assets. Next's standalone output does NOT bundle
+# public/ or .next/static — both must be copied in explicitly.
 COPY --from=builder --chown=nextjs:nextjs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nextjs /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nextjs /app/public ./public
 
 EXPOSE 3000
 
