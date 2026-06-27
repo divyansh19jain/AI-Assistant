@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "AI-Assistant – EMR Form Completion",
-  description: "EMR-assisted AI voice form completion for Ohio Medicaid",
+  description: "EMR-assisted AI voice form completion",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

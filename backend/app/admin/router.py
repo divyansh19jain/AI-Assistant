@@ -109,12 +109,16 @@ def admin_dashboard(
     total = db.query(func.count(FormSession.id)).scalar() or 0
     completed = db.query(func.count(FormSession.id)).filter(FormSession.status == "completed").scalar() or 0
     active = db.query(func.count(FormSession.id)).filter(FormSession.status == "active").scalar() or 0
+    ready_for_review = (
+        db.query(func.count(FormSession.id)).filter(FormSession.status == "ready_for_review").scalar() or 0
+    )
 
     return {
         "stats": {
             "total": total,
             "completed": completed,
             "active": active,
+            "ready_for_review": ready_for_review,
         },
         "sessions": [
             {

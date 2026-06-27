@@ -62,7 +62,8 @@ def refresh(db, form_id: str) -> dict | None:
 
     try:
         row = db.query(Form).filter(Form.form_id == form_id).first()
-        if row is None:
+        if row is None or row.status != "published":
+            _SCHEMAS.pop(form_id, None)
             return None
         schema = json.loads(row.schema_json)
         _SCHEMAS[form_id] = schema
@@ -82,7 +83,8 @@ def refresh_all(db) -> int:
 
     count = 0
     try:
-        for row in db.query(Form).all():
+        _SCHEMAS.clear()
+        for row in db.query(Form).filter(Form.status == "published").all():
             try:
                 _SCHEMAS[row.form_id] = json.loads(row.schema_json)
                 count += 1

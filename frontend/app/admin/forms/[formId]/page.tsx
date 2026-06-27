@@ -238,6 +238,8 @@ export default function FormEditorPage() {
     try {
       const f = await api.admin.updateFormMeta(formId, { title, version, output_targets: targets });
       setForm(f);
+      setSchema(f.schema);
+      setRawText(JSON.stringify(f.schema, null, 2));
       setNotice("Metadata saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed.");

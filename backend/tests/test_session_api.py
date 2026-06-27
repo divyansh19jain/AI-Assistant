@@ -103,20 +103,36 @@ def test_pdf_generation_fallback(client, monkeypatch):
     import app.pdf.pdf_service as pdf_service
     monkeypatch.setattr(pdf_service, "_get_base_pdf_path", lambda *_args, **_kwargs: None)
 
-    create_resp = client.post("/api/session/create", json={
-        "patient_id": "mock-001",
-        "form_id": "ODM_07216",
-        "manual_mode": False,
-    })
+    h = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()
+    headers = {"Authorization": f"Bearer {h['token']}"}
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "PDF_FALLBACK", "title": "PDF Fallback"})
+    client.post("/api/admin/forms/PDF_FALLBACK/publish", headers=headers)
+
+    create_resp = client.post("/api/session/create", json={"form_id": "PDF_FALLBACK", "manual_mode": True})
     session_id = create_resp.json()["session_id"]
 
-    pdf_resp = client.post(f"/api/session/{session_id}/generate-pdf")
-    assert pdf_resp.status_code == 200
-    data = pdf_resp.json()
+    pdf_resp = client.post(f"/api/session/{session_id}/approve", json={})
+    assert pdf_resp.status_code == 200, pdf_resp.text
+    data = pdf_resp.json()["tasks"][0]["output"]
     assert "download_url" in data
     assert "file_name" in data
     # With the base PDF forced absent, generation must use the summary fallback.
     assert data["is_fallback"] is True
+
+
+def test_direct_pdf_generation_requires_approval(client, monkeypatch):
+    import app.pdf.pdf_service as pdf_service
+    monkeypatch.setattr(pdf_service, "_get_base_pdf_path", lambda *_args, **_kwargs: None)
+
+    h = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()
+    headers = {"Authorization": f"Bearer {h['token']}"}
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "DIRECT_PDF", "title": "Direct PDF"})
+    client.post("/api/admin/forms/DIRECT_PDF/publish", headers=headers)
+    sid = client.post("/api/session/create", json={"form_id": "DIRECT_PDF", "manual_mode": True}).json()["session_id"]
+
+    assert client.post(f"/api/session/{sid}/generate-pdf").status_code == 403
+    assert client.post(f"/api/session/{sid}/approve", json={}).status_code == 200
+    assert client.post(f"/api/session/{sid}/generate-pdf").status_code == 200
 
 
 def test_builder_form_pdf_summary_uses_form_id(client):
@@ -147,8 +163,13 @@ def test_builder_form_pdf_summary_uses_form_id(client):
     client.put("/api/admin/forms/GENERIC_PDF/schema", headers=headers, json={"schema": schema})
     client.post("/api/admin/forms/GENERIC_PDF/publish", headers=headers)
     sid = client.post("/api/session/create", json={"form_id": "GENERIC_PDF", "manual_mode": True}).json()["session_id"]
+    client.post(
+        f"/api/session/{sid}/answer",
+        json={"field_key": "main.name", "raw_answer": "Jane Example", "input_mode": "typed"},
+    )
 
-    data = client.post(f"/api/session/{sid}/generate-pdf").json()
+    wf = client.post(f"/api/session/{sid}/approve", json={}).json()
+    data = wf["tasks"][0]["output"]
     assert data["is_fallback"] is True
     assert data["file_name"].startswith("GENERIC_PDF_Summary_")
 
@@ -254,6 +275,45 @@ def test_review_omits_inactive_conditional_fields(client):
     assert field_keys == ["s.has_other"]
     assert review["missing_applicable"] == []
     assert review["is_complete"] is True
+
+
+def test_review_fields_include_schema_edit_metadata(client):
+    h = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()
+    headers = {"Authorization": f"Bearer {h['token']}"}
+    schema = {
+        "form_id": "REVIEW_META",
+        "form_title": "Review Meta",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "S",
+                "fields": [
+                    {
+                        "field_key": "s.choice",
+                        "label": "Choice",
+                        "section": "s",
+                        "type": "select",
+                        "required": True,
+                        "question_text": "Pick one.",
+                        "validation_rule": {"allowed_values": ["A", "B"]},
+                    }
+                ],
+            }
+        ],
+    }
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "REVIEW_META", "title": "Review Meta"})
+    client.put("/api/admin/forms/REVIEW_META/schema", headers=headers, json={"schema": schema})
+    client.post("/api/admin/forms/REVIEW_META/publish", headers=headers)
+    sid = client.post("/api/session/create", json={"form_id": "REVIEW_META", "manual_mode": True}).json()["session_id"]
+    client.post(
+        f"/api/session/{sid}/answer",
+        json={"field_key": "s.choice", "raw_answer": "A", "input_mode": "typed"},
+    )
+
+    field = client.get(f"/api/session/{sid}/review").json()["sections"]["s"][0]
+    assert field["field_type"] == "select"
+    assert field["options"] == ["A", "B"]
 
 
 def test_skip_unknown_field_rejected(client):

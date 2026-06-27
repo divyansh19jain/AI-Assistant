@@ -35,6 +35,8 @@ def test_create_publish_run_loop(client):
     # 2. a draft is NOT offered in the public patient picker
     public_ids = [f["form_id"] for f in client.get("/api/forms").json()["forms"]]
     assert "TEST_FORM" not in public_ids
+    # Drafts are also not runnable by direct API calls.
+    assert client.post("/api/session/create", json={"form_id": "TEST_FORM", "manual_mode": True}).status_code == 404
 
     # 3. publish
     r = client.post("/api/admin/forms/TEST_FORM/publish", headers=h)
@@ -49,6 +51,10 @@ def test_create_publish_run_loop(client):
     r = client.post("/api/session/create", json={"form_id": "TEST_FORM", "manual_mode": True})
     assert r.status_code == 200, r.text
     assert r.json()["form_id"] == "TEST_FORM"
+
+    # Unpublishing removes runtime access, not just picker visibility.
+    client.post("/api/admin/forms/TEST_FORM/unpublish", headers=h)
+    assert client.post("/api/session/create", json={"form_id": "TEST_FORM", "manual_mode": True}).status_code == 404
 
 
 def test_update_schema_reflected(client):
@@ -78,6 +84,17 @@ def test_update_schema_reflected(client):
     r = client.put("/api/admin/forms/F2/schema", headers=h, json={"schema": new_schema})
     assert r.status_code == 200, r.text
     assert r.json()["schema"]["sections"][0]["fields"][0]["field_key"] == "a.b"
+
+
+def test_draft_db_row_blocks_bundled_pack_fallback(client):
+    h = _auth(client)
+    r = client.post("/api/admin/forms", headers=h, json={"form_id": "ODM_07216", "title": "Draft Shadow"})
+    assert r.status_code == 201, r.text
+
+    # A DB row is authoritative. If it is draft, the filesystem seed pack with the
+    # same id must not make the form runnable through a direct session-create call.
+    r = client.post("/api/session/create", json={"form_id": "ODM_07216", "manual_mode": True})
+    assert r.status_code == 404
 
 
 def test_schema_metadata_stays_in_sync_with_form_row(client):

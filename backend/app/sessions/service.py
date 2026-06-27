@@ -3,7 +3,7 @@ import uuid
 import logging
 from typing import Any
 from sqlalchemy.orm import Session as DBSession
-from app.db.models import FormSession, FormAnswer
+from app.db.models import Form, FormSession, FormAnswer
 from app.db.session import get_db
 from app.emr.schemas import EMRPatient
 from app.forms.service import (
@@ -12,6 +12,7 @@ from app.forms.service import (
     get_field_from_schema,
     load_form_schema,
 )
+from app.forms import cache as form_cache
 from app.forms.mapper import prefill_from_emr
 from app.forms.missing_fields import (
     get_missing_applicable_fields,
@@ -35,7 +36,7 @@ def create_session(
     prefilled: dict[str, Any] = {}
     mock_mode = False
     patient: EMRPatient | None = None
-    schema = load_form_schema(form_id)
+    schema = _load_published_schema(db, form_id)
 
     if patient_id and not manual_mode:
         patient = get_patient_by_id(patient_id)
@@ -75,6 +76,9 @@ def create_session(
     answers_map = _answers_map(db, session_id)
     missing = get_missing_applicable_fields(form_id, answers_map, schema)
     next_q = get_current_question_context(form_id, answers_map, schema)
+    if not missing:
+        session.status = "ready_for_review"
+        db.commit()
 
     return {
         "session_id": session_id,
@@ -224,12 +228,8 @@ def save_answer(
     result["is_complete"] = result["missing_count"] == 0
     result["answers"] = updated_answers
 
-    if result["is_complete"] and session.status != "completed":
-        session.status = "completed"
-        db.commit()
-    elif not result["is_complete"] and session.status == "completed":
-        session.status = "active"
-        db.commit()
+    _set_collection_status(session, result["is_complete"])
+    db.commit()
 
     return result
 
@@ -311,12 +311,8 @@ def skip_field(db: DBSession, session_id: str, field_key: str) -> dict | None:
     next_q = get_current_question_context(session.form_id, answers_map, schema)
     is_complete = len(missing) == 0
 
-    if is_complete and session.status != "completed":
-        session.status = "completed"
-        db.commit()
-    elif not is_complete and session.status == "completed":
-        session.status = "active"
-        db.commit()
+    _set_collection_status(session, is_complete)
+    db.commit()
 
     return {
         "success": True,
@@ -365,6 +361,8 @@ def go_back(db: DBSession, session_id: str) -> dict | None:
         FormAnswer.session_id == session_id,
         FormAnswer.field_key == last_key,
     ).delete()
+    session.status = "active"
+    session.completed_at = None
     db.commit()
 
     return get_session_state(db, session_id)
@@ -399,6 +397,8 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
         sections[sec].append({
             "field_key": field["field_key"],
             "label": field["label"],
+            "field_type": field.get("type", "text"),
+            "options": _field_options(field),
             "value": None if is_skipped else raw_value,
             "source": "skipped" if is_skipped else source_map.get(field["field_key"], "missing"),
             "section": sec,
@@ -463,6 +463,51 @@ def _schema_for_session(session: FormSession) -> dict:
         except Exception:
             logger.warning("Invalid schema_json on session %s; falling back to live schema.", session.id)
     return load_form_schema(session.form_id)
+
+
+def _load_published_schema(db: DBSession, form_id: str) -> dict:
+    """Load a schema the patient flow is allowed to start.
+
+    Once a DB row exists, its status is authoritative. This prevents a direct API
+    call from starting draft/unpublished forms, including ids that also have a
+    bundled seed pack on disk. If no DB row exists, the active pack fallback keeps
+    fresh unseeded dev/test databases usable.
+    """
+    from app.forms.registry import UnknownFormError
+
+    row = db.query(Form).filter(Form.form_id == form_id).first()
+    if row is not None:
+        if row.status != "published":
+            raise UnknownFormError(f"Form {form_id!r} is not published.")
+        schema = json.loads(row.schema_json)
+        form_cache.set_schema(form_id, schema)
+        return schema
+    return load_form_schema(form_id)
+
+
+def _set_collection_status(session: FormSession, is_complete: bool) -> None:
+    """Keep answer collection separate from completion side effects.
+
+    ``ready_for_review`` means every applicable field is answered/skipped. Only the
+    approval/workflow route may set ``completed`` because completion can generate
+    files or submit to an external website.
+    """
+    if is_complete:
+        if session.status != "ready_for_review":
+            session.status = "ready_for_review"
+            session.completed_at = None
+    elif session.status != "active":
+        session.status = "active"
+        session.completed_at = None
+
+
+def _field_options(field: dict) -> list[Any] | None:
+    options = field.get("options")
+    if isinstance(options, list):
+        return options
+    rule = field.get("validation_rule") or {}
+    allowed = rule.get("allowed_values")
+    return allowed if isinstance(allowed, list) else None
 
 
 def _answers_map(db: DBSession, session_id: str) -> dict[str, Any]:

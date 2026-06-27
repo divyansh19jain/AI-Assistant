@@ -21,6 +21,7 @@ import fitz  # PyMuPDF
 from app.core.config import get_settings
 from app.db.models import FormAnswer, FormSession, GeneratedPdf
 from app.forms import registry
+from app.forms.missing_fields import get_applicable_answers
 from app.forms.service import get_all_fields_from_schema, load_form_schema
 
 logger = logging.getLogger(__name__)
@@ -116,7 +117,7 @@ def generate_session_pdf(db, session_id: str) -> dict | None:
         return None
 
     schema = _schema_for_session(session)
-    answers = _load_answers(db, session_id)
+    answers = get_applicable_answers(schema, _load_answers(db, session_id))
     base_pdf = _get_base_pdf_path(session.form_id)
     is_fallback = base_pdf is None
 
@@ -232,7 +233,7 @@ def _fill_acroform_pdf(session_id: str, answers: dict, base_pdf: Path, form_id: 
         page = doc[page_num]
         x, y = entry.get("x", 100), entry.get("y", 100)
         if entry.get("field_type") == "checkbox":
-            if _checkbox_value(raw) is not None:
+            if _mapped_widget_value(raw, entry, "CheckBox") is not None:
                 page.insert_text(fitz.Point(x, y), "X", fontsize=12, color=(0, 0, 0))
             continue
         value = _mapped_widget_value(raw, entry, entry.get("field_type", ""))

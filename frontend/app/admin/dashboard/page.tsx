@@ -24,6 +24,7 @@ interface Stats {
   total: number;
   completed: number;
   active: number;
+  ready_for_review: number;
 }
 
 function fmtDate(iso: string | null) {
@@ -34,12 +35,14 @@ function fmtDate(iso: string | null) {
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, string> = {
     active: "bg-blue-100 text-blue-700",
+    ready_for_review: "bg-amber-100 text-amber-700",
     completed: "bg-green-100 text-green-700",
     abandoned: "bg-gray-100 text-gray-500",
   };
+  const label = status === "ready_for_review" ? "ready" : status;
   return (
     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${map[status] ?? "bg-gray-100 text-gray-600"}`}>
-      {status}
+      {label}
     </span>
   );
 }
@@ -51,7 +54,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "active" | "completed">("all");
+  const [filter, setFilter] = useState<"all" | "active" | "ready_for_review" | "completed">("all");
 
   const load = useCallback(async () => {
     const token = localStorage.getItem("admin_token");
@@ -142,10 +145,11 @@ export default function AdminDashboardPage() {
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
               { label: "Total Forms", value: stats.total, color: "text-gray-900" },
               { label: "Active", value: stats.active, color: "text-blue-600" },
+              { label: "Ready", value: stats.ready_for_review, color: "text-amber-600" },
               { label: "Completed", value: stats.completed, color: "text-green-600" },
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
@@ -159,7 +163,7 @@ export default function AdminDashboardPage() {
         {/* Filters */}
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1">
-            {(["all", "active", "completed"] as const).map((f) => (
+            {(["all", "active", "ready_for_review", "completed"] as const).map((f) => (
               <button
                 key={f}
                 onClick={() => setFilter(f)}
@@ -169,7 +173,7 @@ export default function AdminDashboardPage() {
                     : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                 }`}
               >
-                {f}
+                {f === "ready_for_review" ? "ready" : f}
               </button>
             ))}
           </div>

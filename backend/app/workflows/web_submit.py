@@ -46,6 +46,7 @@ class MockWebDriver(WebSubmissionDriver):
             "dry_run": True,
             "portal_url": recipe.get("portal_url"),
             "submitted_field_count": len(answers or {}),
+            "step_count": len(recipe.get("steps") or []),
             "confirmation": "MOCK-CONFIRM",
         }
 
@@ -79,6 +80,7 @@ class BrowserlessWebDriver(WebSubmissionDriver):
                 page = browser.new_page()
                 page.goto(portal_url, wait_until="domcontentloaded")
                 filled = 0
+                evidence: dict = {}
                 for field_key, css in selectors.items():
                     value = answers.get(field_key)
                     if value in (None, "", "__skipped__"):
@@ -88,6 +90,8 @@ class BrowserlessWebDriver(WebSubmissionDriver):
                         filled += 1
                     except Exception:
                         logger.warning("web_submit: could not fill selector for %s", field_key)
+                for step in recipe.get("steps") or []:
+                    filled += _run_recipe_step(page, step, answers, evidence)
                 if submit_selector:
                     page.click(submit_selector)
                 confirmation = ""
@@ -102,7 +106,9 @@ class BrowserlessWebDriver(WebSubmissionDriver):
                     "dry_run": False,
                     "portal_url": portal_url,
                     "submitted_field_count": filled,
+                    "step_count": len(recipe.get("steps") or []),
                     "confirmation": confirmation or "submitted",
+                    **evidence,
                 }
         except Exception as exc:
             logger.warning("Browserless web submission failed.", exc_info=True)
@@ -131,3 +137,59 @@ def submit_web(recipe: dict, answers: dict) -> dict:
             "error": "recipe has no portal_url",
         }
     return driver.submit(recipe, answers or {})
+
+
+def _run_recipe_step(page, step: dict, answers: dict, evidence: dict) -> int:
+    """Execute one deterministic portal step and return 1 when it filled a value."""
+    if not isinstance(step, dict):
+        raise ValueError("workflow step must be an object")
+    action = step.get("action")
+    selector = step.get("selector")
+    timeout = int(step.get("timeout_ms") or 10000)
+    field_key = step.get("field_key")
+    value = step.get("value", answers.get(field_key) if field_key else None)
+
+    if action == "fill":
+        if not selector:
+            raise ValueError("fill step requires selector")
+        if value in (None, "", "__skipped__"):
+            return 0
+        page.fill(selector, str(value))
+        return 1
+    if action == "check":
+        if not selector:
+            raise ValueError("check step requires selector")
+        if str(value).strip().lower() in ("true", "yes", "on", "1"):
+            page.check(selector)
+            return 1
+        return 0
+    if action == "select":
+        if not selector:
+            raise ValueError("select step requires selector")
+        if value in (None, "", "__skipped__"):
+            return 0
+        page.select_option(selector, str(value))
+        return 1
+    if action == "click":
+        if not selector:
+            raise ValueError("click step requires selector")
+        page.click(selector)
+        return 0
+    if action == "wait_for":
+        if not selector:
+            raise ValueError("wait_for step requires selector")
+        page.wait_for_selector(selector, timeout=timeout)
+        return 0
+    if action == "goto":
+        url = step.get("url")
+        if not url:
+            raise ValueError("goto step requires url")
+        page.goto(url, wait_until=step.get("wait_until") or "domcontentloaded")
+        return 0
+    if action == "extract_text":
+        if not selector:
+            raise ValueError("extract_text step requires selector")
+        key = step.get("name") or "extracted_text"
+        evidence[str(key)] = page.inner_text(selector, timeout=timeout)
+        return 0
+    raise ValueError(f"unsupported web_submit step action {action!r}")

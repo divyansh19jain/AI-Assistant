@@ -22,19 +22,24 @@ interface EditModalProps {
 }
 
 function EditModal({ field, sessionId, onSave, onClose }: EditModalProps) {
-  const currentValue =
+  const rawCurrentValue =
     field.value !== null && field.value !== undefined && field.source !== "skipped"
       ? String(field.value)
       : "";
+  const currentValue =
+    field.field_type === "boolean" && typeof field.value === "boolean"
+      ? (field.value ? "yes" : "no")
+      : rawCurrentValue;
 
   const [value, setValue] = useState(currentValue);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Detect field type from current value / field key heuristics
-  const isDate = /date|dob|birth/i.test(field.field_key);
-  const isBool = typeof field.value === "boolean" ||
-    (currentValue === "true" || currentValue === "false");
+  const isDate = field.field_type === "date";
+  const isBool = field.field_type === "boolean";
+  const isNumber = field.field_type === "number";
+  const options = Array.isArray(field.options) ? field.options.map(String) : [];
+  const isSelect = field.field_type === "select" && options.length > 0;
 
   async function handleSave() {
     const trimmed = value.trim();
@@ -131,12 +136,27 @@ function EditModal({ field, sessionId, onSave, onClose }: EditModalProps) {
                 </button>
               ))}
             </div>
+          ) : isSelect ? (
+            <div>
+              <label className="block text-xs font-medium text-gray-500 mb-1.5">New answer</label>
+              <select
+                autoFocus
+                value={value}
+                onChange={e => setValue(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-gray-900 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition-shadow"
+              >
+                <option value="">Select...</option>
+                {options.map(opt => (
+                  <option key={opt} value={opt}>{opt}</option>
+                ))}
+              </select>
+            </div>
           ) : (
             <div>
               <label className="block text-xs font-medium text-gray-500 mb-1.5">New answer</label>
               <input
                 autoFocus
-                type={field.is_sensitive ? "password" : isDate ? "date" : "text"}
+                type={field.is_sensitive ? "password" : isDate ? "date" : isNumber ? "number" : "text"}
                 value={value}
                 onChange={e => setValue(e.target.value)}
                 onKeyDown={e => { if (e.key === "Enter" && !isBool) handleSave(); }}
@@ -507,6 +527,7 @@ export default function ReviewPage() {
 
               <button
                 onClick={handleGeneratePdf}
+                disabled={generating || totalMissing > 0}
                 className="w-full border border-gray-200 text-gray-500 rounded-xl py-2.5 text-sm hover:bg-gray-50 transition-colors"
               >
                 Re-run completion

@@ -1,6 +1,7 @@
 import logging
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session as DBSession
 from app.db.session import get_db
 from app.core.audit import log_event
@@ -10,6 +11,7 @@ from app.sessions.schemas import (
 )
 from app.sessions import service as svc
 from app.forms.registry import UnknownFormError
+from app.forms.missing_fields import get_missing_applicable_fields
 
 router = APIRouter(prefix="/api/session", tags=["session"])
 logger = logging.getLogger(__name__)
@@ -74,8 +76,9 @@ def skip_field(
     result = svc.skip_field(db, session_id=session_id, field_key=request.field_key)
     if not result:
         raise HTTPException(status_code=404, detail="Session not found")
-    log_event(db, event_type="field_skipped", session_id=session_id,
-              metadata={"field_key": request.field_key})
+    if result.get("success") is True:
+        log_event(db, event_type="field_skipped", session_id=session_id,
+                  metadata={"field_key": request.field_key})
     return result
 
 
@@ -99,6 +102,39 @@ def get_review(session_id: str, db: DBSession = Depends(get_db)) -> dict:
 @router.post("/{session_id}/generate-pdf")
 def generate_pdf(session_id: str, db: DBSession = Depends(get_db)) -> dict:
     from app.pdf.pdf_service import generate_session_pdf
+    from app.db.models import FormAnswer, FormApproval, FormSession
+
+    session = db.query(FormSession).filter(FormSession.id == session_id).first()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    schema = svc._schema_for_session(session)
+    answers = svc._answers_map(db, session_id)
+    missing = get_missing_applicable_fields(session.form_id, answers, schema)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Cannot generate a PDF until all applicable fields are answered or skipped.",
+                "missing_fields": [f["field_key"] for f in missing],
+            },
+        )
+    latest_approval = (
+        db.query(FormApproval)
+        .filter(FormApproval.session_id == session_id)
+        .order_by(FormApproval.created_at.desc())
+        .first()
+    )
+    if latest_approval is None:
+        raise HTTPException(status_code=403, detail="PDF generation requires approval.")
+    latest_answer_at = (
+        db.query(func.max(FormAnswer.updated_at))
+        .filter(FormAnswer.session_id == session_id)
+        .scalar()
+    )
+    if latest_answer_at is not None and latest_approval.created_at < latest_answer_at:
+        raise HTTPException(status_code=403, detail="PDF generation requires a fresh approval.")
+
     result = generate_session_pdf(db, session_id)
     if not result:
         raise HTTPException(status_code=500, detail="PDF generation failed")

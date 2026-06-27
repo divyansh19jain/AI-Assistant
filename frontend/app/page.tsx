@@ -104,7 +104,7 @@ export default function LandingPage() {
           Hi, I&apos;m your AI Form Assistant
         </h2>
         <p className="text-gray-500 text-base max-w-md mx-auto">
-          I&apos;ll help you complete your Ohio Medicaid application by finding your records and
+          I&apos;ll help you complete the selected form by finding your records and
           asking only the questions that still need answers.
         </p>
       </div>
@@ -151,7 +151,7 @@ export default function LandingPage() {
               "Enter your name and date of birth below",
               "We search your EMR records to pre-fill the form",
               "Your AI assistant asks only the missing questions",
-              "Download your completed PDF",
+              "Review, approve, and complete the form workflow",
             ].map((step, i) => (
               <div key={i} className="flex items-start gap-2">
                 <span className="mt-0.5 h-4 w-4 rounded-full bg-ai-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">

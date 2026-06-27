@@ -55,6 +55,29 @@ def is_field_applicable(field: dict, answers: dict[str, Any]) -> bool:
     return _dependency_satisfied(field, answers)
 
 
+def get_applicable_answers(
+    schema: dict,
+    answers: dict[str, Any],
+    *,
+    include_skipped: bool = True,
+) -> dict[str, Any]:
+    """Return answers that still belong to currently active schema branches.
+
+    This helper is intentionally schema-snapshot based. Review, PDF generation, and
+    portal submission must not emit an old child-branch answer after the parent
+    dependency was changed in a way that makes that child field inactive.
+    """
+    out: dict[str, Any] = {}
+    for field in get_all_fields_from_schema(schema):
+        key = field["field_key"]
+        if key not in answers or not is_field_applicable(field, answers):
+            continue
+        if answers[key] == SKIPPED and not include_skipped:
+            continue
+        out[key] = answers[key]
+    return out
+
+
 def _fields_for(form_id: str, schema: dict | None) -> list[dict]:
     return get_all_fields_from_schema(schema) if schema is not None else get_all_fields(form_id)
 

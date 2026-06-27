@@ -16,6 +16,8 @@ import logging
 from datetime import datetime, timezone
 
 from app.db.models import Form, FormSession, WorkflowRun, WorkflowTaskRun
+from app.forms.missing_fields import get_applicable_answers
+from app.sessions.service import _schema_for_session
 
 logger = logging.getLogger(__name__)
 
@@ -52,17 +54,17 @@ def _task_generate_pdf(db, session, config: dict) -> dict:
     return result
 
 
-def _session_answers(db, session_id: str) -> dict:
-    """Load a session's answers as {field_key: value}."""
+def _session_answers(db, session: FormSession, *, include_skipped: bool = True) -> dict:
+    """Load active-branch answers for a session."""
     from app.db.models import FormAnswer
 
     out: dict = {}
-    for row in db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all():
+    for row in db.query(FormAnswer).filter(FormAnswer.session_id == session.id).all():
         try:
             out[row.field_key] = json.loads(row.value_json) if row.value_json else None
         except Exception:
             out[row.field_key] = row.value_json
-    return out
+    return get_applicable_answers(_schema_for_session(session), out, include_skipped=include_skipped)
 
 
 def _form_web_recipe(db, form_id: str) -> dict:
@@ -82,7 +84,7 @@ def _task_web_submit(db, session, config: dict) -> dict:
     from app.workflows.web_submit import submit_web
 
     recipe = config.get("recipe") or _form_web_recipe(db, session.form_id)
-    answers = _session_answers(db, session.id)
+    answers = _session_answers(db, session, include_skipped=False)
     evidence = submit_web(recipe, answers)
     if evidence.get("error"):
         raise RuntimeError(f"web submit failed: {evidence['error']}")
@@ -107,8 +109,17 @@ def run_workflow(db, session_id: str) -> WorkflowRun:
     db.commit()
     db.refresh(run)
 
+    tasks = wf.get("tasks", [])
+    if not isinstance(tasks, list) or not tasks:
+        run.status = "failed"
+        run.error = "workflow has no tasks"
+        run.finished_at = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(run)
+        return run
+
     failed = False
-    for i, task in enumerate(wf.get("tasks", [])):
+    for i, task in enumerate(tasks):
         ttype = task.get("type", "")
         tr = WorkflowTaskRun(workflow_run_id=run.id, ordinal=i, task_type=ttype, status="pending")
         db.add(tr)
@@ -168,9 +179,18 @@ def run_status_dict(db, run: WorkflowRun) -> dict:
             {
                 "type": t.task_type,
                 "status": t.status,
-                "output": json.loads(t.output_json) if t.output_json else None,
+                "output": _parse_task_output(t.output_json),
                 "error": t.error,
             }
             for t in tasks
         ],
     }
+
+
+def _parse_task_output(raw: str | None) -> dict | None:
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except Exception:
+        return {"raw": raw}

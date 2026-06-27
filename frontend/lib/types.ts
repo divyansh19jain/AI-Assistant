@@ -77,6 +77,8 @@ export interface AnswerResult {
 export interface ReviewField {
   field_key: string;
   label: string;
+  field_type: string;
+  options?: unknown[] | null;
   value: unknown;
   source: string;
   section: string;

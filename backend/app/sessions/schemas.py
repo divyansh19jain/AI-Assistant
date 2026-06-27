@@ -43,6 +43,8 @@ class SessionState(BaseModel):
 class ReviewField(BaseModel):
     field_key: str
     label: str
+    field_type: str = "text"
+    options: list[Any] | None = None
     value: Any
     source: str
     section: str
