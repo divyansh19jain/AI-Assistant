@@ -3,7 +3,11 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # The documented dev command starts Uvicorn from ``backend/`` while Docker
+    # and root-level scripts commonly keep secrets in the repo-root ``.env``.
+    # Load both locations so local AI/voice keys are actually seen by FastAPI
+    # without copying secrets into tracked files.
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
     APP_ENV: str = "development"
     APP_DATABASE_URL: str = "postgresql+psycopg://ai_assistant:ai_assistant@localhost:5433/ai_assistant"
@@ -23,6 +27,16 @@ class Settings(BaseSettings):
     OPENAI_MODEL: str = "gpt-5.4-mini"
     # Temperature for the assistant. 0 = deterministic extraction.
     OPENAI_TEMPERATURE: float = 0.0
+    # Audio models are configurable because voice quality and latency improve
+    # over time. These defaults use the current OpenAI audio endpoints while
+    # preserving the existing batch STT/TTS pipeline.
+    OPENAI_STT_MODEL: str = "gpt-4o-transcribe"
+    OPENAI_TTS_MODEL: str = "gpt-4o-mini-tts"
+    OPENAI_TTS_VOICE: str = "marin"
+    OPENAI_TTS_INSTRUCTIONS: str = (
+        "Speak like a calm Ohio Medicaid application helper. Use a warm, patient, "
+        "plain-language tone for someone who may not understand government forms."
+    )
 
     PDF_OUTPUT_DIR: str = "app/pdf/generated_pdfs"
 

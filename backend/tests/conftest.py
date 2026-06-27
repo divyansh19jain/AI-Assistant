@@ -9,6 +9,15 @@ os.environ.setdefault("APP_DATABASE_URL", "sqlite:///:memory:")
 os.environ.setdefault("USE_MOCK_EMR", "true")
 os.environ.setdefault("EMR_DATABASE_URL", "")
 
+# Force AI features OFF so answer extraction / question rephrasing is deterministic
+# (rule-based). The dev container and root .env may carry real keys; the test suite
+# must never depend on a live LLM. These are hard overrides (not setdefault) and run
+# before the app/config import below so get_settings() sees them.
+os.environ["OPENAI_API_KEY"] = ""
+os.environ["ANTHROPIC_API_KEY"] = ""
+os.environ["ELEVENLABS_API_KEY"] = ""
+os.environ["DEEPGRAM_API_KEY"] = ""
+
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import app

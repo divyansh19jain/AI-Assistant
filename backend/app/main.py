@@ -86,3 +86,31 @@ app.include_router(admin_skills_router)
 @app.get("/health")
 def health_check() -> dict:
     return {"status": "ok", "service": "AI-Assistant API"}
+
+
+@app.get("/health/ai")
+def ai_health_check() -> dict:
+    """Expose AI/voice readiness without returning secrets or raw prompt text."""
+    settings = get_settings()
+    return {
+        "status": "ok",
+        "openai_configured": bool(settings.OPENAI_API_KEY),
+        "elevenlabs_configured": bool(settings.ELEVENLABS_API_KEY),
+        "llm": {
+            "provider": settings.LLM_PROVIDER,
+            "model": settings.OPENAI_MODEL,
+        },
+        "stt": {
+            "provider": "openai",
+            "configured": bool(settings.OPENAI_API_KEY),
+            "model": settings.OPENAI_STT_MODEL,
+        },
+        "tts": {
+            "provider_order": ["elevenlabs", "openai"] if settings.ELEVENLABS_API_KEY else ["openai"],
+            "openai_configured": bool(settings.OPENAI_API_KEY),
+            "openai_model": settings.OPENAI_TTS_MODEL,
+            "openai_voice": settings.OPENAI_TTS_VOICE,
+            "elevenlabs_configured": bool(settings.ELEVENLABS_API_KEY),
+            "elevenlabs_voice_configured": bool(settings.ELEVENLABS_VOICE_ID),
+        },
+    }

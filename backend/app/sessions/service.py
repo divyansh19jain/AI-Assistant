@@ -323,6 +323,93 @@ def skip_field(db: DBSession, session_id: str, field_key: str) -> dict | None:
     }
 
 
+_SKIP_TOKENS = {"", "skip", "none", "n/a", "na", "no answer", "leave blank", "blank", "__skipped__"}
+
+
+def set_field(
+    db: DBSession,
+    session: FormSession,
+    schema: dict,
+    field_key: str,
+    value: Any,
+    input_mode: str = "voice",
+) -> dict:
+    """Validate and persist a single field value the agent already extracted.
+
+    Unlike :func:`save_answer`, this does NOT run the per-field extraction LLM —
+    the conversational agent has already decided the value, so we only validate
+    (so stored values stay well-formed) and persist. An empty / "skip" value on an
+    OPTIONAL field stores the skip sentinel; on a required field it's an error the
+    agent is told to re-ask for. Returns a per-field result dict.
+    """
+    from app.forms.validation import validate_answer, ValidationError
+
+    field = get_field_from_schema(field_key, schema)
+    if not field:
+        return {"ok": False, "field_key": field_key, "error": f"Unknown field: {field_key}"}
+
+    label = field.get("label", field_key)
+    required = field.get("required", False)
+    raw_str = str(value).strip() if value is not None else ""
+    is_skip = raw_str.lower() in _SKIP_TOKENS
+
+    if is_skip:
+        if required:
+            return {"ok": False, "field_key": field_key, "label": label,
+                    "error": f"'{label}' is required and cannot be left blank — please ask for it."}
+        store_value: Any = "__skipped__"
+        source, raw_answer, coerced = "skipped", "skipped", None
+    else:
+        try:
+            coerced = validate_answer(field, raw_str)
+        except ValidationError as exc:
+            return {"ok": False, "field_key": field_key, "label": label, "error": str(exc)}
+        store_value = coerced
+        source = "voice" if input_mode == "voice" else "user"
+        raw_answer = raw_str
+
+    existing = db.query(FormAnswer).filter(
+        FormAnswer.session_id == session.id,
+        FormAnswer.field_key == field_key,
+    ).first()
+    if existing:
+        existing.value_json = json.dumps(store_value)
+        existing.raw_answer = raw_answer
+        existing.source = source
+        existing.confidence = 1.0
+    else:
+        db.add(FormAnswer(
+            session_id=session.id, field_key=field_key,
+            value_json=json.dumps(store_value), raw_answer=raw_answer,
+            source=source, confidence=1.0,
+        ))
+    db.commit()
+
+    auto_msg = ""
+    if coerced is not None:
+        try:
+            auto_msg = _maybe_autofill_from_zip(db, session.id, session.form_id, field_key, coerced, schema=schema)
+        except Exception:
+            # The primary field is already committed; a failing ZIP lookup must not
+            # abort the save — discard only the half-done autofill writes.
+            logger.warning("ZIP autofill failed for %s; primary field already saved.", field_key, exc_info=True)
+            db.rollback()
+            auto_msg = ""
+
+    is_sensitive = field.get("sensitive", False)
+    return {
+        "ok": True,
+        "field_key": field_key,
+        "label": label,
+        # 🔒 Never hand a sensitive value (SSN/DOB/phone) back to the agent/LLM — the
+        # model only needs to know the field is filled, not its value.
+        "stored": "***" if (is_sensitive and store_value != "__skipped__")
+                  else ("skipped" if store_value == "__skipped__" else store_value),
+        "sensitive": is_sensitive,
+        "auto_filled": auto_msg,
+    }
+
+
 def go_back(db: DBSession, session_id: str) -> dict | None:
     """
     Undo the most recently user-answered field so it becomes the current question again.

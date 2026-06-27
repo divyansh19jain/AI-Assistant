@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import logging
+from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -43,20 +44,25 @@ class ElevenLabsTTSService(BaseTTSService):
 
 
 class OpenAITTSService(BaseTTSService):
-    VOICE = "alloy"
-    MODEL = "tts-1-hd"
-
-    def __init__(self, api_key: str):
-        from openai import AsyncOpenAI
+    def __init__(self, api_key: str, model: str, voice: str, instructions: str = ""):
         self._client = AsyncOpenAI(api_key=api_key)
+        self._model = model
+        self._voice = voice
+        self._instructions = instructions
 
     async def synthesize(self, text: str) -> bytes:
-        response = await self._client.audio.speech.create(
-            model=self.MODEL,
-            voice=self.VOICE,
-            input=text,
-            response_format="mp3",
-        )
+        payload = {
+            "model": self._model,
+            "voice": self._voice,
+            "input": text,
+            "response_format": "mp3",
+        }
+        # The current OpenAI TTS model accepts style instructions. Older tts-* models
+        # do not, so keep that parameter gated for backwards-compatible overrides.
+        if self._instructions and not self._model.startswith("tts-"):
+            payload["instructions"] = self._instructions
+
+        response = await self._client.audio.speech.create(**payload)
         return response.content
 
 
@@ -93,7 +99,16 @@ def get_tts_service(form_id: str | None = None) -> BaseTTSService:
     settings = get_settings()
     voice_id = get_voice_config(form_id).get("voice_id") or settings.ELEVENLABS_VOICE_ID
 
-    openai_svc = OpenAITTSService(api_key=settings.OPENAI_API_KEY) if settings.OPENAI_API_KEY else MockTTSService()
+    openai_svc = (
+        OpenAITTSService(
+            api_key=settings.OPENAI_API_KEY,
+            model=settings.OPENAI_TTS_MODEL,
+            voice=settings.OPENAI_TTS_VOICE,
+            instructions=settings.OPENAI_TTS_INSTRUCTIONS,
+        )
+        if settings.OPENAI_API_KEY
+        else MockTTSService()
+    )
     if settings.ELEVENLABS_API_KEY:
         eleven_svc = ElevenLabsTTSService(
             api_key=settings.ELEVENLABS_API_KEY,

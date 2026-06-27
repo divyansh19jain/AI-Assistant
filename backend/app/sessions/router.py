@@ -13,6 +13,15 @@ from app.sessions import service as svc
 from app.forms.registry import UnknownFormError
 from app.forms.missing_fields import get_missing_applicable_fields
 
+from pydantic import BaseModel
+
+
+class AgentTurnRequest(BaseModel):
+    """One turn of the conversational agent: the person's utterance (typed or transcribed)."""
+    message: str = ""
+    input_mode: str = "voice"
+
+
 router = APIRouter(prefix="/api/session", tags=["session"])
 logger = logging.getLogger(__name__)
 
@@ -89,6 +98,31 @@ def go_back(session_id: str, db: DBSession = Depends(get_db)) -> dict:
         raise HTTPException(status_code=404, detail="Session not found")
     log_event(db, event_type="answer_undone", session_id=session_id)
     return state
+
+
+@router.post("/{session_id}/agent")
+def agent_turn(
+    session_id: str,
+    request: "AgentTurnRequest",
+    db: DBSession = Depends(get_db),
+) -> dict:
+    """Conversational agent turn: the smart, multi-field, human assistant path."""
+    from app.ai.agent import run_agent_turn
+
+    state = svc.get_session_state(db, session_id)
+    if not state:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    result = run_agent_turn(db, session_id, request.message, input_mode=request.input_mode)
+    if result is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Conversational agent unavailable (no AI key configured).",
+        )
+    # 🔒 Audit metadata only — never the message content (PHI).
+    log_event(db, event_type="agent_turn", session_id=session_id,
+              metadata={"mode": request.input_mode, "done": result.get("done")})
+    return result
 
 
 @router.get("/{session_id}/review")

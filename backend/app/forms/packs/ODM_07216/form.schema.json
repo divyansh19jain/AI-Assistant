@@ -159,7 +159,7 @@
           "label": "Is Homeless",
           "section": "step1_applicant",
           "type": "boolean",
-          "required": false,
+          "required": true,
           "sensitive": false,
           "emr_source_candidates": [],
           "question_text": "Are you currently experiencing homelessness?",

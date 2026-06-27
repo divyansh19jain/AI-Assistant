@@ -16,7 +16,7 @@ async def transcribe(
     form_id: str = Form(default=""),
 ) -> JSONResponse:
     """
-    Transcribe audio using OpenAI Whisper.
+    Transcribe audio using the configured OpenAI speech-to-text model.
     `prompt` biases recognition toward expected vocabulary (field label, common values,
     command words like 'skip', 'yes', 'no').
     """
@@ -42,7 +42,7 @@ async def transcribe(
         )
         full_prompt = f"{vocab} {prompt}".strip()
         response = await client.audio.transcriptions.create(
-            model="whisper-1",
+            model=settings.OPENAI_STT_MODEL,
             file=("audio.webm", audio_bytes, audio.content_type or "audio/webm"),
             language="en",
             prompt=full_prompt,
@@ -52,5 +52,5 @@ async def transcribe(
         logger.info("STT transcript received (%d chars).", len(transcript))
         return JSONResponse(content={"transcript": transcript})
     except Exception:
-        logger.warning("Whisper transcription failed", exc_info=True)
+        logger.warning("Speech transcription failed", exc_info=True)
         return JSONResponse(status_code=500, content={"error": "Transcription failed"})

@@ -43,6 +43,26 @@ class FormAnswer(Base):
     session: Mapped["FormSession"] = relationship(back_populates="answers")
 
 
+class SessionMessage(Base):
+    """One turn of the conversational agent's dialogue for a session.
+
+    Stores the running transcript the agent needs as context across requests
+    (the agent is stateless per HTTP call). Only ``user`` and ``assistant`` text
+    turns are stored — tool-call plumbing is not persisted.
+
+    🔒 Contains PHI (the patient's spoken answers/free text). Treated like
+    ``form_answers``: never written to logs, only to this table.
+    """
+
+    __tablename__ = "session_messages"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(String(64), ForeignKey("form_sessions.id"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(16), nullable=False)  # "user" | "assistant"
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class GeneratedPdf(Base):
     __tablename__ = "generated_pdfs"
 
