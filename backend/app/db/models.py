@@ -201,6 +201,10 @@ class FormApproval(Base):
     form_id: Mapped[str] = mapped_column(String(64), nullable=False)
     approved_by: Mapped[str] = mapped_column(String(128), default="patient")
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Typed legal-name e-signature + consent/attestation flags captured at approval.
+    # Required only when the form's workflow sets approval.require_signature.
+    signature: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    consent_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 

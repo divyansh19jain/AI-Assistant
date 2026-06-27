@@ -16,6 +16,7 @@ admin edits and republishes the live form definition later.
 from __future__ import annotations
 
 import json
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -65,6 +66,7 @@ def build_session_readiness(
 
     pdf_audit = audit_pdf_mapping(form_id, schema)
     unmapped_answered_fields = _unmapped_answered_field_issues(applicable, answers, pdf_audit)
+    consistency_fields = _consistency_issues(applicable, answers)
 
     blockers = [
         *[_field_issue(f, "blocker", "missing_required", "Required field is missing.", "answer")
@@ -97,9 +99,10 @@ def build_session_readiness(
             "invalid_fields": len(invalid_fields),
             "low_confidence_fields": len(low_confidence_fields),
             "unmapped_answered_pdf_fields": len(unmapped_answered_fields),
+            "inconsistent_fields": len(consistency_fields),
         },
         "blockers": blockers,
-        "warnings": skipped_fields,
+        "warnings": skipped_fields + consistency_fields,
         "missing_required": [f["field_key"] for f in missing_required],
         "missing_optional": [f["field_key"] for f in missing_optional],
         "missing_applicable": [f["field_key"] for f in missing_applicable],
@@ -219,6 +222,46 @@ def _unmapped_answered_field_issues(
                 "This answered field is not mapped to the official PDF.",
                 "map_pdf",
             ))
+    return issues
+
+
+def _parse_date_or_none(value: Any) -> "date | None":
+    s = str(value).strip()
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y"):
+        try:
+            return datetime.strptime(s, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _consistency_issues(fields: list[dict], answers: dict[str, Any]) -> list[dict]:
+    """Sanity checks a careful caseworker would catch — surfaced as NON-blocking
+    warnings (severity "info"), never hard blockers, so an unusual-but-valid value can
+    still be approved. Currently flags a birth date that is in the future or implies an
+    implausible age (clear data-entry mistakes worth re-checking).
+    """
+    issues: list[dict] = []
+    today = date.today()
+    for field in fields:
+        key = field["field_key"]
+        is_dob = key.endswith(".dob") or (
+            field.get("type") == "date" and "birth" in str(field.get("label", "")).lower()
+        )
+        if not is_dob:
+            continue
+        val = answers.get(key)
+        if val is None or val == SKIPPED or not _has_value(val):
+            continue
+        dob = _parse_date_or_none(val)
+        if dob is None:
+            continue  # unparseable dates are already caught by the invalid-answer check
+        if dob > today:
+            issues.append(_field_issue(field, "info", "future_date",
+                                       "This birth date is in the future — please re-check it.", "correct"))
+        elif dob.year < 1900 or (today.year - dob.year) > 120:
+            issues.append(_field_issue(field, "info", "implausible_date",
+                                       "This birth date doesn't look right — please re-check it.", "correct"))
     return issues
 
 

@@ -44,6 +44,11 @@ class Settings(BaseSettings):
         "Speak like a calm Ohio Medicaid application helper. Use a warm, patient, "
         "plain-language tone for someone who may not understand government forms."
     )
+    # Document OCR (photo -> field suggestions). Vision-capable model.
+    OPENAI_VISION_MODEL: str = "gpt-4o"
+    # 🔒 PHI EGRESS: uploading a document image (pay stub / ID) sends it to the vision
+    # model. Off by default; turn on only with consent + a BAA-covered endpoint.
+    DOCUMENT_OCR_ENABLED: bool = False
 
     PDF_OUTPUT_DIR: str = "app/pdf/generated_pdfs"
 

@@ -1,5 +1,5 @@
 import logging
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session as DBSession
@@ -139,6 +139,37 @@ def get_readiness(session_id: str, db: DBSession = Depends(get_db)) -> dict:
     if not readiness:
         raise HTTPException(status_code=404, detail="Session not found")
     return readiness
+
+
+@router.post("/{session_id}/extract-document")
+async def extract_document(
+    session_id: str,
+    file: UploadFile = File(...),
+    db: DBSession = Depends(get_db),
+) -> dict:
+    """OCR a document photo (pay stub, ID, benefit letter) into validated field
+    SUGGESTIONS. They are never auto-saved — the person/agent confirms each first."""
+    from app.ai.document_extract import _MAX_IMAGE_BYTES, extract_fields_from_image, ocr_enabled
+    from app.db.models import FormSession
+
+    session = db.query(FormSession).filter(FormSession.id == session_id).first()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if not ocr_enabled():
+        raise HTTPException(status_code=503, detail="Document capture is not enabled for this environment.")
+
+    # Reject an oversized upload BEFORE reading it into memory.
+    if file.size is not None and file.size > _MAX_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image too large (max 8 MB).")
+
+    data = await file.read()
+    schema = svc._schema_for_session(session)
+    answers = svc._answers_map(db, session_id)  # scope OCR to active, unanswered fields
+    result = extract_fields_from_image(data, file.content_type or "image/jpeg", schema, answers)
+    # 🔒 audit metadata only — never the extracted values (PHI).
+    log_event(db, event_type="document_extract", session_id=session_id,
+              metadata={"ok": result.get("ok"), "count": len(result.get("suggestions", []))})
+    return result
 
 
 @router.post("/{session_id}/generate-pdf")

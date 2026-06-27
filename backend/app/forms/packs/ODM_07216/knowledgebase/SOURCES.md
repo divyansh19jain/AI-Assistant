@@ -20,6 +20,7 @@ metadata or fixed topic phrases, not raw applicant answers.
 | `eligibility-screening-2026.md` | ODM 07216 Rev. 11/2025; ODM MEPL 194; ODM 2026 Monthly Financial Eligibility chart | 2026-06-27 | Current 2026 income-screening guide and safe eligibility language. |
 | `household-and-income-guidance.md` | ODM 07216 Rev. 11/2025; ODM MEPL 194 | 2026-06-27 | Household, tax, income, self-employment, other-income, and expense explanations. |
 | `special-pathways-and-coverage.md` | ODM 07216 Rev. 11/2025; ODM MEPL 192; ODM MEPL 194 | 2026-06-27 | Pregnancy, retroactive bills, immigration, ABD/LTC/Appendix E, MPAP, and coverage guidance. |
+| `documents-and-next-steps.md` | ODM 07216 Rev. 11/2025; Ohio Medicaid consumer guidance | 2026-06-27 | What documents to gather and what happens after submitting (county review, ~45-day decision, retroactive coverage, annual renewal). |
 
 Bundled KB documents are seeded automatically on FastAPI startup by
 `app.forms.seed.seed_kb_from_packs`. Admin-created KB documents can still be added

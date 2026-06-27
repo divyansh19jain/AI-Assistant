@@ -14,6 +14,14 @@ from typing import Any
 SOURCE_2026_MAGI = (
     "Ohio Medicaid MEPL 194 / 2026 Monthly Financial Eligibility, effective 2026-03-01"
 )
+# Single source of truth for the chart's effective date — surfaced in every result so a
+# stale chart is obvious, and the agent always frames figures as current-but-verifiable.
+EFFECTIVE_DATE = "2026-03-01"
+VERIFY_NOTE = (
+    "These limits are 2026 ODM screening figures and can change. Confirm current limits "
+    "with your county Job and Family Services office or the official Ohio Medicaid income "
+    "guidelines before relying on them."
+)
 
 CATEGORY_LABELS = {
     "parent_caretaker": "Parents or caretaker relatives, 90% FPL",
@@ -101,6 +109,8 @@ def screen_magi_income(category: str, household_size: int, monthly_income: float
             "medical bills, household rules, verification, and state/county review can matter."
         ),
         "source": SOURCE_2026_MAGI,
+        "effective_date": EFFECTIVE_DATE,
+        "verify": VERIFY_NOTE,
     }
 
 
