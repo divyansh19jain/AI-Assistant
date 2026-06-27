@@ -166,6 +166,54 @@ def test_odm_pdf_mapping_has_no_stale_schema_keys():
     backend_root = Path(__file__).resolve().parents[1]
     schema = json.loads((backend_root / "app/forms/packs/ODM_07216/form.schema.json").read_text(encoding="utf-8"))
     mapping = json.loads((backend_root / "app/forms/packs/ODM_07216/pdf.mapping.json").read_text(encoding="utf-8"))
-    schema_keys = {f["field_key"] for sec in schema["sections"] for f in sec["fields"]}
+    fields = [f for sec in schema["sections"] for f in sec["fields"]]
+    schema_keys = {f["field_key"] for f in fields}
     mapping_keys = {f["field_key"] for f in mapping["fields"]}
     assert mapping_keys <= schema_keys
+
+    # Every non-excluded schema field should either fill a real ODM PDF widget or
+    # be intentionally marked pdf_exclude because the official PDF has no matching
+    # control at this schema granularity.
+    uncovered = sorted(
+        f["field_key"]
+        for f in fields
+        if not f.get("pdf_exclude") and f["field_key"] not in mapping_keys
+    )
+    assert uncovered == []
+
+
+def test_odm_pdf_mapping_targets_real_committed_pdf_widgets():
+    import json
+    from pathlib import Path
+
+    import fitz
+    from app.pdf.pdf_service import _get_base_pdf_path
+
+    backend_root = Path(__file__).resolve().parents[1]
+    mapping = json.loads((backend_root / "app/forms/packs/ODM_07216/pdf.mapping.json").read_text(encoding="utf-8"))
+    base_pdf = _get_base_pdf_path("ODM_07216")
+
+    assert base_pdf is not None
+    assert base_pdf.name == "ODM07216fillx.pdf"
+    assert base_pdf.exists()
+
+    doc = fitz.open(str(base_pdf))
+    try:
+        widgets = {
+            widget.field_name
+            for page in doc
+            for widget in (page.widgets() or [])
+            if widget.field_name
+        }
+    finally:
+        doc.close()
+
+    assert len(widgets) > 900
+    missing = sorted(
+        {
+            entry["acroform_name"]
+            for entry in mapping["fields"]
+            if entry.get("acroform_name") and entry["acroform_name"] not in widgets
+        }
+    )
+    assert missing == []

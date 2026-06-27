@@ -21,7 +21,7 @@ import fitz  # PyMuPDF
 from app.core.config import get_settings
 from app.db.models import FormAnswer, FormSession, GeneratedPdf
 from app.forms import registry
-from app.forms.missing_fields import get_applicable_answers
+from app.forms.missing_fields import SKIPPED, get_applicable_answers
 from app.forms.service import get_all_fields_from_schema, load_form_schema
 
 logger = logging.getLogger(__name__)
@@ -83,9 +83,13 @@ def _display_value(value: Any) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
-    if text in ("__skipped__", "", "null", "None"):
+    if text in (SKIPPED, "", "null", "None"):
         return None
     return text
+
+
+def _is_skipped(value: Any) -> bool:
+    return isinstance(value, str) and value.strip() == SKIPPED
 
 
 def _truthy(value: Any) -> bool:
@@ -96,7 +100,7 @@ def _checkbox_value(value: Any) -> str | None:
     if value is None:
         return None
     text = str(value).strip().lower()
-    if text in ("__skipped__", "", "null", "none", "false", "no"):
+    if text in (SKIPPED, "", "null", "none", "false", "no"):
         return None
     return "On" if _truthy(value) else None
 
@@ -123,7 +127,7 @@ def generate_session_pdf(db, session_id: str) -> dict | None:
 
     if not is_fallback:
         try:
-            file_path, file_name = _fill_acroform_pdf(session_id, answers, base_pdf, session.form_id)
+            file_path, file_name = _fill_acroform_pdf(session_id, answers, base_pdf, session.form_id, schema)
         except Exception as exc:
             logger.warning("AcroForm fill failed (%s), using fallback summary PDF", exc)
             is_fallback = True
@@ -143,7 +147,31 @@ def generate_session_pdf(db, session_id: str) -> dict | None:
     }
 
 
+def _schema_field_types(schema: dict) -> dict[str, str]:
+    """Return field_key -> field type from the frozen schema snapshot."""
+    return {
+        field["field_key"]: field.get("type", "text")
+        for section in schema.get("sections", [])
+        for field in section.get("fields", [])
+        if field.get("field_key")
+    }
+
+
+def _entry_with_schema_defaults(entry: dict, field_type_by_key: dict[str, str]) -> dict:
+    """Apply PDF-fill defaults that are implied by the form schema.
+
+    The ODM pack stores dates normalized as YYYY-MM-DD, while the official PDF
+    date fields ask for mm/dd/yyyy. Treat schema ``type: date`` as that default
+    unless a mapping row opts into a different date_format.
+    """
+    if field_type_by_key.get(entry.get("field_key", "")) == "date" and "date_format" not in entry:
+        return {**entry, "date_format": "mm/dd/yyyy"}
+    return entry
+
+
 def _mapped_widget_value(raw: Any, mapping_entry: dict, widget_type: str) -> str | None:
+    if _is_skipped(raw):
+        return None
     field_type_hint = mapping_entry.get("field_type", "")
     if field_type_hint == "checkbox" or widget_type == "CheckBox":
         if "check_when_value" in mapping_entry:
@@ -171,19 +199,27 @@ def _mapped_widget_value(raw: Any, mapping_entry: dict, widget_type: str) -> str
     return value
 
 
-def _fill_acroform_pdf(session_id: str, answers: dict, base_pdf: Path, form_id: str) -> tuple[Path, str]:
+def _fill_acroform_pdf(
+    session_id: str,
+    answers: dict,
+    base_pdf: Path,
+    form_id: str,
+    schema: dict,
+) -> tuple[Path, str]:
     mapping, _mapping_path = _load_mapping(form_id)
     entries = mapping.get("fields") or []
     if not entries:
         raise RuntimeError(f"form {form_id} has no PDF mapping")
 
     doc = fitz.open(str(base_pdf))
+    field_type_by_key = _schema_field_types(schema)
     acroform_to_entries: dict[str, list[tuple[str, dict]]] = {}
     first_entry_by_key: dict[str, dict] = {}
     for entry in entries:
         field_key = entry.get("field_key")
         if not field_key:
             continue
+        entry = _entry_with_schema_defaults(entry, field_type_by_key)
         first_entry_by_key.setdefault(field_key, entry)
         acroform_name = entry.get("acroform_name")
         if acroform_name:
@@ -196,8 +232,12 @@ def _fill_acroform_pdf(session_id: str, answers: dict, base_pdf: Path, form_id: 
             if not widget.field_name:
                 continue
             for field_key, entry in acroform_to_entries.get(widget.field_name, []):
+                if field_key not in answers:
+                    continue
                 raw = answers.get(field_key)
                 if entry.get("field_type") == "radio" or widget.field_type_string == "RadioButton":
+                    if _is_skipped(raw):
+                        continue
                     on_state = entry.get("radio_on_state")
                     if not on_state:
                         continue
@@ -225,6 +265,8 @@ def _fill_acroform_pdf(session_id: str, answers: dict, base_pdf: Path, form_id: 
     # Fallback coordinate fill for mapped fields that were not AcroForm widgets.
     for field_key, entry in first_entry_by_key.items():
         if field_key in filled_keys:
+            continue
+        if field_key not in answers:
             continue
         raw = answers.get(field_key)
         page_num = int(entry.get("page", 1)) - 1

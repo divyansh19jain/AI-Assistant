@@ -756,6 +756,7 @@
             "max_length": 64
           },
           "depends_on": null,
+          "pdf_exclude": true,
           "pdf_mapping": {
             "field_name": "person1_relationship",
             "page": 2,
@@ -1699,6 +1700,7 @@
             ]
           },
           "depends_on": null,
+          "pdf_exclude": true,
           "pdf_mapping": {
             "field_name": "person1_ethnicity",
             "page": 2,
@@ -1745,6 +1747,7 @@
           "question_text": "Are there additional household members to add to this application? (Person 2)",
           "validation_rule": {},
           "depends_on": null,
+          "pdf_exclude": true,
           "pdf_mapping": {
             "field_name": "person2_adding",
             "page": 3,
@@ -1846,6 +1849,7 @@
             "field_key": "person2.adding_person2",
             "value": true
           },
+          "pdf_exclude": true,
           "pdf_mapping": {
             "field_name": "person2_suffix",
             "page": 3,
@@ -2833,6 +2837,7 @@
             "field_key": "person2.adding_person2",
             "value": true
           },
+          "pdf_exclude": true,
           "pdf_mapping": {
             "field_name": "person2_ethnicity",
             "page": 3,
@@ -3531,6 +3536,7 @@
             "max_length": 64
           },
           "depends_on": {"field_key": "income.has_other_income", "value": true},
+          "pdf_exclude": true,
           "pdf_mapping": {
             "field_name": "income_ssi",
             "page": 4,
@@ -4038,6 +4044,7 @@
           "question_text": "What is the Medicare ID number for the person who has Medicare?",
           "validation_rule": {"max_length": 32},
           "depends_on": null,
+          "pdf_exclude": true,
           "pdf_mapping": {"field_name": "coverage_p1_medicare_id", "page": 6, "x": 0, "y": 0}
         },
         {
@@ -4224,6 +4231,7 @@
           "question_text": "Do you acknowledge that the information provided is accurate and complete to the best of your knowledge?",
           "validation_rule": {},
           "depends_on": null,
+          "pdf_exclude": true,
           "pdf_mapping": {
             "field_name": "review_acknowledgement",
             "page": 6,
