@@ -130,6 +130,21 @@ def test_validate_phone():
     assert validate_answer(field, "(614) 555-1234") == "6145551234"
 
 
+def test_validate_state_name_and_spoken_date():
+    state_field = {
+        "field_key": "applicant.state",
+        "label": "State",
+        "type": "text",
+        "required": True,
+        "validation_rule": {"min_length": 2, "max_length": 2},
+    }
+    assert validate_answer(state_field, "Ohio") == "OH"
+    assert validate_answer(state_field, "Ohio 61459 9800") == "OH"
+
+    date_field = {"type": "date", "required": True, "validation_rule": {"format": "date"}}
+    assert validate_answer(date_field, "January 5th 1980") == "1980-01-05"
+
+
 def test_validate_zip_pattern():
     field = {"type": "text", "required": True, "validation_rule": {"pattern": r"^\d{5}(-\d{4})?$"}}
     assert validate_answer(field, "43215") == "43215"

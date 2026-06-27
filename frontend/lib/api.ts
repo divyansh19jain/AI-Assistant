@@ -11,6 +11,7 @@ import type {
   KbDocSummary,
   SkillCatalogItem,
   WorkflowState,
+  ReadinessReport,
 } from "./types";
 
 // `??` (not `||`) so an explicitly-empty NEXT_PUBLIC_API_BASE_URL means "call the
@@ -126,6 +127,8 @@ export const api = {
 
   getReview: (sessionId: string): Promise<ReviewResponse> =>
     request(`/api/session/${sessionId}/review`),
+  getReadiness: (sessionId: string): Promise<ReadinessReport> =>
+    request(`/api/session/${sessionId}/readiness`),
 
   generatePdf: (sessionId: string): Promise<GeneratePdfResponse> =>
     request(`/api/session/${sessionId}/generate-pdf`, { method: "POST" }),

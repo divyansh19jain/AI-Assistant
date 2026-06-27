@@ -62,6 +62,67 @@ def test_save_answer(client):
     assert data["extracted_value"] == "Alice"
 
 
+def test_odm_does_not_reask_person1_name_after_applicant_name(client):
+    create_resp = client.post("/api/session/create", json={
+        "form_id": "ODM_07216",
+        "manual_mode": True,
+    })
+    session_id = create_resp.json()["session_id"]
+
+    client.post(f"/api/session/{session_id}/answer", json={
+        "field_key": "applicant.first_name",
+        "raw_answer": "Amy",
+        "input_mode": "typed",
+    })
+    client.post(f"/api/session/{session_id}/answer", json={
+        "field_key": "applicant.last_name",
+        "raw_answer": "Stark",
+        "input_mode": "typed",
+    })
+    dob_resp = client.post(f"/api/session/{session_id}/answer", json={
+        "field_key": "person1.dob",
+        "raw_answer": "January 5th 1980",
+        "input_mode": "typed",
+    })
+
+    assert dob_resp.status_code == 200
+    assert dob_resp.json()["success"] is True
+    assert dob_resp.json()["extracted_value"] == "1980-01-05"
+
+    state = client.get(f"/api/session/{session_id}").json()
+    assert state["answers"]["person1.first_name"] == "Amy"
+    assert state["answers"]["person1.last_name"] == "Stark"
+    assert state["answers"]["person1.relationship_to_applicant"] == "Self"
+    assert state["next_question"]["field_key"] not in {"person1.first_name", "person1.last_name"}
+
+
+def test_state_name_normalizes_and_short_phone_reasks(client):
+    create_resp = client.post("/api/session/create", json={
+        "form_id": "ODM_07216",
+        "manual_mode": True,
+    })
+    session_id = create_resp.json()["session_id"]
+
+    state_resp = client.post(f"/api/session/{session_id}/answer", json={
+        "field_key": "applicant.state",
+        "raw_answer": "Ohio 61459 9800",
+        "input_mode": "typed",
+    })
+    assert state_resp.status_code == 200
+    assert state_resp.json()["success"] is True
+    assert state_resp.json()["extracted_value"] == "OH"
+
+    phone_resp = client.post(f"/api/session/{session_id}/answer", json={
+        "field_key": "applicant.phone",
+        "raw_answer": "61459 9800",
+        "input_mode": "typed",
+    })
+    assert phone_resp.status_code == 200
+    assert phone_resp.json()["success"] is False
+    assert phone_resp.json()["needs_clarification"] is True
+    assert "10-digit phone number" in phone_resp.json()["error"]
+
+
 def test_save_invalid_boolean(client):
     create_resp = client.post("/api/session/create", json={
         "form_id": "ODM_07216",

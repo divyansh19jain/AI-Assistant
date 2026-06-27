@@ -13,11 +13,25 @@ class BaseTTSService(ABC):
 
 
 class ElevenLabsTTSService(BaseTTSService):
-    MODEL = "eleven_turbo_v2_5"
-
-    def __init__(self, api_key: str, voice_id: str):
+    def __init__(
+        self,
+        api_key: str,
+        voice_id: str,
+        model_id: str,
+        stability: float,
+        similarity_boost: float,
+        style: float,
+        use_speaker_boost: bool,
+    ):
         self._api_key = api_key
         self._voice_id = voice_id
+        self._model_id = model_id
+        self._voice_settings = {
+            "stability": stability,
+            "similarity_boost": similarity_boost,
+            "style": style,
+            "use_speaker_boost": use_speaker_boost,
+        }
 
     async def synthesize(self, text: str) -> bytes:
         import httpx
@@ -29,13 +43,13 @@ class ElevenLabsTTSService(BaseTTSService):
         }
         payload = {
             "text": text,
-            "model_id": self.MODEL,
-            "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.75,
-            },
+            "model_id": self._model_id,
+            # Stability/similarity/style are deliberately configurable: Medicaid
+            # voice UX should sound calm and natural, while still allowing teams to
+            # tune latency vs. expressiveness per deployment.
+            "voice_settings": self._voice_settings,
         }
-        async with httpx.AsyncClient(timeout=30) as client:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(12.0, connect=5.0)) as client:
             response = await client.post(url, headers=headers, json=payload)
             if response.status_code == 402:
                 raise RuntimeError("ElevenLabs quota exceeded or payment required")
@@ -113,6 +127,11 @@ def get_tts_service(form_id: str | None = None) -> BaseTTSService:
         eleven_svc = ElevenLabsTTSService(
             api_key=settings.ELEVENLABS_API_KEY,
             voice_id=voice_id,
+            model_id=settings.ELEVENLABS_MODEL_ID,
+            stability=settings.ELEVENLABS_STABILITY,
+            similarity_boost=settings.ELEVENLABS_SIMILARITY_BOOST,
+            style=settings.ELEVENLABS_STYLE,
+            use_speaker_boost=settings.ELEVENLABS_USE_SPEAKER_BOOST,
         )
         return FallbackTTSService(primary=eleven_svc, secondary=openai_svc)
     return openai_svc

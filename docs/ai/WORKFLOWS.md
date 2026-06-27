@@ -35,6 +35,59 @@ Supported tasks are `generate_pdf` and `web_submit`.
 4. Unknown tasks must fail closed.
 5. Add tests in `backend/tests/test_workflow.py`.
 
+### Workflow Engine Boundary
+
+Two engines are supported:
+
+- `WORKFLOW_ENGINE=local`: runs `backend/app/workflows/engine.py` in-process.
+- `WORKFLOW_ENGINE=temporal`: starts `FormCompletionWorkflow` on Temporal and
+  executes the existing completion engine inside a Temporal Activity.
+
+Docker Compose defaults to Temporal and runs:
+
+- `temporal-db`
+- `temporal`
+- `temporal-ui`
+- `temporal-worker`
+
+Native backend dev and tests default to `local`.
+If `WORKFLOW_ENGINE=temporal` but Temporal is unreachable at approval time, the
+API logs the Temporal failure and falls back to the in-process engine for that
+run (`engine="local-fallback"` in audit metadata). A workflow result of
+`failed` still leaves the session at `ready_for_review`; only a completed
+workflow marks the session `completed`.
+
+The Temporal activity delegates to the existing synchronous DB/PDF workflow
+engine, so the worker runs activities in a thread pool controlled by
+`TEMPORAL_ACTIVITY_WORKERS`.
+
+Keep the same public API and database audit records for both engines:
+
+1. `POST /api/session/{id}/approve` remains the human approval gate.
+2. Completion tasks still write `workflow_runs` and `workflow_task_runs`.
+3. Unknown task types fail closed.
+4. `generate_pdf` and `web_submit` remain the only supported task types.
+5. `GET /api/session/{id}/workflow` reads the latest DB run regardless of engine.
+
+## Readiness Gate
+
+Use `GET /api/session/{id}/readiness` to see exactly why a session can or cannot
+be approved. The report checks missing applicable fields, required fields, stored
+answer validation, low-confidence answers, and official-PDF mapping coverage.
+
+Do not add separate completion rules in the UI, approval route, PDF route, or
+workflow task. They should all consume the same readiness service:
+
+```text
+backend/app/forms/readiness.py
+```
+
+For a new official PDF form, also run:
+
+```text
+GET /api/admin/forms/<FORM_ID>/audit
+```
+
 ## Database Schema Change
 
 1. Update `backend/app/db/models.py`.

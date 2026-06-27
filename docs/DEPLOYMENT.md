@@ -6,12 +6,16 @@ resource on **Proxmox**.
 
 ## Architecture
 
-Three containers on one internal network:
+Seven containers on one internal network:
 
 | Service    | Image                | Purpose                                  | Public? |
 | ---------- | -------------------- | ---------------------------------------- | ------- |
 | `db`       | `postgres:15`        | App database (forms, sessions, audit)    | No      |
 | `backend`  | built from `backend` | FastAPI API + PDF + workflows            | No      |
+| `temporal-db` | `postgres:15`     | Temporal persistence database            | No      |
+| `temporal` | `temporalio/auto-setup` | Temporal server / durable state engine | No      |
+| `temporal-worker` | built from `backend` | Runs approved completion workflows | No      |
+| `temporal-ui` | `temporalio/ui`   | Temporal workflow visibility UI          | Localhost only |
 | `frontend` | built from `frontend`| Next.js 14 UI (standalone server)        | **Yes** |
 
 **Only the frontend needs a public domain.** The browser calls `/api/*` on the
@@ -43,6 +47,7 @@ Open:
 
 - App:     http://localhost:3000
 - API docs: http://localhost:8000/docs   (bound to localhost only)
+- Temporal UI: http://localhost:8080     (bound to localhost only)
 
 The UI shows the yellow **MOCK-mode** banner because `USE_MOCK_EMR=true`. Stop with
 `docker compose down` (add `-v` to also drop the database + generated-PDF volumes).
@@ -102,6 +107,7 @@ Coolify at the repo, set the env vars, give the `frontend` service a domain, dep
 
 4. **Persistent storage** — these named volumes already persist across redeploys:
    - `pgdata` — the Postgres database (back this up).
+   - `temporal_pgdata` — Temporal workflow state.
    - `pdf_data` — generated PDFs.
 
 5. **Deploy.** Coolify builds the images (the frontend build arg
@@ -133,6 +139,10 @@ Coolify at the repo, set the env vars, give the `frontend` service a domain, dep
 | `OPENAI_API_KEY`          | empty                     | Empty -> rule-based fallback                        |
 | `OPENAI_MODEL`            | `gpt-5.4-mini`            | Configurable model id                              |
 | `WEB_SUBMIT_DRIVER`       | `mock`                    | `mock` = safe dry-run; real drivers are PHI egress |
+| `WORKFLOW_ENGINE`         | `temporal` in compose     | `temporal` uses Temporal worker; `local` runs in-process |
+| `TEMPORAL_ADDRESS`        | `temporal:7233`           | Temporal gRPC address used by backend and worker   |
+| `TEMPORAL_TASK_QUEUE`     | `form-completion`         | Worker task queue                                  |
+| `TEMPORAL_ACTIVITY_WORKERS` | `4`                     | Thread-pool slots for sync PDF/DB workflow work    |
 | `ADMIN_USERNAME/PASSWORD` | `admin` / `admin1234`     | **Change before any non-local deploy**             |
 | `ADMIN_JWT_SECRET`        | `change-me-in-production` | **Change** — long random string                    |
 | `CORS_ALLOWED_ORIGINS`    | empty                     | Only for split-domain; unused with the proxy       |
@@ -147,6 +157,7 @@ Coolify at the repo, set the env vars, give the `frontend` service a domain, dep
 - [ ] `.env` is **not** committed (it is gitignored) — secrets live in Coolify's env UI.
 - [ ] `USE_MOCK_EMR=false` only with a genuine **read-only** EMR DSN.
 - [ ] `WEB_SUBMIT_DRIVER` left as `mock` unless a real portal driver is intended.
+- [ ] Temporal services healthy (`temporal`, `temporal-worker`, `temporal-db`).
 - [ ] HTTPS enforced on the frontend domain (Coolify default).
 - [ ] `pgdata` backups scheduled.
 
@@ -157,6 +168,11 @@ Coolify at the repo, set the env vars, give the `frontend` service a domain, dep
   empty. Check `docker compose logs frontend backend`.
 - **Backend unhealthy:** `docker compose logs backend`; verify `db` is healthy and
   `APP_DATABASE_URL` points at the `db` service.
+- **Temporal unavailable during approval:** the backend falls back to the local
+  in-process workflow engine so the user can still finish. Check
+  `docker compose logs temporal temporal-worker` and verify
+  `WORKFLOW_ENGINE=temporal`, `TEMPORAL_ADDRESS=temporal:7233`, and
+  `TEMPORAL_TASK_QUEUE` match in both backend and worker.
 - **CORS errors in a split-domain setup:** set `CORS_ALLOWED_ORIGINS` to the exact
   frontend origin and keep `APP_ENV=production`.
 - **Port already in use (local):** change `FRONTEND_PORT` / `BACKEND_PORT` / `DB_PORT`

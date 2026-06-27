@@ -94,6 +94,36 @@ def _next_missing(schema: dict, answers: dict[str, Any]) -> dict | None:
     return missing[0] if missing else None
 
 
+def _kb_context_for_field(db, form_id: str, field: dict | None) -> str:
+    """Return short form-level guidance for the next field, if KB chunks exist.
+
+    The query is built only from static field metadata. Do not include the user's
+    raw answer here; KB retrieval is meant to help explain the form, not remember
+    patient-specific data.
+    """
+    if not field:
+        return ""
+    try:
+        from app.ai.kb import retrieve
+
+        query = " ".join(
+            str(part)
+            for part in (field.get("label"), field.get("question_text"), field.get("section"))
+            if part
+        )
+        chunks = retrieve(db, form_id, query, k=2)
+    except Exception:
+        chunks = []
+    if not chunks:
+        return ""
+    joined = "\n\n".join(f"- {chunk[:700]}" for chunk in chunks)
+    return (
+        "FORM KNOWLEDGEBASE GUIDANCE for the next question. Use this only to "
+        "explain terms in plain language; do not quote long passages:\n"
+        f"{joined}"
+    )
+
+
 SYSTEM_PROMPT = """\
 You are Mia, a warm, patient, and encouraging assistant helping a person complete \
 their {form_title}. Many people you help have limited reading ability, may be \
@@ -319,6 +349,8 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     answers = svc._answers_map(db, session_id)
     form_ctx = _build_form_context(schema, answers)
     system = SYSTEM_PROMPT.format(form_title=svc._form_title(session.form_id, schema))
+    next_field = _next_missing(schema, answers)
+    kb_context = _kb_context_for_field(db, session.form_id, next_field)
 
     # Replay recent dialogue for continuity.
     history = (
@@ -332,6 +364,8 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
 
     messages: list[dict] = [{"role": "system", "content": system}]
     messages.append({"role": "system", "content": f"CURRENT FORM STATE:\n{form_ctx}"})
+    if kb_context:
+        messages.append({"role": "system", "content": kb_context})
     for m in history:
         messages.append({"role": m.role, "content": m.content})
 
@@ -390,14 +424,16 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                     elif name == "skip_fields":
                         out = _exec_skip_fields(db, session, schema, args)
                     elif name == "go_to_review":
-                        # Match the review/approval gate: every applicable field must
-                        # be answered or explicitly skipped before the user reviews.
-                        _ans = svc._answers_map(db, session_id)
-                        _still = get_missing_applicable_fields(session.form_id, _ans, schema)
-                        if _still:
+                        # Match the review/approval gate exactly: the agent can
+                        # request review only after deterministic readiness passes.
+                        readiness = svc.get_session_readiness(db, session_id)
+                        if not readiness or not readiness["ready"]:
                             go_review = False
-                            out = {"ok": False, "error": "Cannot review yet; still missing: "
-                                   + ", ".join(f["field_key"] for f in _still)}
+                            out = {
+                                "ok": False,
+                                "error": "Cannot review yet; readiness blockers remain.",
+                                "blockers": (readiness or {}).get("blockers", [])[:8],
+                            }
                         else:
                             go_review = True
                             out = {"ok": True}
@@ -435,10 +471,11 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     answers = svc._answers_map(db, session_id)
     missing_applicable = get_missing_applicable_fields(session.form_id, answers, schema)
     missing_required = get_missing_required_fields(session.form_id, answers, schema)
+    readiness = svc.get_session_readiness(db, session_id) or {"ready": False}
     # Never report done until the same gate used by review/approval/PDF would pass.
     # Required-only completion strands users because optional applicable fields still
     # have to be answered or explicitly skipped before completion.
-    done = len(missing_applicable) == 0
+    done = bool(readiness["ready"])
     go_review = go_review and done
     svc._set_collection_status(session, len(missing_applicable) == 0)
     db.commit()

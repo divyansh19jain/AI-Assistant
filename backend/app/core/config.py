@@ -19,6 +19,13 @@ class Settings(BaseSettings):
     DEEPGRAM_API_KEY: str = ""
     ELEVENLABS_API_KEY: str = ""
     ELEVENLABS_VOICE_ID: str = "ZSNL4hPqCnqoMPaI4jGX"
+    # ElevenLabs is the preferred high-quality TTS path when configured. These
+    # defaults favor a warm, steady human voice over the browser's robotic fallback.
+    ELEVENLABS_MODEL_ID: str = "eleven_multilingual_v2"
+    ELEVENLABS_STABILITY: float = 0.62
+    ELEVENLABS_SIMILARITY_BOOST: float = 0.85
+    ELEVENLABS_STYLE: float = 0.25
+    ELEVENLABS_USE_SPEAKER_BOOST: bool = True
 
     # AI provider for the conversational assistant. Currently "openai".
     LLM_PROVIDER: str = "openai"
@@ -44,6 +51,15 @@ class Settings(BaseSettings):
     # Set WEB_SUBMIT_DRIVER=browserless + BROWSERLESS_URL to enable real portal submission.
     WEB_SUBMIT_DRIVER: str = "mock"
     BROWSERLESS_URL: str = ""
+
+    # Completion workflow engine. Local Python remains the default for native dev
+    # and tests; Docker Compose sets this to "temporal" and runs a worker service.
+    WORKFLOW_ENGINE: str = "local"  # local | temporal
+    TEMPORAL_ADDRESS: str = "localhost:7233"
+    TEMPORAL_NAMESPACE: str = "default"
+    TEMPORAL_TASK_QUEUE: str = "form-completion"
+    TEMPORAL_WORKFLOW_TIMEOUT_SECONDS: int = 120
+    TEMPORAL_ACTIVITY_WORKERS: int = 4
 
     ZIPCODE_API_KEY: str = ""
 

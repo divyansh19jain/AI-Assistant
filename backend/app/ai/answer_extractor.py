@@ -179,8 +179,17 @@ def extract_answer(field: dict, raw_answer: str) -> ExtractionResult:
 
     # ---- Rule-based fallback (no LLM configured) ----
     if field_type in _LLM_PREFERRED_TYPES:
-        # Free text: trust as-is.
-        return ExtractionResult(raw, 0.9, False, None)
+        # Free-text fields can still have schema rules, such as state max_length=2
+        # or ZIP/email patterns. Validate them before storage so voice fallback
+        # behavior matches the tool-calling agent path.
+        try:
+            normalized = validate_answer(field, raw)
+            return ExtractionResult(normalized, 0.9, False, None)
+        except ValidationError as exc:
+            return ExtractionResult(
+                None, 0.0, True,
+                f"{exc} {field.get('question_text', '')}".strip(),
+            )
 
     try:
         normalized = validate_answer(field, raw)
@@ -270,16 +279,15 @@ def _llm_extract(field: dict, raw_answer: str) -> ExtractionResult | None:
     # The LLM says it fits — still run rule validation for typed fields so the
     # stored value is guaranteed well-formed (the LLM normalised it to a string).
     coerced: Any = result.value
-    if field_type not in _LLM_PREFERRED_TYPES:
-        try:
-            coerced = validate_answer(field, str(result.value))
-        except ValidationError as exc:
-            return ExtractionResult(
-                value=None,
-                confidence=0.0,
-                needs_clarification=True,
-                clarification_question=f"{exc} {question_text}".strip(),
-            )
+    try:
+        coerced = validate_answer(field, str(result.value))
+    except ValidationError as exc:
+        return ExtractionResult(
+            value=None,
+            confidence=0.0,
+            needs_clarification=True,
+            clarification_question=f"{exc} {question_text}".strip(),
+        )
 
     conf = float(result.confidence or 0.9)
     # Smart-confirm: plausible but uncertain -> ask the user to confirm before

@@ -85,6 +85,51 @@ export interface ReviewField {
   section_title: string;
   is_sensitive: boolean;
   is_required: boolean;
+  confidence?: number | null;
+}
+
+export interface ReadinessIssue {
+  field_key: string;
+  label: string;
+  section: string;
+  severity: string;
+  kind: string;
+  message: string;
+  action: string;
+  confidence?: number | null;
+  source?: string | null;
+}
+
+export interface PdfReadiness {
+  form_id: string;
+  has_mapping: boolean;
+  mapping_path?: string | null;
+  base_pdf?: string | null;
+  base_pdf_exists: boolean;
+  mapped_field_count: number;
+  excluded_field_count: number;
+  unmapped_schema_fields: string[];
+  stale_mapping_fields: string[];
+  missing_pdf_widgets: string[];
+  official_pdf_ready: boolean;
+  mapped_field_keys: string[];
+}
+
+export interface ReadinessReport {
+  ready: boolean;
+  status: string;
+  confidence_threshold: number;
+  summary: Record<string, number>;
+  blockers: ReadinessIssue[];
+  warnings: ReadinessIssue[];
+  missing_required: string[];
+  missing_optional: string[];
+  missing_applicable: string[];
+  invalid_fields: ReadinessIssue[];
+  low_confidence_fields: ReadinessIssue[];
+  skipped_fields: ReadinessIssue[];
+  pdf: PdfReadiness;
+  unknown_answer_keys: string[];
 }
 
 export interface ReviewResponse {
@@ -95,6 +140,7 @@ export interface ReviewResponse {
   missing_required: string[];
   missing_applicable: string[];
   is_complete: boolean;
+  readiness: ReadinessReport;
 }
 
 export interface GeneratePdfResponse {

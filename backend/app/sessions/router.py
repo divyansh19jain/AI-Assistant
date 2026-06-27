@@ -11,7 +11,6 @@ from app.sessions.schemas import (
 )
 from app.sessions import service as svc
 from app.forms.registry import UnknownFormError
-from app.forms.missing_fields import get_missing_applicable_fields
 
 from pydantic import BaseModel
 
@@ -133,6 +132,15 @@ def get_review(session_id: str, db: DBSession = Depends(get_db)) -> dict:
     return review
 
 
+@router.get("/{session_id}/readiness")
+def get_readiness(session_id: str, db: DBSession = Depends(get_db)) -> dict:
+    """Deterministic completion gate used by review, approval, PDF, and tests."""
+    readiness = svc.get_session_readiness(db, session_id)
+    if not readiness:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return readiness
+
+
 @router.post("/{session_id}/generate-pdf")
 def generate_pdf(session_id: str, db: DBSession = Depends(get_db)) -> dict:
     from app.pdf.pdf_service import generate_session_pdf
@@ -142,15 +150,14 @@ def generate_pdf(session_id: str, db: DBSession = Depends(get_db)) -> dict:
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    schema = svc._schema_for_session(session)
-    answers = svc._answers_map(db, session_id)
-    missing = get_missing_applicable_fields(session.form_id, answers, schema)
-    if missing:
+    readiness = svc.get_session_readiness(db, session_id)
+    if not readiness or not readiness["ready"]:
         raise HTTPException(
             status_code=400,
             detail={
-                "message": "Cannot generate a PDF until all applicable fields are answered or skipped.",
-                "missing_fields": [f["field_key"] for f in missing],
+                "message": "Cannot generate a PDF until the readiness gate passes.",
+                "missing_fields": (readiness or {}).get("missing_applicable", []),
+                "readiness": readiness,
             },
         )
     latest_approval = (

@@ -350,6 +350,46 @@ def get_form(
     return _to_detail(_get_or_404(db, form_id))
 
 
+@router.get("/{form_id}/audit")
+def audit_form(
+    form_id: str,
+    _admin: Annotated[str, Depends(_verify_token)],
+    db: Session = Depends(get_db),
+) -> dict:
+    """Static form-definition audit used before publishing or adding a new PDF.
+
+    This does not inspect patient answers. It verifies the schema/PDF contract:
+    stale mapping keys, unmapped non-excluded schema fields, missing base PDFs, and
+    AcroForm widget names that do not exist in the committed PDF.
+    """
+    from app.forms.readiness import audit_pdf_mapping
+
+    row = db.query(Form).filter(Form.form_id == form_id).first()
+    if row is not None:
+        schema = json.loads(row.schema_json)
+    else:
+        try:
+            from app.forms.service import load_form_schema
+
+            schema = load_form_schema(form_id)
+        except Exception as exc:
+            raise HTTPException(status_code=404, detail=f"Form {form_id!r} not found") from exc
+    pdf = audit_pdf_mapping(form_id, schema)
+    blockers = []
+    if pdf["stale_mapping_fields"]:
+        blockers.append({"kind": "stale_mapping_fields", "fields": pdf["stale_mapping_fields"]})
+    if pdf["missing_pdf_widgets"]:
+        blockers.append({"kind": "missing_pdf_widgets", "widgets": pdf["missing_pdf_widgets"]})
+    if pdf["has_mapping"] and not pdf["base_pdf_exists"]:
+        blockers.append({"kind": "missing_base_pdf", "base_pdf": pdf["base_pdf"]})
+    return {
+        "form_id": form_id,
+        "ready": len(blockers) == 0,
+        "blockers": blockers,
+        "pdf": pdf,
+    }
+
+
 @router.post("", response_model=FormDetail, status_code=201)
 def create_form(
     body: FormCreate,

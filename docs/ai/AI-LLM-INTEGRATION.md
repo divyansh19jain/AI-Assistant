@@ -60,6 +60,10 @@ The existing helpers that follow it:
 - `answer_extractor.py` — extract a normalized value from free text; smart-
   confirm on low confidence; optional semantic sanity-check (skipped for
   sensitive fields).
+- Text fields are still validated against schema rules before storage. This is
+  intentional: state names like `Ohio` normalize to `OH`, natural dates like
+  `January 5th 1980` are accepted, and malformed phone numbers are rejected
+  before review instead of depending on the LLM to be clever.
 - `question_rewriter.py` — make the next question conversational/contextual.
 - `help_intent.py` — classify "is the user answering, or asking for help?"
 
@@ -79,6 +83,28 @@ The existing helpers that follow it:
   `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, plus OpenAI TTS). With no keys,
   mocks/browser fallback are used. The `/api/stt` and `/api/tts` routers are the
   only `async` parts.
+- For the most human voice, configure ElevenLabs. The server tries ElevenLabs TTS
+  first when `ELEVENLABS_API_KEY` is set, then falls back to OpenAI TTS, then the
+  browser fallback. Browser fallback is the least natural and should only be a
+  failure path.
+- Naturalness knobs live in settings/env:
+  `ELEVENLABS_MODEL_ID`, `ELEVENLABS_STABILITY`, `ELEVENLABS_SIMILARITY_BOOST`,
+  `ELEVENLABS_STYLE`, and `ELEVENLABS_USE_SPEAKER_BOOST`.
+- `/health/ai` reports which TTS/STT/LLM providers are configured without
+  returning secrets.
+
+## Conversational Agent + KB
+
+- `app/ai/agent.py` is the multi-field tool-calling assistant. It can save
+  several fields, skip optionals, correct prior values, and request review.
+- The agent is not the completion authority. It must pass the deterministic
+  readiness gate in `app/forms/readiness.py` before review/approval/PDF.
+- ODM-07216 has deterministic applicant-to-Person-1 carry-forward in
+  `app/sessions/service.py`. Do not re-ask Person 1 first/last name when the
+  applicant name is already known unless the user explicitly overwrote Person 1.
+- For each turn, the agent receives a compact form-state snapshot and, when
+  available, up to two KB snippets for the next missing field. KB retrieval uses
+  static field metadata only, not the user's raw answer.
 
 ## LangGraph
 

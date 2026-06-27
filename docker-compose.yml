@@ -36,6 +36,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      temporal:
+        condition: service_started
     environment:
       APP_ENV: ${APP_ENV:-production}
       APP_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ai_assistant}:${POSTGRES_PASSWORD:-ai_assistant}@db:5432/${POSTGRES_DB:-ai_assistant}
@@ -48,6 +50,12 @@ services:
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       WEB_SUBMIT_DRIVER: ${WEB_SUBMIT_DRIVER:-mock}
       BROWSERLESS_URL: ${BROWSERLESS_URL:-}
+      WORKFLOW_ENGINE: ${WORKFLOW_ENGINE:-temporal}
+      TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-form-completion}
+      TEMPORAL_WORKFLOW_TIMEOUT_SECONDS: ${TEMPORAL_WORKFLOW_TIMEOUT_SECONDS:-120}
+      TEMPORAL_ACTIVITY_WORKERS: ${TEMPORAL_ACTIVITY_WORKERS:-4}
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234}
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-change-me-in-production}
@@ -58,6 +66,83 @@ services:
     # frontend proxies /api internally. Safe to remove on a hardened server.
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+
+  temporal-db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${TEMPORAL_POSTGRES_USER:-temporal}
+      POSTGRES_PASSWORD: ${TEMPORAL_POSTGRES_PASSWORD:-temporal}
+      POSTGRES_DB: ${TEMPORAL_POSTGRES_DB:-temporal}
+    volumes:
+      - temporal_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEMPORAL_POSTGRES_USER:-temporal} -d ${TEMPORAL_POSTGRES_DB:-temporal}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  temporal:
+    image: temporalio/auto-setup:${TEMPORAL_VERSION:-1.25.2}
+    restart: unless-stopped
+    depends_on:
+      temporal-db:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: ${TEMPORAL_POSTGRES_USER:-temporal}
+      POSTGRES_PWD: ${TEMPORAL_POSTGRES_PASSWORD:-temporal}
+      POSTGRES_SEEDS: temporal-db
+    ports:
+      - "127.0.0.1:${TEMPORAL_PORT:-7233}:7233"
+
+  temporal-ui:
+    image: temporalio/ui:${TEMPORAL_UI_VERSION:-2.31.2}
+    restart: unless-stopped
+    depends_on:
+      - temporal
+    environment:
+      TEMPORAL_ADDRESS: temporal:7233
+      TEMPORAL_CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3000}
+    ports:
+      - "127.0.0.1:${TEMPORAL_UI_PORT:-8080}:8080"
+
+  temporal-worker:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ai_assistant}:${POSTGRES_PASSWORD:-ai_assistant}@db:5432/${POSTGRES_DB:-ai_assistant}
+      USE_MOCK_EMR: ${USE_MOCK_EMR:-true}
+      EMR_DATABASE_URL: ${EMR_DATABASE_URL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4-mini}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      DEEPGRAM_API_KEY: ${DEEPGRAM_API_KEY:-}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      WEB_SUBMIT_DRIVER: ${WEB_SUBMIT_DRIVER:-mock}
+      BROWSERLESS_URL: ${BROWSERLESS_URL:-}
+      WORKFLOW_ENGINE: temporal
+      TEMPORAL_ADDRESS: ${TEMPORAL_ADDRESS:-temporal:7233}
+      TEMPORAL_NAMESPACE: ${TEMPORAL_NAMESPACE:-default}
+      TEMPORAL_TASK_QUEUE: ${TEMPORAL_TASK_QUEUE:-form-completion}
+      TEMPORAL_WORKFLOW_TIMEOUT_SECONDS: ${TEMPORAL_WORKFLOW_TIMEOUT_SECONDS:-120}
+      TEMPORAL_ACTIVITY_WORKERS: ${TEMPORAL_ACTIVITY_WORKERS:-4}
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234}
+      ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-change-me-in-production}
+    volumes:
+      - pdf_data:/app/app/pdf/generated_pdfs
+    command: ["python", "-m", "app.workflows.temporal_worker"]
+    healthcheck:
+      disable: true
 
   frontend:
     build:
@@ -76,4 +161,5 @@ services:
 
 volumes:
   pgdata:
+  temporal_pgdata:
   pdf_data:

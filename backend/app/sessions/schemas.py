@@ -51,6 +51,51 @@ class ReviewField(BaseModel):
     section_title: str
     is_sensitive: bool = False
     is_required: bool = True
+    confidence: float | None = None
+
+
+class ReadinessIssue(BaseModel):
+    field_key: str
+    label: str
+    section: str
+    severity: str
+    kind: str
+    message: str
+    action: str
+    confidence: float | None = None
+    source: str | None = None
+
+
+class PdfReadiness(BaseModel):
+    form_id: str
+    has_mapping: bool
+    mapping_path: str | None = None
+    base_pdf: str | None = None
+    base_pdf_exists: bool
+    mapped_field_count: int
+    excluded_field_count: int
+    unmapped_schema_fields: list[str]
+    stale_mapping_fields: list[str]
+    missing_pdf_widgets: list[str]
+    official_pdf_ready: bool
+    mapped_field_keys: list[str]
+
+
+class ReadinessReport(BaseModel):
+    ready: bool
+    status: str
+    confidence_threshold: float
+    summary: dict[str, int]
+    blockers: list[ReadinessIssue]
+    warnings: list[ReadinessIssue]
+    missing_required: list[str]
+    missing_optional: list[str]
+    missing_applicable: list[str]
+    invalid_fields: list[ReadinessIssue]
+    low_confidence_fields: list[ReadinessIssue]
+    skipped_fields: list[ReadinessIssue]
+    pdf: PdfReadiness
+    unknown_answer_keys: list[str]
 
 
 class ReviewResponse(BaseModel):
@@ -61,6 +106,7 @@ class ReviewResponse(BaseModel):
     missing_required: list[str]
     missing_applicable: list[str]
     is_complete: bool
+    readiness: ReadinessReport
 
 
 class GeneratePdfResponse(BaseModel):

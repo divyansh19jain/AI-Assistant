@@ -20,6 +20,7 @@ from app.forms.missing_fields import (
     is_field_applicable,
 )
 from app.forms.questions import get_current_question_context
+from app.forms.readiness import build_session_readiness
 from app.ai.langgraph_flow import run_answer_step
 from app.patients.service import get_patient_by_id
 
@@ -67,6 +68,7 @@ def create_session(
         db.add(answer)
 
     db.commit()
+    _apply_answer_carry_forward(db, session, schema)
 
     # Auto-fill city/state/county from any ZIP fields that came in via EMR prefill.
     for field_key, data in prefilled.items():
@@ -207,6 +209,7 @@ def save_answer(
 
     # ── ZIP auto-fill: when a ZIP field is saved, look up city/state/county
     # and save them automatically so those questions are never asked.
+    carry_forward_msg = _apply_answer_carry_forward(db, session, schema)
     zip_autofill_msg = _maybe_autofill_from_zip(
         db, session_id, session.form_id, field_key, extracted_value, schema=schema
     )
@@ -216,6 +219,8 @@ def save_answer(
     field_meta = _get_field_meta(field_key, session.form_id, schema)
     if field_meta:
         ack = acknowledge_answer(field_meta, extracted_value)
+        if carry_forward_msg:
+            ack = (ack.rstrip(" ") + " " + carry_forward_msg).strip()
         if zip_autofill_msg:
             ack = (ack.rstrip(" ") + " " + zip_autofill_msg).strip()
         result["acknowledgment"] = ack
@@ -305,6 +310,7 @@ def skip_field(db: DBSession, session_id: str, field_key: str) -> dict | None:
             confidence=0.0,
         ))
     db.commit()
+    _apply_answer_carry_forward(db, session, schema)
 
     answers_map[field_key] = sentinel
     missing = get_missing_applicable_fields(session.form_id, answers_map, schema)
@@ -384,6 +390,7 @@ def set_field(
             source=source, confidence=1.0,
         ))
     db.commit()
+    carry_forward_msg = _apply_answer_carry_forward(db, session, schema)
 
     auto_msg = ""
     if coerced is not None:
@@ -406,7 +413,7 @@ def set_field(
         "stored": "***" if (is_sensitive and store_value != "__skipped__")
                   else ("skipped" if store_value == "__skipped__" else store_value),
         "sensitive": is_sensitive,
-        "auto_filled": auto_msg,
+        "auto_filled": " ".join(m for m in (carry_forward_msg, auto_msg) if m),
     }
 
 
@@ -464,6 +471,7 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
     answers = db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
     answers_map = {a.field_key: _deserialize(a.value_json) for a in answers}
     source_map = {a.field_key: a.source for a in answers}
+    confidence_map = {a.field_key: float(a.confidence or 0.0) for a in answers}
 
     all_fields = get_all_fields_from_schema(schema)
     section_titles = {s["section_key"]: s["section_title"] for s in schema["sections"]}
@@ -492,10 +500,12 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
             "section_title": section_titles.get(sec, sec),
             "is_sensitive": field.get("sensitive", False),
             "is_required": field.get("required", False),
+            "confidence": confidence_map.get(field["field_key"]),
         })
 
     missing_required = get_missing_required_fields(session.form_id, answers_map, schema)
     missing_applicable = get_missing_applicable_fields(session.form_id, answers_map, schema)
+    readiness = build_session_readiness(session.form_id, schema, answers)
     return {
         "session_id": session_id,
         "form_id": session.form_id,
@@ -503,8 +513,19 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
         "sections": sections,
         "missing_required": [f["field_key"] for f in missing_required],
         "missing_applicable": [f["field_key"] for f in missing_applicable],
-        "is_complete": len(missing_applicable) == 0,
+        "is_complete": readiness["ready"],
+        "readiness": readiness,
     }
+
+
+def get_session_readiness(db: DBSession, session_id: str) -> dict | None:
+    """Build the same completion gate used by review, approval, and workflows."""
+    session = db.query(FormSession).filter(FormSession.id == session_id).first()
+    if not session:
+        return None
+    schema = _schema_for_session(session)
+    answers = db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
+    return build_session_readiness(session.form_id, schema, answers)
 
 
 def _build_field_summaries(prefilled: dict, form_id: str, schema: dict | None = None) -> list[dict]:
@@ -611,6 +632,100 @@ def _deserialize(value_json: str | None) -> Any:
         return json.loads(value_json)
     except Exception:
         return value_json
+
+
+_ODM_PERSON1_CARRY_FORWARD: tuple[tuple[str, str], ...] = (
+    ("applicant.first_name", "person1.first_name"),
+    ("applicant.middle_name", "person1.middle_name"),
+    ("applicant.last_name", "person1.last_name"),
+    ("applicant.suffix", "person1.suffix"),
+)
+
+
+def _apply_answer_carry_forward(db: DBSession, session: FormSession, schema: dict) -> str:
+    """Copy known applicant facts into duplicate ODM Person 1 fields.
+
+    ODM-07216 asks for the applicant's name early, then later asks for "Person 1"
+    information. In the self-service flow Person 1 is the applicant unless the
+    user explicitly overwrites it later. Keeping this deterministic prevents the
+    voice agent from frustrating users by re-asking for the same first/last name.
+    """
+    if session.form_id != "ODM_07216":
+        return ""
+
+    field_keys = {f["field_key"] for f in get_all_fields_from_schema(schema)}
+    answers = {
+        row.field_key: row
+        for row in db.query(FormAnswer).filter(FormAnswer.session_id == session.id).all()
+    }
+    changed: list[str] = []
+
+    for source_key, target_key in _ODM_PERSON1_CARRY_FORWARD:
+        if source_key not in field_keys or target_key not in field_keys:
+            continue
+        source = answers.get(source_key)
+        if not source or _stored_value_is_empty(source.value_json):
+            continue
+        if _upsert_carry_forward_answer(db, session.id, target_key, _deserialize(source.value_json), answers):
+            changed.append(target_key)
+
+    has_applicant_name = all(
+        key in answers and not _stored_value_is_missing(answers[key].value_json)
+        for key in ("applicant.first_name", "applicant.last_name")
+    )
+    if has_applicant_name and "person1.relationship_to_applicant" in field_keys:
+        if _upsert_carry_forward_answer(db, session.id, "person1.relationship_to_applicant", "Self", answers):
+            changed.append("person1.relationship_to_applicant")
+
+    if changed:
+        db.commit()
+        return "I also used that for Person 1 so I won't ask for it again."
+    return ""
+
+
+def _upsert_carry_forward_answer(
+    db: DBSession,
+    session_id: str,
+    field_key: str,
+    value: Any,
+    current_rows: dict[str, FormAnswer],
+) -> bool:
+    """Insert/update a derived answer without overwriting user-entered values."""
+    existing = current_rows.get(field_key)
+    if existing and existing.source != "carry_forward":
+        return False
+
+    raw_answer = "skipped" if value == "__skipped__" else str(value)
+    value_json = json.dumps(value)
+    if existing:
+        if existing.value_json == value_json:
+            return False
+        existing.value_json = value_json
+        existing.raw_answer = raw_answer
+        existing.source = "carry_forward"
+        existing.confidence = 1.0
+    else:
+        existing = FormAnswer(
+            session_id=session_id,
+            field_key=field_key,
+            value_json=value_json,
+            raw_answer=raw_answer,
+            source="carry_forward",
+            confidence=1.0,
+        )
+        db.add(existing)
+        current_rows[field_key] = existing
+    return True
+
+
+def _stored_value_is_missing(value_json: str | None) -> bool:
+    value = _deserialize(value_json)
+    return value is None or value == "" or value == "__skipped__"
+
+
+def _stored_value_is_empty(value_json: str | None) -> bool:
+    value = _deserialize(value_json)
+    return value is None or value == ""
 
 
 # Maps zip field_key -> (city field_key, state field_key, county field_key)

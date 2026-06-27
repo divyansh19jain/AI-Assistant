@@ -36,6 +36,97 @@ def test_approve_runs_default_pdf_workflow(client, monkeypatch):
     assert client.get(f"/api/session/{sid}/workflow").json()["status"] == "completed"
 
 
+def test_temporal_engine_route_uses_temporal_bridge(client, monkeypatch):
+    from app.core.config import get_settings
+    import app.workflows.temporal_engine as temporal_engine
+
+    h = _auth(client)
+    client.post("/api/admin/forms", headers=h, json={"form_id": "TEMPORALWF", "title": "Temporal WF"})
+    client.post("/api/admin/forms/TEMPORALWF/publish", headers=h)
+    sid = client.post("/api/session/create", json={"form_id": "TEMPORALWF", "manual_mode": True}).json()["session_id"]
+
+    called = {}
+
+    def fake_execute(session_id: str) -> dict:
+        called["session_id"] = session_id
+        return {
+            "run_id": 123,
+            "status": "completed",
+            "error": None,
+            "tasks": [{"type": "generate_pdf", "status": "completed", "output": {"engine": "temporal"}, "error": None}],
+        }
+
+    monkeypatch.setenv("WORKFLOW_ENGINE", "temporal")
+    get_settings.cache_clear()
+    monkeypatch.setattr(temporal_engine, "execute_completion_workflow_sync", fake_execute)
+    try:
+        response = client.post(f"/api/session/{sid}/approve", json={"approved_by": "patient"})
+    finally:
+        monkeypatch.setenv("WORKFLOW_ENGINE", "local")
+        get_settings.cache_clear()
+
+    assert response.status_code == 200, response.text
+    assert called["session_id"] == sid
+    assert response.json()["tasks"][0]["output"]["engine"] == "temporal"
+
+
+def test_temporal_unavailable_falls_back_to_local_engine(client, monkeypatch):
+    from app.core.config import get_settings
+    import app.pdf.pdf_service as pdf_service
+    import app.workflows.temporal_engine as temporal_engine
+
+    monkeypatch.setattr(pdf_service, "_get_base_pdf_path", lambda *_args, **_kwargs: None)
+    h = _auth(client)
+    client.post("/api/admin/forms", headers=h, json={"form_id": "TFALLBACK", "title": "Temporal Fallback"})
+    client.post("/api/admin/forms/TFALLBACK/publish", headers=h)
+    sid = client.post("/api/session/create", json={"form_id": "TFALLBACK", "manual_mode": True}).json()["session_id"]
+
+    def raise_temporal(_session_id: str) -> dict:
+        raise RuntimeError("temporal is down")
+
+    monkeypatch.setenv("WORKFLOW_ENGINE", "temporal")
+    get_settings.cache_clear()
+    monkeypatch.setattr(temporal_engine, "execute_completion_workflow_sync", raise_temporal)
+    try:
+        response = client.post(f"/api/session/{sid}/approve", json={"approved_by": "patient"})
+    finally:
+        monkeypatch.setenv("WORKFLOW_ENGINE", "local")
+        get_settings.cache_clear()
+
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data["status"] == "completed"
+    assert data["tasks"][0]["type"] == "generate_pdf"
+    assert client.get(f"/api/session/{sid}").json()["status"] == "completed"
+
+
+def test_temporal_and_local_failure_returns_generic_503(client, monkeypatch):
+    from app.core.config import get_settings
+    import app.workflows.router as workflow_router
+    import app.workflows.temporal_engine as temporal_engine
+
+    h = _auth(client)
+    client.post("/api/admin/forms", headers=h, json={"form_id": "TFAIL", "title": "Temporal Fail"})
+    client.post("/api/admin/forms/TFAIL/publish", headers=h)
+    sid = client.post("/api/session/create", json={"form_id": "TFAIL", "manual_mode": True}).json()["session_id"]
+
+    monkeypatch.setenv("WORKFLOW_ENGINE", "temporal")
+    get_settings.cache_clear()
+    monkeypatch.setattr(temporal_engine, "execute_completion_workflow_sync", lambda _sid: (_ for _ in ()).throw(RuntimeError("temporal host detail")))
+    monkeypatch.setattr(workflow_router, "run_workflow", lambda _db, _sid: (_ for _ in ()).throw(RuntimeError("local db detail")))
+    try:
+        response = client.post(f"/api/session/{sid}/approve", json={"approved_by": "patient"})
+    finally:
+        monkeypatch.setenv("WORKFLOW_ENGINE", "local")
+        get_settings.cache_clear()
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Completion service is temporarily unavailable. Please try again."
+    assert "temporal host detail" not in response.text
+    assert "local db detail" not in response.text
+    assert client.get(f"/api/session/{sid}").json()["status"] == "ready_for_review"
+
+
 def test_custom_workflow_via_builder(client, monkeypatch):
     import app.pdf.pdf_service as pdf_service
 
@@ -164,6 +255,7 @@ def test_web_submit_without_recipe_fails(client):
     assert data["status"] == "failed"
     assert data["tasks"][0]["status"] == "failed"
     assert "recipe has no portal_url" in data["tasks"][0]["error"]
+    assert client.get(f"/api/session/{sid}").json()["status"] == "ready_for_review"
 
 
 def test_approval_rejects_incomplete_session(client):

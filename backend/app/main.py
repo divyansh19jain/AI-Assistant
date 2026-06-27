@@ -112,5 +112,19 @@ def ai_health_check() -> dict:
             "openai_voice": settings.OPENAI_TTS_VOICE,
             "elevenlabs_configured": bool(settings.ELEVENLABS_API_KEY),
             "elevenlabs_voice_configured": bool(settings.ELEVENLABS_VOICE_ID),
+            "elevenlabs_model": settings.ELEVENLABS_MODEL_ID,
+            "elevenlabs_quality": {
+                "stability": settings.ELEVENLABS_STABILITY,
+                "similarity_boost": settings.ELEVENLABS_SIMILARITY_BOOST,
+                "style": settings.ELEVENLABS_STYLE,
+                "use_speaker_boost": settings.ELEVENLABS_USE_SPEAKER_BOOST,
+            },
+        },
+        "workflow": {
+            "engine": settings.WORKFLOW_ENGINE,
+            "temporal_address": settings.TEMPORAL_ADDRESS,
+            "temporal_namespace": settings.TEMPORAL_NAMESPACE,
+            "temporal_task_queue": settings.TEMPORAL_TASK_QUEUE,
+            "temporal_activity_workers": settings.TEMPORAL_ACTIVITY_WORKERS,
         },
     }

@@ -18,9 +18,10 @@ point here so there's **one source of truth**.
 4. [FRONTEND-CONVENTIONS.md](./FRONTEND-CONVENTIONS.md) — Next.js/React/TS style.
 5. [AI-LLM-INTEGRATION.md](./AI-LLM-INTEGRATION.md) — the LLM factory + the
    mandatory rule-based fallback pattern.
-6. [TESTING.md](./TESTING.md) — how to test; the green-bar gate.
-7. [WORKFLOWS.md](./WORKFLOWS.md) — step-by-step recipes for common tasks.
-8. [IMPROVEMENT-BACKLOG.md](./IMPROVEMENT-BACKLOG.md) — prioritized, agent-ready
+6. [FORM-PACK-AUTHORING.md](./FORM-PACK-AUTHORING.md) - how to add future forms.
+7. [TESTING.md](./TESTING.md) — how to test; the green-bar gate.
+8. [WORKFLOWS.md](./WORKFLOWS.md) — step-by-step recipes for common tasks.
+9. [IMPROVEMENT-BACKLOG.md](./IMPROVEMENT-BACKLOG.md) — prioritized, agent-ready
    work found during the deep review.
 
 ## How the tool configs map to these docs

@@ -40,6 +40,12 @@ def validate_answer(field: dict, value: Any) -> Any:
     # Text / email / select
     value = str(value).strip() if value is not None else ""
 
+    # Medicaid PDF fields often store state as a two-letter code, but callers are
+    # humans using voice. Accept "Ohio" and normalize to "OH" instead of asking
+    # the user to know the form's internal abbreviation requirement.
+    if _looks_like_state_field(field):
+        value = normalize_us_state(value) or value.upper()
+
     if rule.get("min_length") and len(value) < rule["min_length"]:
         raise ValidationError(f"Must be at least {rule['min_length']} characters.")
 
@@ -160,8 +166,18 @@ def _parse_boolean(value: Any) -> bool:
 
 def _parse_date(value: Any) -> str:
     """Normalize to YYYY-MM-DD."""
-    s = str(value).strip()
-    formats = ["%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y", "%d/%m/%Y", "%Y/%m/%d"]
+    s = _clean_date_text(str(value).strip())
+    formats = [
+        "%Y-%m-%d",
+        "%m/%d/%Y",
+        "%m-%d-%Y",
+        "%d/%m/%Y",
+        "%Y/%m/%d",
+        "%B %d %Y",
+        "%b %d %Y",
+        "%B %d, %Y",
+        "%b %d, %Y",
+    ]
     for fmt in formats:
         try:
             dt = datetime.strptime(s, fmt)
@@ -169,6 +185,15 @@ def _parse_date(value: Any) -> str:
         except ValueError:
             continue
     raise ValidationError("Please provide a valid date in MM/DD/YYYY format.")
+
+
+def _clean_date_text(value: str) -> str:
+    """Prepare common spoken dates, e.g. "January 5th 1980", for parsing."""
+    s = value.strip()
+    s = re.sub(r"\b(\d{1,2})(st|nd|rd|th)\b", r"\1", s, flags=re.IGNORECASE)
+    s = re.sub(r"\bof\b", " ", s, flags=re.IGNORECASE)
+    s = re.sub(r"\s+", " ", s)
+    return s
 
 
 def _parse_phone(value: Any) -> str:
@@ -199,3 +224,99 @@ def _parse_number(value: Any, rule: dict) -> int | float:
     if rule.get("max") is not None and num > rule["max"]:
         raise ValidationError(f"Must be at most {rule['max']}.")
     return int(num) if num == int(num) else num
+
+
+_US_STATE_CODES: dict[str, str] = {
+    "ALABAMA": "AL",
+    "ALASKA": "AK",
+    "ARIZONA": "AZ",
+    "ARKANSAS": "AR",
+    "CALIFORNIA": "CA",
+    "COLORADO": "CO",
+    "CONNECTICUT": "CT",
+    "DELAWARE": "DE",
+    "DISTRICT OF COLUMBIA": "DC",
+    "FLORIDA": "FL",
+    "GEORGIA": "GA",
+    "HAWAII": "HI",
+    "IDAHO": "ID",
+    "ILLINOIS": "IL",
+    "INDIANA": "IN",
+    "IOWA": "IA",
+    "KANSAS": "KS",
+    "KENTUCKY": "KY",
+    "LOUISIANA": "LA",
+    "MAINE": "ME",
+    "MARYLAND": "MD",
+    "MASSACHUSETTS": "MA",
+    "MICHIGAN": "MI",
+    "MINNESOTA": "MN",
+    "MISSISSIPPI": "MS",
+    "MISSOURI": "MO",
+    "MONTANA": "MT",
+    "NEBRASKA": "NE",
+    "NEVADA": "NV",
+    "NEW HAMPSHIRE": "NH",
+    "NEW JERSEY": "NJ",
+    "NEW MEXICO": "NM",
+    "NEW YORK": "NY",
+    "NORTH CAROLINA": "NC",
+    "NORTH DAKOTA": "ND",
+    "OHIO": "OH",
+    "OKLAHOMA": "OK",
+    "OREGON": "OR",
+    "PENNSYLVANIA": "PA",
+    "RHODE ISLAND": "RI",
+    "SOUTH CAROLINA": "SC",
+    "SOUTH DAKOTA": "SD",
+    "TENNESSEE": "TN",
+    "TEXAS": "TX",
+    "UTAH": "UT",
+    "VERMONT": "VT",
+    "VIRGINIA": "VA",
+    "WASHINGTON": "WA",
+    "WEST VIRGINIA": "WV",
+    "WISCONSIN": "WI",
+    "WYOMING": "WY",
+}
+
+_US_CODE_SET = set(_US_STATE_CODES.values())
+
+
+def normalize_us_state(value: Any) -> str | None:
+    """Return a two-letter US state code from a state name/code if present."""
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+    compact = re.sub(r"[^A-Za-z ]+", " ", raw).upper()
+    compact = re.sub(r"\s+", " ", compact).strip()
+    if compact in _US_CODE_SET:
+        return compact
+    if compact in _US_STATE_CODES:
+        return _US_STATE_CODES[compact]
+    # Voice answers often include another value in the same breath, such as
+    # "Ohio 614 555 9800". Pull out the state token and let the other field parse
+    # the remaining information separately.
+    for name, code in sorted(_US_STATE_CODES.items(), key=lambda item: len(item[0]), reverse=True):
+        if re.search(rf"\b{re.escape(name)}\b", compact):
+            return code
+    for code in _US_CODE_SET:
+        if re.search(rf"\b{re.escape(code)}\b", compact):
+            return code
+    return None
+
+
+def _looks_like_state_field(field: dict) -> bool:
+    """Identify schema fields that should store US state abbreviations."""
+    key = str(field.get("field_key", "")).lower()
+    label = str(field.get("label", "")).lower()
+    question = str(field.get("question_text", "")).lower()
+    rule = field.get("validation_rule") or {}
+    max_length = rule.get("max_length")
+    has_state_name = (
+        key.endswith(".state")
+        or key.endswith("_state")
+        or re.search(r"\bstate\b", label) is not None
+        or re.search(r"\bstate\b", question) is not None
+    )
+    return bool(has_state_name and (max_length is None or int(max_length) <= 2))

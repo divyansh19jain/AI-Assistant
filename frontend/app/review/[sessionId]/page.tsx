@@ -283,6 +283,9 @@ export default function ReviewPage() {
   const totalSkipped = sections.reduce((acc, [, fields]) => acc + fields.filter((f) => f.source === "skipped").length, 0);
   const totalFields  = sections.reduce((acc, [, fields]) => acc + fields.length, 0);
   const totalMissing = review.missing_applicable.length;
+  const readiness = review.readiness;
+  const approvalBlocked = !readiness.ready;
+  const lowConfidenceKeys = new Set(readiness.low_confidence_fields.map((f) => f.field_key));
   const sourceCounts = sections.reduce<Record<string, number>>((acc, [, fields]) => {
     fields.forEach((f) => {
       if (f.value !== null && f.value !== undefined) {
@@ -387,6 +390,53 @@ export default function ReviewPage() {
         )}
 
         {/* ── Field sections ── */}
+        <div className={`rounded-xl border px-5 py-4 text-sm animate-float-in ${
+          readiness.ready
+            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+            : "bg-red-50 border-red-200 text-red-800"
+        }`}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="font-semibold">
+                {readiness.ready ? "Ready for approval" : "Needs attention before approval"}
+              </p>
+              <p className="text-xs mt-1 opacity-80">
+                {readiness.summary.answered_fields} answered, {totalSkipped} skipped, {totalFields} applicable review fields.
+              </p>
+            </div>
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+              readiness.ready ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+            }`}>
+              {readiness.status.replace(/_/g, " ")}
+            </span>
+          </div>
+
+          {!readiness.ready && readiness.blockers.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {readiness.blockers.slice(0, 6).map((issue) => (
+                <div key={`${issue.kind}:${issue.field_key}`} className="flex gap-2 text-xs">
+                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-red-500 shrink-0" />
+                  <span><b>{issue.label}</b>: {issue.message}</span>
+                </div>
+              ))}
+              {readiness.blockers.length > 6 && (
+                <p className="text-xs opacity-75">And {readiness.blockers.length - 6} more readiness item(s).</p>
+              )}
+            </div>
+          )}
+
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+            <div className="rounded-lg bg-white/60 border border-white/70 px-3 py-2">
+              <span className="block opacity-60">Low confidence</span>
+              <b>{readiness.summary.low_confidence_fields}</b>
+            </div>
+            <div className="rounded-lg bg-white/60 border border-white/70 px-3 py-2">
+              <span className="block opacity-60">Official PDF mapping</span>
+              <b>{readiness.pdf.official_pdf_ready ? "Verified" : readiness.pdf.has_mapping ? "Needs audit" : "Summary PDF"}</b>
+            </div>
+          </div>
+        </div>
+
         {sections.map(([sectionKey, fields]) => {
           if (fields.length === 0) return null;
           const filled = fields.filter((f) => f.source !== "skipped" && f.value !== null && f.value !== undefined);
@@ -438,6 +488,11 @@ export default function ReviewPage() {
 
                       {/* Source badge + edit button */}
                       <div className="shrink-0 flex items-center gap-2 mt-0.5">
+                        {lowConfidenceKeys.has(field.field_key) && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-red-100 text-red-700">
+                            Check
+                          </span>
+                        )}
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${src.color}`}>
                           {src.label}
                         </span>
@@ -527,7 +582,7 @@ export default function ReviewPage() {
 
               <button
                 onClick={handleGeneratePdf}
-                disabled={generating || totalMissing > 0}
+                disabled={generating || approvalBlocked}
                 className="w-full border border-gray-200 text-gray-500 rounded-xl py-2.5 text-sm hover:bg-gray-50 transition-colors"
               >
                 Re-run completion
@@ -536,7 +591,7 @@ export default function ReviewPage() {
           ) : (
               <button
                 onClick={handleGeneratePdf}
-                disabled={generating || totalMissing > 0}
+                disabled={generating || approvalBlocked}
                 className="w-full rounded-xl py-3 text-sm font-semibold text-white transition-all disabled:opacity-60 flex items-center justify-center gap-2"
               style={{ background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)" }}
             >
