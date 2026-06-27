@@ -29,7 +29,7 @@ import time
 from typing import Any
 
 from app.core.config import get_settings
-from app.db.models import FormSession, SessionMessage
+from app.db.models import FormAnswer, FormSession, SessionMessage
 from app.forms.service import get_all_fields_from_schema
 from app.forms.missing_fields import (
     get_missing_applicable_fields,
@@ -565,6 +565,11 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
 
     answers = svc._answers_map(db, session_id)
     form_ctx = _build_form_context(schema, answers)
+    # Case-manager working memory: what's known (never re-ask), auto-filled, heard with
+    # low confidence (read back), looks off (double-check), and still needed.
+    from app.ai.case_profile import build_case_profile, render_case_notes
+    answer_rows = db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
+    case_notes = render_case_notes(build_case_profile(session.form_id, schema, answer_rows))
     system = SYSTEM_PROMPT.format(form_title=svc._form_title(session.form_id, schema))
     persona = _form_persona(session.form_id)
     if persona:
@@ -585,6 +590,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
 
     messages: list[dict] = [{"role": "system", "content": system}]
     messages.append({"role": "system", "content": f"CURRENT FORM STATE:\n{form_ctx}"})
+    messages.append({"role": "system", "content": case_notes})
     if field_guidance:
         messages.append({"role": "system", "content": field_guidance})
     if kb_context:
