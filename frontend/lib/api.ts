@@ -34,6 +34,29 @@ export interface AgentTurn {
   answers: Record<string, unknown>;
 }
 
+interface FieldRef {
+  field_key: string;
+  label: string;
+}
+
+export interface CaseworkerReview {
+  ready: boolean;
+  summary: {
+    answered: number;
+    inferred: number;
+    skipped: number;
+    needs_confirmation: number;
+    inconsistent: number;
+    remaining: number;
+  };
+  remaining: FieldRef[];
+  needs_confirmation: FieldRef[];
+  inconsistent: FieldRef[];
+  inferred: FieldRef[];
+  skipped: FieldRef[];
+  documents_likely_needed: { document: string; why: string }[];
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -129,6 +152,10 @@ export const api = {
     request(`/api/session/${sessionId}/review`),
   getReadiness: (sessionId: string): Promise<ReadinessReport> =>
     request(`/api/session/${sessionId}/readiness`),
+  // Caseworker-style pre-approval view: low-confidence, inconsistent, inferred,
+  // skipped, what's still missing, and the documents the county will likely ask for.
+  getCaseworkerReview: (sessionId: string): Promise<CaseworkerReview> =>
+    request(`/api/session/${sessionId}/caseworker-review`),
 
   generatePdf: (sessionId: string): Promise<GeneratePdfResponse> =>
     request(`/api/session/${sessionId}/generate-pdf`, { method: "POST" }),
@@ -162,7 +189,7 @@ export const api = {
   // Approval gate + completion workflow (patient-facing).
   approveSession: (
     sessionId: string,
-    body: { approved_by?: string; note?: string } = {}
+    body: { approved_by?: string; note?: string; signature?: string; consent?: boolean } = {}
   ): Promise<WorkflowState> =>
     request(`/api/session/${sessionId}/approve`, { method: "POST", body: JSON.stringify(body) }),
   getWorkflowStatus: (sessionId: string): Promise<WorkflowState> =>

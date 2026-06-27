@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, type CaseworkerReview } from "@/lib/api";
 import type { ReviewResponse, ReviewField, GeneratePdfResponse, WorkflowState } from "@/lib/types";
 
 const SOURCE_LABELS: Record<string, { label: string; color: string; dot: string }> = {
@@ -208,6 +208,7 @@ export default function ReviewPage() {
   const sessionId = params.sessionId as string;
 
   const [review, setReview]         = useState<ReviewResponse | null>(null);
+  const [caseworker, setCaseworker] = useState<CaseworkerReview | null>(null);
   const [loading, setLoading]       = useState(true);
   const [generating, setGenerating] = useState(false);
   const [pdfResult, setPdfResult]   = useState<GeneratePdfResponse | null>(null);
@@ -220,6 +221,8 @@ export default function ReviewPage() {
     try {
       const r = await api.getReview(sessionId);
       setReview(r);
+      // Caseworker view is supplementary — never block the page if it fails.
+      try { setCaseworker(await api.getCaseworkerReview(sessionId)); } catch { /* non-blocking */ }
     } catch {
       setError("Failed to load review.");
     } finally {
@@ -517,6 +520,48 @@ export default function ReviewPage() {
             </div>
           );
         })}
+
+        {/* ── Caseworker check: things to double-check + documents likely needed ── */}
+        {caseworker && (caseworker.inconsistent.length > 0 || caseworker.documents_likely_needed.length > 0) && (
+          <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-float-in">
+            <div className="px-5 py-3 border-b border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-700">Before you submit</h3>
+              <p className="text-[11px] text-gray-400 mt-0.5">A quick caseworker-style check.</p>
+            </div>
+
+            {caseworker.inconsistent.length > 0 && (
+              <div className="px-5 py-3 bg-amber-50/60 border-b border-amber-100">
+                <p className="text-xs font-semibold text-amber-800 mb-1">Worth double-checking</p>
+                {caseworker.inconsistent.map((f) => (
+                  <p key={f.field_key} className="text-xs text-amber-700">• {f.label}</p>
+                ))}
+              </div>
+            )}
+
+            {caseworker.documents_likely_needed.length > 0 && (
+              <div className="divide-y divide-gray-50">
+                <p className="px-5 pt-3 pb-1 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                  Documents you&apos;ll likely need
+                </p>
+                {caseworker.documents_likely_needed.map((d) => (
+                  <div key={d.document} className="flex items-start gap-3 px-5 py-2.5">
+                    <svg className="h-4 w-4 mt-0.5 shrink-0 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round"
+                        d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                    </svg>
+                    <div>
+                      <p className="text-sm font-medium text-gray-800">{d.document}</p>
+                      <p className="text-xs text-gray-400">{d.why}</p>
+                    </div>
+                  </div>
+                ))}
+                <p className="px-5 py-2.5 text-[11px] text-gray-400 bg-gray-50">
+                  The county may ask for these to verify your application — having them ready can speed up your decision.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ── PDF generation card ── */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 space-y-3 animate-float-in">
