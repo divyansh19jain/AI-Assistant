@@ -14,6 +14,11 @@ def test_run_builtin_skills_offline():
     assert "money" in run_skill("glossary", {"term": "income"})["definition"].lower()
     # unknown term -> empty definition (not an error)
     assert run_skill("glossary", {"term": "zzz"})["definition"] == ""
+    assert "Federal Poverty Level" in run_skill("glossary", {"term": "FPL"})["definition"]
+    assert run_skill(
+        "odm_income_screen",
+        {"category": "adult_19_64", "household_size": 3, "monthly_income": 3000},
+    )["screening_result"] == "at_or_below_limit"
     # unknown skill -> error dict, never raises
     assert "error" in run_skill("nope", {})
     # zip_lookup with no API key degrades gracefully
@@ -24,7 +29,7 @@ def test_skill_catalog_and_run_api(client):
     h = _auth(client)
     catalog = client.get("/api/admin/skills", headers=h).json()
     keys = [s["key"] for s in catalog]
-    assert {"zip_lookup", "kb_lookup", "glossary"} <= set(keys)
+    assert {"zip_lookup", "kb_lookup", "glossary", "odm_income_screen"} <= set(keys)
 
     r = client.post("/api/admin/skills/glossary/run", headers=h, json={"params": {"term": "household"}})
     assert r.status_code == 200
@@ -45,12 +50,16 @@ def test_attach_skills_to_form(client):
     assert r.status_code == 422
 
     # attach two valid skills
-    r = client.put("/api/admin/forms/SKF/skills", headers=h, json={"skill_keys": ["glossary", "kb_lookup"]})
+    r = client.put("/api/admin/forms/SKF/skills", headers=h, json={"skill_keys": ["glossary", "kb_lookup", "odm_income_screen"]})
     assert r.status_code == 200
-    assert set(r.json()["attached"]) == {"glossary", "kb_lookup"}
+    assert set(r.json()["attached"]) == {"glossary", "kb_lookup", "odm_income_screen"}
 
     # readable back; and the registry helper agrees
-    assert set(client.get("/api/admin/forms/SKF/skills", headers=h).json()["attached"]) == {"glossary", "kb_lookup"}
+    assert set(client.get("/api/admin/forms/SKF/skills", headers=h).json()["attached"]) == {
+        "glossary",
+        "kb_lookup",
+        "odm_income_screen",
+    }
 
 
 def test_skills_require_existing_form(client):

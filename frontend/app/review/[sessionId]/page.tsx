@@ -379,8 +379,9 @@ export default function ReviewPage() {
           </div>
         )}
 
-        {/* ── All complete banner ── */}
-        {totalMissing === 0 && (
+        {/* ── All complete banner ── shown only when the readiness gate fully
+            passes, so it never contradicts the "Needs attention" panel below. ── */}
+        {totalMissing === 0 && readiness.ready && (
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-5 py-3 text-sm flex items-center gap-2 animate-float-in">
             <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />

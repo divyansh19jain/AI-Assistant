@@ -129,6 +129,13 @@ def explain_field(field: dict, raw_question: str, form_id: str | None = None) ->
     label = field.get("label", field.get("field_key", "field"))
     question_text = field.get("question_text", "")
     required = field.get("required", True)
+    field_key = field.get("field_key", "")
+    try:
+        from app.forms.prompts import get_field_override
+
+        override_help = (get_field_override(form_id, field_key) or {}).get("help")
+    except Exception:
+        override_help = None
 
     kb_context = _kb_context(form_id, label, question_text, raw_question)
 
@@ -137,12 +144,14 @@ def explain_field(field: dict, raw_question: str, form_id: str | None = None) ->
 
     if model is None:
         opt = "" if required else " If it doesn't apply to you, you can say 'skip'."
-        base = f"This is asking for your {label.lower()}.{opt} {question_text}".strip()
+        base = (override_help or f"This is asking for your {label.lower()}.").strip()
+        base = f"{base}{opt} {question_text}".strip()
         if kb_context:
             base = f"{base} {kb_context.splitlines()[0][:240]}".strip()
         return base
 
     try:
+        guidance = "\nField-specific guidance:\n" + override_help if override_help else ""
         kb_block = f"\nReference material (use if relevant):\n{kb_context}" if kb_context else ""
         response = model.invoke([
             ("system",
@@ -154,7 +163,7 @@ def explain_field(field: dict, raw_question: str, form_id: str | None = None) ->
             ("human",
              f"Field: {label}\nField is required: {required}\n"
              f"Original question: {question_text}\n"
-             f"Patient asked: {raw_question!r}{kb_block}"),
+             f"Patient asked: {raw_question!r}{guidance}{kb_block}"),
         ])
         text = getattr(response, "content", None)
         if isinstance(text, list):

@@ -55,6 +55,19 @@ KB content must be form-level guidance, not applicant answers. Good KB topics:
 The agent retrieves KB snippets using only field metadata such as label and question
 text. It does not query KB with the user's raw answer.
 
+Committed `knowledgebase/*.md` and `knowledgebase/*.txt` files are seeded and
+embedded on FastAPI startup by `seed_kb_from_packs`. `SOURCES.md` is documentation
+only and is not embedded. The seeder refreshes changed bundled docs, skips empty
+files, and does not overwrite admin-created KB rows with a different source.
+
+## Prompts
+
+Pack prompt defaults live in `prompts/system.md` and
+`prompts/field_overrides.json`. Existing DB/admin prompt rows still win for custom
+values, but bundled defaults are merged underneath them at runtime. That means a
+deployment can ship better default field guidance for an existing form without
+requiring every database to be edited manually.
+
 ## PDF Mapping
 
 For official PDF output:

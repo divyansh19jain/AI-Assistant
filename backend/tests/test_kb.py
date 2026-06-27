@@ -106,3 +106,67 @@ def test_help_kb_query_excludes_raw_question(monkeypatch):
     help_intent._kb_context("F", "SSN", "Why do you need my SSN?", "my ssn is 123-45-6789")
     assert "123-45-6789" not in captured["query"]
     assert captured["query"] == "SSN Why do you need my SSN?"
+
+
+def test_bundled_odm_kb_is_seeded_and_searchable(db):
+    from app.ai.kb import retrieve
+    from app.db.models import KbDocument
+    from app.forms.seed import seed_from_packs, seed_kb_from_packs
+
+    seed_from_packs(db)
+    changed = seed_kb_from_packs(db)
+    assert changed >= 4
+
+    docs = db.query(KbDocument).filter(KbDocument.form_id == "ODM_07216").all()
+    assert {d.doc_key for d in docs} >= {
+        "application-interview-playbook",
+        "eligibility-screening-2026",
+        "household-and-income-guidance",
+        "special-pathways-and-coverage",
+    }
+    assert all(d.status == "embedded" for d in docs)
+
+    hits = retrieve(db, "ODM_07216", "income limit qualify household", k=4)
+    assert hits
+    assert any("final decision" in h.lower() or "income" in h.lower() for h in hits)
+
+    # Idempotent startup behavior: once embedded and unchanged, a second seed is a no-op.
+    assert seed_kb_from_packs(db) == 0
+
+
+def test_odm_field_overrides_point_to_real_schema_fields():
+    import json
+    from pathlib import Path
+
+    root = Path("app/forms/packs/ODM_07216")
+    schema = json.loads((root / "form.schema.json").read_text(encoding="utf-8"))
+    field_keys = {
+        field["field_key"]
+        for section in schema["sections"]
+        for field in section["fields"]
+    }
+    overrides = json.loads((root / "prompts" / "field_overrides.json").read_text(encoding="utf-8"))["overrides"]
+    unknown = sorted(set(overrides) - field_keys)
+    assert unknown == []
+
+
+def test_odm_pack_prompt_defaults_merge_under_db_prompt():
+    from app.forms import prompts
+
+    prompts.clear()
+    prompts.set_prompt_pack("ODM_07216", {"system": "Custom system", "field_overrides": {}}, {})
+    assert prompts.get_system_persona("ODM_07216") == "Custom system"
+    assert "self-employed" in prompts.get_field_override("ODM_07216", "income.has_employment")["question"]
+
+    prompts.set_prompt_pack(
+        "ODM_07216",
+        {
+            "system": "Custom system",
+            "field_overrides": {
+                "income.has_employment": {"question": "Custom employment question?"}
+            },
+        },
+        {},
+    )
+    assert prompts.get_field_override("ODM_07216", "income.has_employment")["question"] == "Custom employment question?"
+    assert "currently pregnant" in prompts.get_field_override("ODM_07216", "person1.pregnant")["question"]

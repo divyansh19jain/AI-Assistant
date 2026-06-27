@@ -44,10 +44,12 @@ React 18, TypeScript, and Tailwind.
 - Runtime helpers:
   - Schema/cache: `backend/app/forms/service.py`, `cache.py`, `registry.py`.
   - Missing fields: `backend/app/forms/missing_fields.py`.
+  - Completion readiness gate: `backend/app/forms/readiness.py`.
+  - Conversational agent: `backend/app/ai/agent.py` (tool-calling; rule-based fallback).
   - Questions/prompts: `backend/app/forms/questions.py`, `prompts.py`.
   - EMR prefill: `backend/app/forms/mapper.py`.
   - PDF: `backend/app/pdf/pdf_service.py`.
-  - Approval/workflows: `backend/app/workflows/`.
+  - Approval/workflows: `backend/app/workflows/` (`engine.py` + Temporal: `temporal_*.py`).
 
 ## Workflow Tasks
 
@@ -59,6 +61,25 @@ Supported completion task types are:
 Unknown task types must fail closed. Do not reintroduce successful no-op task types
 such as `notify` or `store_evidence` unless you implement real delivery/evidence
 storage and add tests.
+
+### Completion readiness gate
+
+Completion runs through one deterministic gate: `backend/app/forms/readiness.py`
+(`GET /api/session/{id}/readiness`). It checks missing applicable/required fields,
+stored-answer validation, low-confidence answers, and official-PDF mapping coverage.
+The agent's "done", the review UI, the approval route, and PDF generation all consume
+it — do not add separate completion rules anywhere else.
+
+### Workflow engine (local | temporal)
+
+`WORKFLOW_ENGINE=local` runs `workflows/engine.py` in-process. `WORKFLOW_ENGINE=temporal`
+(Docker Compose default) runs `FormCompletionWorkflow` on a Temporal worker, which
+executes that same engine inside an Activity (thread pool sized by
+`TEMPORAL_ACTIVITY_WORKERS`). If Temporal is unreachable at approval time the API falls
+back to the in-process engine. Both engines keep the same public API and write
+`workflow_runs`/`workflow_task_runs`. A `failed` run leaves the session at
+`ready_for_review`; only a completed run marks it `completed`. Details:
+`docs/ai/WORKFLOWS.md`.
 
 ## Agent Workflow
 
@@ -92,6 +113,9 @@ npm run dev
 docker compose up db -d
 cd backend
 .\.venv\Scripts\python.exe -m alembic upgrade head
+
+# Workflow worker (only when WORKFLOW_ENGINE=temporal; Compose runs this for you)
+.\.venv\Scripts\python.exe -m app.workflows.temporal_worker
 ```
 
 ## Definition Of Done
@@ -101,5 +125,7 @@ cd backend
 - Alembic migration is present for model/schema changes.
 - New form behavior is validated against a non-ODM form when platform behavior changes.
 - PDF mapping drift is checked when changing schema or mappings.
+- Completion/approval changes go through the readiness gate (`readiness.py`), not
+  ad-hoc checks; both workflow engines stay behavior-compatible.
 - PHI/security review is done for EMR, logging, KB, voice, approval, auth, CORS, and
   web-submission changes.

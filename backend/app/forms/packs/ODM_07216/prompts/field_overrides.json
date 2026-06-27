@@ -1,6 +1,194 @@
 {
-  "//": "Per-field prompt overrides for ODM 07216 loaded by app/forms/prompts.py.",
-  "//shape": "field_key -> { question?: string, help?: string }. 'question' overrides the schema question_text; 'help' seeds the explain-this-field answer. Empty object means: use the schema defaults.",
-  "//phi": "NO PHI here — these are static, form-level strings shared across all applicants.",
-  "overrides": {}
+  "//": "Per-field prompt overrides for ODM 07216. Static form-level wording only; no patient data.",
+  "//shape": "field_key -> { question?: string, help?: string }.",
+  "overrides": {
+    "applicant.programs.medicaid_adults_children_families": {
+      "question": "Are you applying for Medicaid for adults, children, or families?",
+      "help": "This is the main Medicaid coverage path for many adults, children, pregnant people, parents, and families."
+    },
+    "applicant.programs.medicaid_aged_blind_disabled": {
+      "question": "Are you applying because someone is age 65 or older, blind, disabled, or may need help tied to Medicare?",
+      "help": "A yes may mean Appendix E is needed for Aged, Blind, or Disabled Medicaid or Medicare premium help."
+    },
+    "applicant.programs.long_term_care": {
+      "question": "Is anyone applying for in-home care, nursing home care, or other long-term care help?",
+      "help": "Long-term care means help with daily needs, either at home, in the community, or in a facility. A yes may require Appendix E."
+    },
+    "applicant.programs.medicare_premium_assistance": {
+      "question": "Is anyone on Medicare asking for help paying Medicare premiums or other Medicare costs?",
+      "help": "Medicare Premium Assistance can help some people with limited income or assets pay Medicare premiums, deductibles, copays, or coinsurance."
+    },
+    "person1.tax_file_next_year": {
+      "question": "Next year, do you expect to file a federal income tax return?",
+      "help": "It is okay if you do not file taxes. The form asks because tax relationships help decide household size and income rules."
+    },
+    "person1.file_jointly_with_spouse": {
+      "question": "If you file taxes, will you file jointly with your spouse?",
+      "help": "Jointly means one tax return for both spouses."
+    },
+    "person1.claim_dependents": {
+      "question": "Will you claim anyone as a dependent on your tax return?",
+      "help": "A dependent is someone you list on your tax return, often a child or another person you support."
+    },
+    "person1.claimed_as_dependent": {
+      "question": "Will someone else claim you as a dependent on their tax return?",
+      "help": "This helps Medicaid understand your household. It is not a bad answer either way."
+    },
+    "person1.wants_health_coverage": {
+      "question": "Are you asking for health coverage for yourself?",
+      "help": "Even if you already have insurance, you can still ask for coverage or lower-cost help."
+    },
+    "person1.medical_bills_last_3_months": {
+      "question": "Do you want Medicaid to look at medical bills from the last three months?",
+      "help": "This asks about possible help for recent medical bills. It does not guarantee payment, but it lets the state review it."
+    },
+    "person1.daily_activity_limitation": {
+      "question": "Do you have a condition that makes daily activities hard, like bathing, dressing, chores, or getting around?",
+      "help": "A yes may mean the application needs Appendix E for aged, blind, disabled, in-home care, or nursing-facility questions."
+    },
+    "person1.in_home_or_nursing_home_care": {
+      "question": "Do you need in-home care, or are you in a nursing home or long-term care facility?",
+      "help": "This helps decide whether long-term care or Appendix E questions are needed."
+    },
+    "person1.pregnant": {
+      "question": "Are you currently pregnant?",
+      "help": "Pregnancy can affect the Medicaid path and household size, so the form asks this directly."
+    },
+    "person1.recently_pregnant": {
+      "question": "Were you pregnant in the last three months, even if you are not pregnant now?",
+      "help": "Recent pregnancy can matter for coverage review, so answer yes if that applies."
+    },
+    "person1.us_citizen_or_national": {
+      "question": "Are you a U.S. citizen or U.S. national?",
+      "help": "Families with non-citizens can still apply. This question is only to route the coverage application correctly."
+    },
+    "person1.eligible_immigration_status": {
+      "question": "If you are not a U.S. citizen or U.S. national, do you have an eligible immigration status?",
+      "help": "If yes, the form asks for document type and ID. If you are applying for a child, the adult's status may not be needed unless the adult also wants coverage."
+    },
+    "person1.main_caretaker_child_under_19": {
+      "question": "Do you live with a child under 19 and act as the main person caring for that child?",
+      "help": "This can matter for parent or caretaker Medicaid categories."
+    },
+    "person2.adding_person2": {
+      "question": "Is there another household member we should add to this application?",
+      "help": "This could be a spouse, child, dependent, or another person the form says to include."
+    },
+    "person2.wants_health_coverage": {
+      "question": "Is Person 2 asking for health coverage?",
+      "help": "If Person 2 is not asking for coverage, some sensitive questions may not be needed."
+    },
+    "person2.medical_bills_last_3_months": {
+      "question": "For Person 2, should Medicaid look at medical bills from the last three months?",
+      "help": "This is possible retroactive review, not a promise that bills will be paid."
+    },
+    "person2.daily_activity_limitation": {
+      "question": "Does Person 2 have a condition that limits daily activities like bathing, dressing, chores, or getting around?",
+      "help": "A yes may mean Appendix E is needed."
+    },
+    "person2.in_home_or_nursing_home_care": {
+      "question": "Does Person 2 need in-home care or nursing home care?",
+      "help": "This helps route long-term care questions."
+    },
+    "person2.pregnant": {
+      "question": "Is Person 2 currently pregnant?",
+      "help": "Pregnancy can affect the Medicaid path and household-size screening."
+    },
+    "person2.us_citizen_or_national": {
+      "question": "Is Person 2 a U.S. citizen or U.S. national?",
+      "help": "Families with non-citizens can still apply. This routes the coverage questions for Person 2."
+    },
+    "person2.eligible_immigration_status": {
+      "question": "If Person 2 is not a U.S. citizen or U.S. national, do they have an eligible immigration status?",
+      "help": "If yes, the form asks for document type and ID number."
+    },
+    "income.has_employment": {
+      "question": "For everyone in the household, which fits best right now: employed, self-employed, or not employed?",
+      "help": "This starts the income section. Employed means regular job wages. Self-employed means business, freelance, gig, farming, or similar work."
+    },
+    "income.emp1_person": {
+      "question": "For the first job, who in the household is working?",
+      "help": "Say the household member's name."
+    },
+    "income.emp1_employer": {
+      "question": "What is the employer's name and address for that job?",
+      "help": "If you do not know the full address, give the best employer information you have."
+    },
+    "income.emp1_gross_wages": {
+      "question": "What is the gross pay for that job before taxes are taken out?",
+      "help": "Gross pay means the paycheck amount before taxes, insurance, retirement, or other deductions come out."
+    },
+    "income.emp1_frequency": {
+      "question": "How often is that pay received: weekly, every two weeks, twice a month, monthly, or yearly?",
+      "help": "Use the pay schedule from the paycheck if you know it."
+    },
+    "income.left_job_past_90_days": {
+      "question": "In the last 90 days, did anyone lose a job or have work hours cut a lot?",
+      "help": "This can matter even if the person is working now."
+    },
+    "income.has_self_employment": {
+      "question": "Does anyone also have self-employment income, like business, freelance, gig work, farming, or contract work?",
+      "help": "Self-employment is work someone does for themselves rather than as a regular employee."
+    },
+    "income.self_emp1_net_monthly": {
+      "question": "About how much net self-employment income is left each month after business expenses?",
+      "help": "Net self-employment income means what is left after business expenses. If it changes, use a reasonable monthly average."
+    },
+    "income.has_other_income": {
+      "question": "Besides job or self-employment income, does anyone get other income like Social Security, unemployment, pension, support, investments, rental income, or regular help from others?",
+      "help": "I will ask through the common types. If nobody gets other income, say no."
+    },
+    "income.yearly_income_this_year": {
+      "question": "If household income changes month to month, what is the best estimate for total income this year?",
+      "help": "Use a best estimate if the exact number is not known. If income is steady, this may not apply."
+    },
+    "income.yearly_income_next_year": {
+      "question": "If income is expected to change, what is the best estimate for total household income next year?",
+      "help": "This helps when work, hours, or income are changing."
+    },
+    "income.expense_dependent_care": {
+      "question": "Does anyone pay child care, adult care, or elder care so they can work or go to school?",
+      "help": "Dependent care can include child care or adult day care paid so someone can work or attend school."
+    },
+    "income.expense_spousal_support_paid": {
+      "question": "Does anyone pay child support, spousal support, or alimony?",
+      "help": "This asks about support paid out, not support received."
+    },
+    "income.expense_other_deductions": {
+      "question": "Are there any other deductible expenses to report, such as self-employment expenses, student loan interest, or educator expenses?",
+      "help": "If unsure, give the type and amount and the reviewer can decide how it applies."
+    },
+    "ai_an.person1_is_ai_an": {
+      "question": "Are you an American Indian or Alaska Native?",
+      "help": "A yes may affect coverage options and may require Appendix B."
+    },
+    "health_coverage.medicaid_individuals": {
+      "question": "Does anyone in the household currently have Medicaid?",
+      "help": "If yes, say who has it. Having coverage does not mean we stop."
+    },
+    "health_coverage.medicare_individuals": {
+      "question": "Does anyone currently have Medicare?",
+      "help": "Medicare matters because the person may also qualify for help paying Medicare costs."
+    },
+    "health_coverage.person1_has_employer_insurance": {
+      "question": "Do you currently have health insurance through your job or a family member's job?",
+      "help": "Employer insurance includes coverage from your own employer or someone else's employer if it covers you."
+    },
+    "health_coverage.job_offered_coverage_anyone": {
+      "question": "In the last three months, was anyone offered job-based health coverage that they did not take?",
+      "help": "This helps decide whether employer coverage affects the application."
+    },
+    "review.acknowledgement": {
+      "question": "Do you confirm the information is true and complete to the best of your knowledge?",
+      "help": "This is the final certification before signature. Review answers first if anything may be wrong."
+    },
+    "review.signature_name": {
+      "question": "Please say or type your full legal name as your signature.",
+      "help": "The person listed in Step 1 usually signs, unless an authorized representative is signing correctly."
+    },
+    "review.signature_date": {
+      "question": "What date should go with the signature?",
+      "help": "Use today's date unless the applicant needs a different signing date."
+    }
+  }
 }

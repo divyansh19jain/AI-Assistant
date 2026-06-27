@@ -9,7 +9,7 @@ from app.db.base import SessionLocal
 from app.db.session import create_tables
 from app.forms import cache as form_cache
 from app.forms import prompts as form_prompts
-from app.forms.seed import seed_from_packs
+from app.forms.seed import seed_from_packs, seed_kb_from_packs
 from app.patients.router import router as patients_router
 from app.sessions.router import router as sessions_router
 from app.forms.router import router as forms_router
@@ -35,6 +35,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_from_packs(db)        # import bundled packs not yet in the DB
+        seed_kb_from_packs(db)     # embed committed knowledgebase docs for fresh deployments
         loaded = form_cache.refresh_all(db)  # load schemas DB -> in-memory cache
         form_prompts.refresh_all(db)         # load per-form prompt packs + voice config
         logger.info("Form schema cache warmed with %d form(s).", loaded)

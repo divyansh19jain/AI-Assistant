@@ -58,13 +58,43 @@ def _overrides_map(field_overrides) -> dict:
     return {k: v for k, v in field_overrides.items() if not str(k).startswith("//")}
 
 
+def _load_pack_prompt_assets(form_id: str) -> tuple[str | None, dict, dict]:
+    """Bundled prompt/voice defaults for a form pack.
+
+    DB prompt rows are authoritative for admin changes, but bundled defaults should
+    still be available underneath them. That lets a deployment ship better ODM
+    guidance without requiring every existing database to be manually edited.
+    """
+    try:
+        from app.forms import registry
+
+        pack = registry.get_pack(form_id)
+        system_file = pack.prompts_dir / "system.md"
+        overrides_file = pack.prompts_dir / "field_overrides.json"
+        system = _clean_system(system_file.read_text(encoding="utf-8")) if system_file.is_file() else None
+        overrides = (
+            _overrides_map(json.loads(overrides_file.read_text(encoding="utf-8")))
+            if overrides_file.is_file()
+            else {}
+        )
+        voice = (pack.config.get("voice") if isinstance(pack.config, dict) else {}) or {}
+        return system, overrides, voice
+    except Exception:
+        return None, {}, {}
+
+
 def set_prompt_pack(form_id: str, prompt: dict | None, voice: dict | None) -> None:
     """Insert/replace a form's prompt pack + voice config in the cache (after a write)."""
+    pack_system, pack_overrides, pack_voice = _load_pack_prompt_assets(form_id)
+    db_system = _clean_system((prompt or {}).get("system"))
+    db_overrides = _overrides_map((prompt or {}).get("field_overrides"))
     _PROMPTS[form_id] = {
-        "system": _clean_system((prompt or {}).get("system")),
-        "field_overrides": _overrides_map((prompt or {}).get("field_overrides")),
+        "system": db_system or pack_system,
+        # Pack defaults make the bundled form smart immediately; DB/admin values
+        # overlay them for local customization without editing committed packs.
+        "field_overrides": {**pack_overrides, **db_overrides},
     }
-    _VOICE[form_id] = voice or {}
+    _VOICE[form_id] = {**pack_voice, **(voice or {})}
 
 
 def drop(form_id: str) -> None:
@@ -85,19 +115,9 @@ def _ensure_loaded(form_id: str) -> None:
     if form_id in _PROMPTS:
         return
     try:
-        from app.forms import registry
-
-        pack = registry.get_pack(form_id)
-        system_file = pack.prompts_dir / "system.md"
-        overrides_file = pack.prompts_dir / "field_overrides.json"
-        system = _clean_system(system_file.read_text(encoding="utf-8")) if system_file.is_file() else None
-        overrides = (
-            _overrides_map(json.loads(overrides_file.read_text(encoding="utf-8")))
-            if overrides_file.is_file()
-            else {}
-        )
+        system, overrides, voice = _load_pack_prompt_assets(form_id)
         _PROMPTS[form_id] = {"system": system, "field_overrides": overrides}
-        _VOICE[form_id] = (pack.config.get("voice") if isinstance(pack.config, dict) else {}) or {}
+        _VOICE[form_id] = voice
     except Exception:
         # Unknown form / unreadable pack: cache "no customization" so we don't retry.
         _PROMPTS[form_id] = {"system": None, "field_overrides": {}}

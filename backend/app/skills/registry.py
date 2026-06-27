@@ -65,6 +65,15 @@ _GLOSSARY = {
     "household": "You plus the people you live with and claim on taxes (spouse, dependents).",
     "dependent": "Someone you support and claim on your tax return, like a child.",
     "gross": "The amount before taxes or deductions are taken out.",
+    "gross income": "Money before taxes, insurance, retirement, or other deductions are taken out.",
+    "self-employment": "Work someone does for themselves, such as business, freelance, gig, farming, or contract work.",
+    "fpl": "Federal Poverty Level, a yearly federal guideline used in many benefit income rules.",
+    "magi": "Modified Adjusted Gross Income, a tax-based income method used for many Medicaid categories.",
+    "abd": "Aged, Blind, or Disabled Medicaid, a path for people age 65 or older, legally blind, or disabled.",
+    "long-term care": "Help with daily needs at home, in the community, or in a nursing facility.",
+    "retroactive": "A look-back period that may let Medicaid review medical bills from recent months.",
+    "eligible immigration status": "An immigration status category that may allow someone to qualify for coverage.",
+    "mpap": "Medicare Premium Assistance Programs, which may help some Medicare members pay Medicare costs.",
     "premium": "The amount you pay each month for health coverage.",
     "deductible": "What you pay for care before your insurance starts to pay.",
     "ssn": "Your nine-digit Social Security number.",
@@ -75,6 +84,17 @@ def _glossary(params: dict) -> dict:
     """{"term": "income"} -> {"definition": ...} for a common form term."""
     term = str(params.get("term", "")).strip().lower()
     return {"definition": _GLOSSARY.get(term, "")}
+
+
+def _odm_income_screen(params: dict) -> dict:
+    """{"category","household_size","monthly_income"} -> ODM 2026 screening result."""
+    from app.ai.odm_eligibility import screen_magi_income
+
+    return screen_magi_income(
+        category=str(params.get("category", "")),
+        household_size=int(params.get("household_size", 0) or 0),
+        monthly_income=float(params.get("monthly_income", 0) or 0),
+    )
 
 
 BUILTINS: dict[str, SkillSpec] = {
@@ -89,6 +109,12 @@ BUILTINS: dict[str, SkillSpec] = {
     "glossary": SkillSpec(
         "glossary", "Glossary", "Define a common form/insurance term in plain language.",
         _glossary,
+    ),
+    "odm_income_screen": SkillSpec(
+        "odm_income_screen",
+        "ODM income screening",
+        "Compare monthly income to official Ohio Medicaid 2026 MAGI screening limits.",
+        _odm_income_screen,
     ),
 }
 

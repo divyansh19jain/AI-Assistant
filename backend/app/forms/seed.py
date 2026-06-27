@@ -16,8 +16,10 @@ function is the basis for the explicit "import a pack" action added in Phase H.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
+import re
 
 from app.forms import registry
 
@@ -80,3 +82,109 @@ def seed_from_packs(db) -> int:
         db.rollback()
         logger.warning("Form seeding from packs failed; continuing on filesystem packs.", exc_info=True)
     return added
+
+
+def _doc_key_for_path(path) -> str:
+    """Stable key for a bundled KB source file.
+
+    Admin-created KB documents use title slugs. Bundled documents use the file stem
+    so redeploying an updated pack updates the same row instead of creating dupes.
+    """
+    return re.sub(r"[^a-z0-9]+", "-", path.stem.lower()).strip("-")[:120] or "doc"
+
+
+def _title_from_text(path, text: str) -> str:
+    for line in text.splitlines():
+        line = line.strip()
+        if line.startswith("# "):
+            return line[2:].strip()[:256] or path.stem
+    return path.stem.replace("-", " ").replace("_", " ").title()[:256]
+
+
+def _iter_bundled_kb_files(pack):
+    kb_cfg = pack.config.get("knowledgebase") if isinstance(pack.config, dict) else {}
+    if isinstance(kb_cfg, dict) and kb_cfg.get("enabled") is False:
+        return []
+
+    root = pack.knowledgebase_dir
+    if not root.is_dir():
+        return []
+
+    files = []
+    for path in sorted(root.rglob("*")):
+        if not path.is_file() or path.name.startswith("."):
+            continue
+        if path.name.upper() == "SOURCES.MD":
+            continue
+        if path.suffix.lower() not in {".md", ".txt"}:
+            continue
+        files.append(path)
+    return files
+
+
+def seed_kb_from_packs(db) -> int:
+    """Seed bundled per-form KB documents and embeddings on startup.
+
+    This makes committed ``knowledgebase/*.md`` files available in every fresh
+    deployment without a manual admin upload. It is idempotent:
+    - missing bundled docs are inserted and embedded;
+    - changed bundled docs are re-embedded;
+    - admin-created docs with different ``source`` values are left alone.
+    """
+    from app.ai import kb
+    from app.db.models import Form, KbDocument
+
+    changed = 0
+    try:
+        known_forms = {row.form_id for row in db.query(Form.form_id).all()}
+        for pack in registry.list_packs(active_only=False):
+            if pack.form_id not in known_forms:
+                continue
+            for path in _iter_bundled_kb_files(pack):
+                text = path.read_text(encoding="utf-8").strip()
+                if not text:
+                    continue
+                rel = path.relative_to(pack.directory).as_posix()
+                source = f"bundled:{pack.form_id}/{rel}"
+                doc_key = _doc_key_for_path(path)
+                checksum = hashlib.md5(text.encode()).hexdigest()
+                doc = (
+                    db.query(KbDocument)
+                    .filter(KbDocument.form_id == pack.form_id, KbDocument.doc_key == doc_key)
+                    .first()
+                )
+                if doc is not None and doc.source != source:
+                    # Same key but not our bundled row. Preserve the admin's document.
+                    continue
+                if doc is None:
+                    doc = KbDocument(
+                        form_id=pack.form_id,
+                        doc_key=doc_key,
+                        title=_title_from_text(path, text),
+                        source=source,
+                        mime="text/markdown" if path.suffix.lower() == ".md" else "text/plain",
+                        text=text,
+                        status="pending",
+                        checksum=checksum,
+                    )
+                    db.add(doc)
+                    db.commit()
+                    db.refresh(doc)
+                elif doc.checksum == checksum and doc.status == "embedded":
+                    continue
+                else:
+                    doc.title = _title_from_text(path, text)
+                    doc.text = text
+                    doc.mime = "text/markdown" if path.suffix.lower() == ".md" else "text/plain"
+                    doc.checksum = checksum
+                    doc.status = "pending"
+                    db.commit()
+                    db.refresh(doc)
+                kb.ingest_document(db, doc)
+                changed += 1
+        if changed:
+            logger.info("Seeded or refreshed %d bundled KB document(s).", changed)
+    except Exception:
+        db.rollback()
+        logger.warning("Bundled KB seeding failed; continuing without default KB refresh.", exc_info=True)
+    return changed
