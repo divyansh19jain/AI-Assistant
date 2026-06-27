@@ -21,6 +21,21 @@ class AgentTurnRequest(BaseModel):
     input_mode: str = "voice"
 
 
+class HouseholdMemberIn(BaseModel):
+    first_name: str = ""
+    middle_name: str = ""
+    last_name: str = ""
+    relationship: str = "other"
+    applying: bool = True
+    dob: str | None = None
+    sex: str | None = None
+    is_tax_dependent: bool = False
+
+
+class HouseholdRequest(BaseModel):
+    members: list[HouseholdMemberIn] = []
+
+
 router = APIRouter(prefix="/api/session", tags=["session"])
 logger = logging.getLogger(__name__)
 
@@ -139,6 +154,34 @@ def get_readiness(session_id: str, db: DBSession = Depends(get_db)) -> dict:
     if not readiness:
         raise HTTPException(status_code=404, detail="Session not found")
     return readiness
+
+
+@router.post("/{session_id}/household")
+def apply_household(session_id: str, body: HouseholdRequest, db: DBSession = Depends(get_db)) -> dict:
+    """Build the household once and populate ODM applicant/Person 2 fields from it,
+    deriving the answers instead of asking raw PDF questions one by one."""
+    from app.ai.household import HouseholdMember, household_size, to_odm_field_values
+    from app.db.models import FormSession
+
+    session = db.query(FormSession).filter(FormSession.id == session_id).first()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    members = [HouseholdMember(**m.model_dump()) for m in body.members]
+    schema = svc._schema_for_session(session)
+    applied: list[str] = []
+    errors: list[dict] = []
+    # Insertion order keeps the Person 2 gate ahead of its dependent fields.
+    for field_key, value in to_odm_field_values(members).items():
+        result = svc.set_field(db, session, schema, field_key, value)
+        if result.get("ok"):
+            applied.append(field_key)
+        else:
+            errors.append({"field_key": field_key, "error": result.get("error")})
+    size = household_size(members)
+    log_event(db, event_type="household_applied", session_id=session_id,
+              metadata={"applied": len(applied), "errors": len(errors), "size": size})
+    return {"applied": applied, "errors": errors, "household_size": size}
 
 
 @router.post("/{session_id}/extract-document")
