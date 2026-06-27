@@ -2,7 +2,7 @@
 
 import re
 
-from app.forms.missing_fields import get_next_question, get_missing_required_fields
+from app.forms.missing_fields import get_missing_applicable_fields
 from app.ai.question_rewriter import rewrite_question
 
 # Instructional asides that belong in the UI, not in a spoken sentence, e.g.
@@ -45,15 +45,16 @@ def build_question_prompt(
 def get_current_question_context(
     form_id: str,
     answers: dict,
+    schema: dict | None = None,
 ) -> dict | None:
     """
     Return a dict with:
       - field: the field schema
       - question: the natural, spoken-ready prompt string
-      - missing_count: total remaining required fields
-    or None if all required fields are answered.
+      - missing_count: total remaining applicable fields
+    or None if all applicable fields are answered or skipped.
     """
-    missing = get_missing_required_fields(form_id, answers)
+    missing = get_missing_applicable_fields(form_id, answers, schema)
     if not missing:
         return None
 

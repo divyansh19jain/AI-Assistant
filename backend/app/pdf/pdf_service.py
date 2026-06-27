@@ -1,46 +1,59 @@
 """
-PDF generation service for ODM 07216.
+PDF generation service.
 
-Strategy:
-1. Try to fill AcroForm fields using PyMuPDF if the base PDF is present.
-2. Fall back to a clean text-based summary PDF if the base PDF is missing or
-   field mapping fails.
-
-Place the base PDF at: backend/app/pdf/ODM07216fillx.pdf
+If a form pack provides ``pdf.mapping.json`` and the referenced base PDF is present,
+the service fills that AcroForm. Otherwise it generates a generic summary PDF from
+the session's frozen schema, which keeps DB-created forms usable without custom PDF
+assets on day one.
 """
+
+from __future__ import annotations
 
 import json
 import logging
-import os
-from pathlib import Path
+import re
 from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 import fitz  # PyMuPDF
 
 from app.core.config import get_settings
 from app.db.models import FormAnswer, FormSession, GeneratedPdf
 from app.forms import registry
+from app.forms.service import get_all_fields_from_schema, load_form_schema
 
 logger = logging.getLogger(__name__)
 
-BASE_PDF_NAME = "ODM07216fillx.pdf"
+PDF_ASSET_DIR = Path(__file__).parent
 
 
-def _load_mapping(form_id: str) -> dict:
-    """Load the AcroForm widget mapping for ``form_id`` from its form pack.
+def _load_mapping(form_id: str) -> tuple[dict, Path | None]:
+    """Return the form pack mapping and its path, or ({}, None) for DB-only forms."""
+    try:
+        mapping_path = registry.pdf_mapping_path(form_id)
+    except Exception:
+        return {}, None
+    if not mapping_path.exists():
+        return {}, mapping_path
+    with open(mapping_path, encoding="utf-8") as f:
+        return json.load(f), mapping_path
 
-    The mapping location is resolved via :mod:`app.forms.registry` so each form
-    carries its own ``pdf.mapping.json`` — this is what makes PDF generation
-    multi-form rather than tied to the single ODM mapping.
-    """
-    with open(registry.pdf_mapping_path(form_id), encoding="utf-8") as f:
-        return json.load(f)
 
+def _get_base_pdf_path(form_id: str = "ODM_07216") -> Path | None:
+    """Resolve the base PDF declared by the form's mapping."""
+    mapping, mapping_path = _load_mapping(form_id)
+    base_pdf = mapping.get("base_pdf")
+    if not base_pdf:
+        return None
 
-def _get_base_pdf_path() -> Path | None:
-    candidate = Path(__file__).parent / BASE_PDF_NAME
-    if candidate.exists():
-        return candidate
+    candidates: list[Path] = []
+    if mapping_path is not None:
+        candidates.append(mapping_path.parent / base_pdf)
+    candidates.append(PDF_ASSET_DIR / base_pdf)
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
     return None
 
 
@@ -51,20 +64,60 @@ def _get_output_dir() -> Path:
     return out
 
 
+def _schema_for_session(session: FormSession) -> dict:
+    """Return the schema snapshot stored on the session, falling back for legacy rows."""
+    if session.schema_json:
+        try:
+            return json.loads(session.schema_json)
+        except Exception:
+            logger.warning("Invalid schema_json on session %s; falling back to live schema.", session.id)
+    return load_form_schema(session.form_id)
+
+
+def _safe_file_prefix(form_id: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]+", "_", form_id).strip("_") or "form"
+
+
+def _display_value(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text in ("__skipped__", "", "null", "None"):
+        return None
+    return text
+
+
+def _truthy(value: Any) -> bool:
+    return str(value).strip().lower() in ("true", "yes", "on", "1")
+
+
+def _checkbox_value(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if text in ("__skipped__", "", "null", "none", "false", "no"):
+        return None
+    return "On" if _truthy(value) else None
+
+
+def _load_answers(db, session_id: str) -> dict[str, Any]:
+    answers: dict[str, Any] = {}
+    for row in db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all():
+        try:
+            answers[row.field_key] = json.loads(row.value_json) if row.value_json else None
+        except Exception:
+            answers[row.field_key] = row.value_json
+    return answers
+
+
 def generate_session_pdf(db, session_id: str) -> dict | None:
     session = db.query(FormSession).filter(FormSession.id == session_id).first()
     if not session:
         return None
 
-    answers_rows = db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
-    answers: dict = {}
-    for row in answers_rows:
-        try:
-            answers[row.field_key] = json.loads(row.value_json) if row.value_json else None
-        except Exception:
-            answers[row.field_key] = row.value_json
-
-    base_pdf = _get_base_pdf_path()
+    schema = _schema_for_session(session)
+    answers = _load_answers(db, session_id)
+    base_pdf = _get_base_pdf_path(session.form_id)
     is_fallback = base_pdf is None
 
     if not is_fallback:
@@ -75,264 +128,195 @@ def generate_session_pdf(db, session_id: str) -> dict | None:
             is_fallback = True
 
     if is_fallback:
-        file_path, file_name = _generate_summary_pdf(session_id, answers, session.form_id)
+        file_path, file_name = _generate_summary_pdf(session_id, answers, session.form_id, schema)
 
-    record = GeneratedPdf(
-        session_id=session_id,
-        file_path=str(file_path),
-        file_name=file_name,
-    )
+    record = GeneratedPdf(session_id=session_id, file_path=str(file_path), file_name=file_name)
     db.add(record)
     db.commit()
 
-    download_url = f"/api/session/{session_id}/download-pdf"
     return {
         "session_id": session_id,
-        "download_url": download_url,
+        "download_url": f"/api/session/{session_id}/download-pdf",
         "file_name": file_name,
         "is_fallback": is_fallback,
     }
 
 
+def _mapped_widget_value(raw: Any, mapping_entry: dict, widget_type: str) -> str | None:
+    field_type_hint = mapping_entry.get("field_type", "")
+    if field_type_hint == "checkbox" or widget_type == "CheckBox":
+        if "check_when_value" in mapping_entry:
+            return "On" if str(raw).strip().lower() == str(mapping_entry["check_when_value"]).lower() else None
+        if "check_when" in mapping_entry:
+            return "On" if _truthy(raw) == bool(mapping_entry["check_when"]) else None
+        if "write_nonempty" in mapping_entry:
+            return "On" if _display_value(raw) is not None else None
+        return _checkbox_value(raw)
+
+    if "write_nonempty" in mapping_entry:
+        return mapping_entry["write_nonempty"] if _display_value(raw) is not None else None
+    if "write_empty" in mapping_entry:
+        return mapping_entry["write_empty"] if _display_value(raw) is None else None
+    if "write_value_when" in mapping_entry and "static_value" in mapping_entry:
+        return mapping_entry["static_value"] if _truthy(raw) == bool(mapping_entry["write_value_when"]) else None
+
+    value = _display_value(raw)
+    if value and mapping_entry.get("date_format") == "mm/dd/yyyy" and len(value) == 10 and value[4] == "-":
+        try:
+            yyyy, mm, dd = value.split("-")
+            return f"{mm}/{dd}/{yyyy}"
+        except Exception:
+            return value
+    return value
+
+
 def _fill_acroform_pdf(session_id: str, answers: dict, base_pdf: Path, form_id: str) -> tuple[Path, str]:
-    mapping = _load_mapping(form_id)
-    # Build both a dict for single-entry lookup and a list for multi-entry fields
-    # (e.g. a Yes checkbox and a No checkbox both keyed to the same field_key).
-    all_entries = mapping.get("fields", [])
-    field_map = {}
-    for f in all_entries:
-        fk = f["field_key"]
-        if fk not in field_map:
-            field_map[fk] = f  # first entry wins for coord fallback
-
-
-    # Filter out skipped/null answers — nothing to write for these
-    def _display_value(v) -> str | None:
-        if v is None:
-            return None
-        s = str(v).strip()
-        if s in ("__skipped__", "", "null", "None"):
-            return None
-        return s
-
-    def _checkbox_value(v) -> str | None:
-        """Return 'On' if the answer is truthy, None to leave unchecked."""
-        if v is None:
-            return None
-        s = str(v).strip().lower()
-        if s in ("__skipped__", "", "null", "none", "false", "no"):
-            return None
-        if s in ("true", "yes", "on", "1"):
-            return "On"
-        return None
+    mapping, _mapping_path = _load_mapping(form_id)
+    entries = mapping.get("fields") or []
+    if not entries:
+        raise RuntimeError(f"form {form_id} has no PDF mapping")
 
     doc = fitz.open(str(base_pdf))
-
-    # Build a reverse map: acroform_name -> list of mapping entries.
-    # Lists are needed because RadioButtons share the same acroform_name but have different
-    # radio_on_state values (one per option), and checkbox Yes/No pairs also share names.
     acroform_to_entries: dict[str, list[tuple[str, dict]]] = {}
-    for m in all_entries:
-        aname = m.get("acroform_name")
-        if aname:
-            acroform_to_entries.setdefault(aname, []).append((m["field_key"], m))
+    first_entry_by_key: dict[str, dict] = {}
+    for entry in entries:
+        field_key = entry.get("field_key")
+        if not field_key:
+            continue
+        first_entry_by_key.setdefault(field_key, entry)
+        acroform_name = entry.get("acroform_name")
+        if acroform_name:
+            acroform_to_entries.setdefault(acroform_name, []).append((field_key, entry))
 
-    # Track which field_keys were successfully filled via AcroForm
-    acroform_filled_keys: set[str] = set()
-
+    filled_keys: set[str] = set()
     for page in doc:
-        for widget in page.widgets():
+        widgets = page.widgets() or []
+        for widget in widgets:
             if not widget.field_name:
                 continue
-            entries = acroform_to_entries.get(widget.field_name)
-            if not entries:
-                continue
-            widget_type = widget.field_type_string
-
-            for field_key, mapping_entry in entries:
+            for field_key, entry in acroform_to_entries.get(widget.field_name, []):
                 raw = answers.get(field_key)
-                field_type_hint = mapping_entry.get("field_type", "")
-
-                if field_type_hint == "radio" or widget_type == "RadioButton":
-                    # RadioButton: each physical button has a unique on_state() export value.
-                    # Only process the mapping entry whose radio_on_state matches THIS widget's
-                    # on_state() — so we never apply the wrong option to the wrong button.
-                    radio_on_state = mapping_entry.get("radio_on_state")
-                    if radio_on_state is None:
+                if entry.get("field_type") == "radio" or widget.field_type_string == "RadioButton":
+                    on_state = entry.get("radio_on_state")
+                    if not on_state:
                         continue
                     try:
-                        this_widget_on_state = widget.on_state()
+                        if widget.on_state() != on_state:
+                            continue
                     except Exception:
                         continue
-                    if this_widget_on_state != radio_on_state:
-                        continue  # this entry is for a different radio button in the group
-                    # use_check_when_value: select this button when answer matches check_when_value string
-                    if mapping_entry.get("use_check_when_value"):
-                        cwv = mapping_entry.get("check_when_value", "")
-                        should_select = str(raw).strip().lower() == cwv
+                    if entry.get("use_check_when_value"):
+                        select = str(raw).strip().lower() == str(entry.get("check_when_value", "")).lower()
                     else:
-                        raw_bool = str(raw).strip().lower() in ("true", "yes", "on", "1")
-                        should_select = raw_bool == mapping_entry.get("check_when", True)
-                    if should_select:
-                        widget.field_value = radio_on_state
+                        select = _truthy(raw) == bool(entry.get("check_when", True))
+                    if select:
+                        widget.field_value = on_state
                         widget.update()
-                        acroform_filled_keys.add(field_key)
-                elif field_type_hint == "checkbox" or widget_type == "CheckBox":
-                    if "check_when_value" in mapping_entry:
-                        value = "On" if str(raw).strip().lower() == mapping_entry["check_when_value"] else None
-                    elif "check_when" in mapping_entry:
-                        raw_bool = str(raw).strip().lower() in ("true", "yes", "on", "1")
-                        value = "On" if raw_bool == mapping_entry["check_when"] else None
-                    elif "write_nonempty" in mapping_entry:
-                        has_value = raw is not None and str(raw).strip().lower() not in ("", "null", "none", "__skipped__", "no", "false")
-                        value = "On" if has_value else None
-                    else:
-                        value = _checkbox_value(raw)
-                    if value is not None:
-                        widget.field_value = value
-                        widget.update()
-                        acroform_filled_keys.add(field_key)
-                else:
-                    # write_nonempty: write static_value (e.g. "Y") when answer is non-empty/truthy
-                    if "write_nonempty" in mapping_entry:
-                        has_value = raw is not None and str(raw).strip().lower() not in ("", "null", "none", "__skipped__", "no", "false")
-                        value = mapping_entry["write_nonempty"] if has_value else None
-                    # write_empty: write static_value (e.g. "N") when answer is empty/falsy/skipped
-                    elif "write_empty" in mapping_entry:
-                        has_value = raw is not None and str(raw).strip().lower() not in ("", "null", "none", "__skipped__", "no", "false")
-                        value = mapping_entry["write_empty"] if not has_value else None
-                    # write_value_when + static_value: write static_value when bool answer matches write_value_when
-                    elif "write_value_when" in mapping_entry and "static_value" in mapping_entry:
-                        raw_bool = str(raw).strip().lower() in ("true", "yes", "on", "1") if raw is not None else False
-                        value = mapping_entry["static_value"] if raw_bool == mapping_entry["write_value_when"] else None
-                    else:
-                        value = _display_value(raw)
-                        if value is not None:
-                            # Convert ISO date (YYYY-MM-DD) to MM/DD/YYYY if the field expects that format
-                            if mapping_entry.get("date_format") == "mm/dd/yyyy" and len(value) == 10 and value[4] == "-":
-                                try:
-                                    parts = value.split("-")
-                                    value = "%s/%s/%s" % (parts[1], parts[2], parts[0])
-                                except Exception:
-                                    pass
-                    if value is not None:
-                        widget.field_value = value
-                        widget.update()
-                        acroform_filled_keys.add(field_key)
+                        filled_keys.add(field_key)
+                    continue
 
-    # Coordinate-based fill for any field NOT matched via AcroForm widgets
-    for field_key, m in field_map.items():
-        if field_key in acroform_filled_keys:
+                value = _mapped_widget_value(raw, entry, widget.field_type_string)
+                if value is not None:
+                    widget.field_value = value
+                    widget.update()
+                    filled_keys.add(field_key)
+
+    # Fallback coordinate fill for mapped fields that were not AcroForm widgets.
+    for field_key, entry in first_entry_by_key.items():
+        if field_key in filled_keys:
             continue
         raw = answers.get(field_key)
-        is_checkbox = m.get("field_type") == "checkbox"
-        if is_checkbox:
-            value = _checkbox_value(raw)
-            if value is None:
-                continue
-            # Draw a visible checkmark at the coordinate
-            page_num = m.get("page", 1) - 1
-            if page_num < len(doc):
-                page = doc[page_num]
-                x, y = m.get("x", 100), m.get("y", 100)
-                page.insert_text(fitz.Point(x, y), "✓", fontsize=12, color=(0, 0, 0))
-        else:
-            value = _display_value(raw)
-            if value is None:
-                continue
-            page_num = m.get("page", 1) - 1
-            if page_num < len(doc):
-                page = doc[page_num]
-                x, y = m.get("x", 100), m.get("y", 100)
-                font_size = m.get("font_size", 10)
-                page.insert_text(
-                    fitz.Point(x, y),
-                    value,
-                    fontsize=font_size,
-                    color=(0, 0, 0),
-                )
+        page_num = int(entry.get("page", 1)) - 1
+        if page_num < 0 or page_num >= len(doc):
+            continue
+        page = doc[page_num]
+        x, y = entry.get("x", 100), entry.get("y", 100)
+        if entry.get("field_type") == "checkbox":
+            if _checkbox_value(raw) is not None:
+                page.insert_text(fitz.Point(x, y), "X", fontsize=12, color=(0, 0, 0))
+            continue
+        value = _mapped_widget_value(raw, entry, entry.get("field_type", ""))
+        if value is not None:
+            page.insert_text(
+                fitz.Point(x, y),
+                value,
+                fontsize=entry.get("font_size", 10),
+                color=(0, 0, 0),
+            )
 
-    file_name = f"ODM07216_{session_id[:8]}.pdf"
+    file_name = f"{_safe_file_prefix(form_id)}_{session_id[:8]}.pdf"
     out_path = _get_output_dir() / file_name
     doc.save(str(out_path))
     doc.close()
     return out_path, file_name
 
 
-def _generate_summary_pdf(session_id: str, answers: dict, form_id: str) -> tuple[Path, str]:
-    """Generate a clean filled-data summary PDF as fallback."""
-    from app.forms.service import get_all_fields, load_form_schema
-
+def _generate_summary_pdf(session_id: str, answers: dict, form_id: str, schema: dict) -> tuple[Path, str]:
+    """Generate a readable data-summary PDF from the session schema snapshot."""
     doc = fitz.open()
-    schema = load_form_schema(form_id)
-    all_fields = get_all_fields(form_id)
-    field_labels = {f["field_key"]: f["label"] for f in all_fields}
-    section_titles = {s["section_key"]: s["section_title"] for s in schema["sections"]}
+    all_fields = get_all_fields_from_schema(schema)
+    section_titles = {s["section_key"]: s["section_title"] for s in schema.get("sections", [])}
+    form_title = schema.get("form_title") or schema.get("title") or form_id
 
-    # Group answers by section
-    sections: dict[str, list] = {}
+    sections: dict[str, list[tuple[str, Any, bool]]] = {}
     for field in all_fields:
         key = field["field_key"]
-        sec = field["section"]
-        if sec not in sections:
-            sections[sec] = []
         value = answers.get(key)
-        if value is not None and str(value).strip() not in ("__skipped__", "", "null", "None"):
-            sections[sec].append((field["label"], value, field.get("sensitive", False)))
+        if _display_value(value) is None:
+            continue
+        sections.setdefault(field["section"], []).append(
+            (field.get("label", key), value, bool(field.get("sensitive", False)))
+        )
 
     page = doc.new_page(width=612, height=792)
     y = 750
     margin = 50
-    font_size = 10
-    title_font_size = 14
-    section_font_size = 11
 
-    # Title
-    page.insert_text(fitz.Point(margin, y), "Ohio Department of Medicaid", fontsize=title_font_size, color=(0, 0, 0.6))
-    y -= 20
-    page.insert_text(fitz.Point(margin, y), "Application for Health Coverage & Help Paying Costs", fontsize=title_font_size - 1, color=(0, 0, 0.6))
-    y -= 15
-    page.insert_text(fitz.Point(margin, y), "DRAFT - Application Data Summary (Fallback PDF)", fontsize=font_size, color=(0.8, 0.1, 0.1))
-    y -= 10
-    page.insert_text(fitz.Point(margin, y), f"Session: {session_id}  |  Generated: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}", fontsize=8, color=(0.4, 0.4, 0.4))
-    y -= 20
-    page.draw_line(fitz.Point(margin, y), fitz.Point(612 - margin, y), color=(0, 0, 0), width=0.5)
-    y -= 15
-
-    def ensure_page():
+    def ensure_page() -> None:
         nonlocal page, y
         if y < 60:
             page = doc.new_page(width=612, height=792)
             y = 750
 
-    for sec_key, items in sections.items():
-        if not items:
-            continue
-        ensure_page()
-        title = section_titles.get(sec_key, sec_key)
-        page.insert_text(fitz.Point(margin, y), title, fontsize=section_font_size, color=(0, 0, 0.5))
-        y -= 14
-        page.draw_line(fitz.Point(margin, y + 2), fitz.Point(612 - margin, y + 2), color=(0.6, 0.6, 0.8), width=0.3)
-        y -= 6
+    page.insert_text(fitz.Point(margin, y), str(form_title)[:90], fontsize=13, color=(0, 0, 0.6))
+    y -= 18
+    page.insert_text(fitz.Point(margin, y), "Application Data Summary", fontsize=11, color=(0, 0, 0.6))
+    y -= 14
+    stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    page.insert_text(fitz.Point(margin, y), f"Session: {session_id} | Generated: {stamp}", fontsize=8, color=(0.4, 0.4, 0.4))
+    y -= 18
+    page.draw_line(fitz.Point(margin, y), fitz.Point(612 - margin, y), color=(0, 0, 0), width=0.5)
+    y -= 16
 
+    for section_key, items in sections.items():
+        ensure_page()
+        page.insert_text(
+            fitz.Point(margin, y),
+            section_titles.get(section_key, section_key),
+            fontsize=11,
+            color=(0, 0, 0.5),
+        )
+        y -= 14
         for label, value, sensitive in items:
             ensure_page()
-            display_val = "***" if sensitive else str(value)
-            text = f"  {label}: {display_val}"
-            if len(text) > 90:
-                text = text[:87] + "..."
-            page.insert_text(fitz.Point(margin, y), text, fontsize=font_size, color=(0, 0, 0))
+            display = "***" if sensitive else str(value)
+            line = f"  {label}: {display}"
+            if len(line) > 96:
+                line = line[:93] + "..."
+            page.insert_text(fitz.Point(margin, y), line, fontsize=9.5, color=(0, 0, 0))
             y -= 13
+        y -= 5
 
-        y -= 6
-
-    # Disclaimer footer on last page
     ensure_page()
     page.draw_line(fitz.Point(margin, 55), fitz.Point(612 - margin, 55), color=(0.6, 0.6, 0.6), width=0.3)
-    page.insert_text(fitz.Point(margin, 45), "DISCLAIMER: This summary assists form completion but does not determine eligibility or provide legal advice.", fontsize=7, color=(0.5, 0.5, 0.5))
-    page.insert_text(fitz.Point(margin, 35), "Please review all answers before submitting or using this PDF. This is a DRAFT — place the base PDF to enable field-filled output.", fontsize=7, color=(0.5, 0.5, 0.5))
+    page.insert_text(
+        fitz.Point(margin, 43),
+        "Review all answers before submitting. This summary is not an eligibility determination.",
+        fontsize=7,
+        color=(0.5, 0.5, 0.5),
+    )
 
-    file_name = f"ODM07216_Summary_{session_id[:8]}.pdf"
+    file_name = f"{_safe_file_prefix(form_id)}_Summary_{session_id[:8]}.pdf"
     out_path = _get_output_dir() / file_name
     doc.save(str(out_path))
     doc.close()

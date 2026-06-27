@@ -1,45 +1,52 @@
 ---
-description: AI-Assistant repo overview — what the app is, how it's built, where the canonical docs live. Always on.
+description: AI-Assistant repo overview - current app contract, stack, and canonical docs. Always on.
 alwaysApply: true
 ---
 
-# AI-Assistant — overview (always on)
+# AI-Assistant - overview (always on)
 
-EMR-assisted + AI-voice-assisted **PDF completion of the Ohio Medicaid ODM 07216**
-form. PDF-flow only — no browser automation, no portal submission, Person 1 only.
+AI-Assistant is a multi-form, EMR-assisted, AI-voice-assisted form completion
+platform. The bundled Ohio Medicaid ODM 07216 form is one form pack, not a
+hardcoded product boundary. Future forms should be added as schema/knowledgebase/
+prompt/PDF or workflow metadata, with shared backend and UI behavior reused.
 
-**Stack:** FastAPI + SQLAlchemy 2.0 (sync) + Pydantic v2 (backend) · Next.js 14 +
-React 18 + TypeScript (frontend) · PostgreSQL · LangChain/**OpenAI** with a
-deterministic rule-based fallback · PyMuPDF.
+**Stack:** FastAPI + SQLAlchemy 2.0 (sync) + Pydantic v2 (backend), Next.js 14 +
+React 18 + TypeScript (frontend), PostgreSQL, LangChain/OpenAI with deterministic
+rule-based fallback, PyMuPDF for PDF output.
 
 ## One source of truth
 
 The canonical knowledge base is [`docs/ai/`](mdc:docs/ai/README.md) and the master
-contract is [`AGENTS.md`](mdc:AGENTS.md). These Cursor rules are thin pointers —
-**when a rule and the code/docs disagree, the code wins, then `docs/ai/`.**
+contract is [`AGENTS.md`](mdc:AGENTS.md). These Cursor rules are thin pointers:
+when a rule and the code/docs disagree, the live code wins, then `docs/ai/`.
 
-- Architecture & API surface → [`docs/ai/ARCHITECTURE.md`](mdc:docs/ai/ARCHITECTURE.md)
-- **PHI / security (non-negotiable)** → [`docs/ai/SECURITY-AND-PHI.md`](mdc:docs/ai/SECURITY-AND-PHI.md)
-- Backend style → [`docs/ai/BACKEND-CONVENTIONS.md`](mdc:docs/ai/BACKEND-CONVENTIONS.md)
-- Frontend style → [`docs/ai/FRONTEND-CONVENTIONS.md`](mdc:docs/ai/FRONTEND-CONVENTIONS.md)
-- AI/LLM → [`docs/ai/AI-LLM-INTEGRATION.md`](mdc:docs/ai/AI-LLM-INTEGRATION.md)
-- Testing → [`docs/ai/TESTING.md`](mdc:docs/ai/TESTING.md)
-- Recipes → [`docs/ai/WORKFLOWS.md`](mdc:docs/ai/WORKFLOWS.md)
-- Backlog → [`docs/ai/IMPROVEMENT-BACKLOG.md`](mdc:docs/ai/IMPROVEMENT-BACKLOG.md)
+- Architecture and API surface -> [`docs/ai/ARCHITECTURE.md`](mdc:docs/ai/ARCHITECTURE.md)
+- PHI / security -> [`docs/ai/SECURITY-AND-PHI.md`](mdc:docs/ai/SECURITY-AND-PHI.md)
+- Backend style -> [`docs/ai/BACKEND-CONVENTIONS.md`](mdc:docs/ai/BACKEND-CONVENTIONS.md)
+- Frontend style -> [`docs/ai/FRONTEND-CONVENTIONS.md`](mdc:docs/ai/FRONTEND-CONVENTIONS.md)
+- AI/LLM -> [`docs/ai/AI-LLM-INTEGRATION.md`](mdc:docs/ai/AI-LLM-INTEGRATION.md)
+- Testing -> [`docs/ai/TESTING.md`](mdc:docs/ai/TESTING.md)
+- Recipes -> [`docs/ai/WORKFLOWS.md`](mdc:docs/ai/WORKFLOWS.md)
 
 ## Working defaults
 
-- The form is **data-driven** by
-  [`backend/app/forms/schemas/odm_07216.json`](mdc:backend/app/forms/schemas/odm_07216.json).
-  Field changes are usually JSON edits, not new imperative code.
-- Default run profile: `USE_MOCK_EMR=true`, no `OPENAI_API_KEY` (rule-based
-  fallback). Don't connect to a real EMR or LLM unless asked.
-- **Provider is OpenAI** (`app/ai/llm.py`); the README's "Claude" section is stale.
-- Finish on the green bar: `cd backend && pytest tests/ -v` and
-  `cd frontend && npm run build && npm run lint`. Add a test for behavior changes.
-- Windows/PowerShell is the primary shell. App DB host port is **5499**.
+- Forms are data-driven by rows in `forms` and optional form packs under
+  [`backend/app/forms/packs/`](mdc:backend/app/forms/packs). Field changes should
+  usually be schema edits, not imperative code.
+- A session stores a schema snapshot at creation time. Do not load the mutable
+  current form schema while answering, reviewing, approving, or generating output
+  for an existing session.
+- Default run profile: `USE_MOCK_EMR=true`, no `OPENAI_API_KEY`; the rule-based
+  fallback must keep working. Do not connect to a real EMR or model unless asked.
+- AI provider wiring lives behind `backend/app/ai/llm.py`.
+- Finish on the green bar: `cd backend; .\.venv\Scripts\python.exe -m pytest -q`
+  and `cd frontend; npm run build; npm run lint`. Add tests for behavior changes.
+- Windows/PowerShell is the primary shell. App DB host port is `5499`.
 
-## Scope guardrails (don't add without an explicit ask)
+## Scope guardrails
 
-Browser automation, online-portal filling, government-portal submission,
-multi-person household. Prefer the smallest change that fits existing patterns.
+- Workflow tasks are explicit and fail closed. The supported tasks are
+  `generate_pdf` and `web_submit`.
+- `web_submit` requires a real recipe with `portal_url` before it can execute.
+  The default mock driver is dry-run only.
+- Keep PHI out of logs, model prompts, static KB, and agent docs.

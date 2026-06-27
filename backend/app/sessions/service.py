@@ -6,9 +6,18 @@ from sqlalchemy.orm import Session as DBSession
 from app.db.models import FormSession, FormAnswer
 from app.db.session import get_db
 from app.emr.schemas import EMRPatient
-from app.forms.service import get_all_fields, load_form_schema
+from app.forms.service import (
+    get_all_fields,
+    get_all_fields_from_schema,
+    get_field_from_schema,
+    load_form_schema,
+)
 from app.forms.mapper import prefill_from_emr
-from app.forms.missing_fields import get_missing_required_fields
+from app.forms.missing_fields import (
+    get_missing_applicable_fields,
+    get_missing_required_fields,
+    is_field_applicable,
+)
 from app.forms.questions import get_current_question_context
 from app.ai.langgraph_flow import run_answer_step
 from app.patients.service import get_patient_by_id
@@ -26,17 +35,19 @@ def create_session(
     prefilled: dict[str, Any] = {}
     mock_mode = False
     patient: EMRPatient | None = None
+    schema = load_form_schema(form_id)
 
     if patient_id and not manual_mode:
         patient = get_patient_by_id(patient_id)
         if patient:
             from app.emr.factory import get_emr_adapter
             mock_mode = get_emr_adapter().is_mock
-            prefilled = prefill_from_emr(patient, form_id)
+            prefilled = prefill_from_emr(patient, form_id, schema=schema)
 
     session = FormSession(
         id=session_id,
         form_id=form_id,
+        schema_json=json.dumps(schema),
         patient_external_id=patient_id,
         status="active",
         mock_mode=mock_mode,
@@ -59,23 +70,24 @@ def create_session(
     # Auto-fill city/state/county from any ZIP fields that came in via EMR prefill.
     for field_key, data in prefilled.items():
         if field_key in _ZIP_AUTOFILL_MAP:
-            _maybe_autofill_from_zip(db, session_id, form_id, field_key, data["value"])
+            _maybe_autofill_from_zip(db, session_id, form_id, field_key, data["value"], schema=schema)
 
-    answers_map = {k: v["value"] for k, v in prefilled.items()}
-    missing = get_missing_required_fields(form_id, answers_map)
-    next_q = get_current_question_context(form_id, answers_map)
+    answers_map = _answers_map(db, session_id)
+    missing = get_missing_applicable_fields(form_id, answers_map, schema)
+    next_q = get_current_question_context(form_id, answers_map, schema)
 
     return {
         "session_id": session_id,
         "form_id": form_id,
+        "form_title": _form_title(form_id, schema),
         "status": "active",
         "mock_mode": mock_mode,
         "prefilled_count": len(prefilled),
-        "answered_count": len(prefilled),
+        "answered_count": len(answers_map),
         "missing_count": len(missing),
-        "total_required": _count_required(form_id),
+        "total_required": _count_required(form_id, schema),
         "next_question": next_q,
-        "prefilled_fields": _build_field_summaries(prefilled, form_id),
+        "prefilled_fields": _build_field_summaries(prefilled, form_id, schema),
         "answers": answers_map,
     }
 
@@ -85,6 +97,7 @@ def get_session_state(db: DBSession, session_id: str) -> dict | None:
     if not session:
         return None
 
+    schema = _schema_for_session(session)
     answers = db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
     answers_map = {a.field_key: _deserialize(a.value_json) for a in answers}
     source_map = {a.field_key: a.source for a in answers}
@@ -94,18 +107,18 @@ def get_session_state(db: DBSession, session_id: str) -> dict | None:
     for zip_key, (city_key, state_key, county_key) in _ZIP_AUTOFILL_MAP.items():
         zip_val = answers_map.get(zip_key)
         if zip_val and not all(answers_map.get(k) for k in (city_key, state_key, county_key)):
-            _maybe_autofill_from_zip(db, session_id, session.form_id, zip_key, zip_val)
+            _maybe_autofill_from_zip(db, session_id, session.form_id, zip_key, zip_val, schema=schema)
             # Reload answers after potential writes
             answers = db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
             answers_map = {a.field_key: _deserialize(a.value_json) for a in answers}
             source_map = {a.field_key: a.source for a in answers}
 
-    missing = get_missing_required_fields(session.form_id, answers_map)
-    next_q = get_current_question_context(session.form_id, answers_map)
+    missing = get_missing_applicable_fields(session.form_id, answers_map, schema)
+    next_q = get_current_question_context(session.form_id, answers_map, schema)
 
     prefilled_fields = []
     for a in answers:
-        field_meta = _get_field_meta(a.field_key, session.form_id)
+        field_meta = _get_field_meta(a.field_key, session.form_id, schema)
         if field_meta:
             prefilled_fields.append({
                 "field_key": a.field_key,
@@ -119,12 +132,13 @@ def get_session_state(db: DBSession, session_id: str) -> dict | None:
     return {
         "session_id": session_id,
         "form_id": session.form_id,
+        "form_title": _form_title(session.form_id, schema),
         "status": session.status,
         "mock_mode": session.mock_mode,
         "prefilled_count": len([a for a in answers if a.source == "emr"]),
         "answered_count": len(answers_map),
         "missing_count": len(missing),
-        "total_required": _count_required(session.form_id),
+        "total_required": _count_required(session.form_id, schema),
         "next_question": next_q,
         "prefilled_fields": prefilled_fields,
         "answers": answers_map,
@@ -143,6 +157,7 @@ def save_answer(
     if not session:
         return {"success": False, "error": "Session not found"}
 
+    schema = _schema_for_session(session)
     answers = db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
     answers_map = {a.field_key: _deserialize(a.value_json) for a in answers}
 
@@ -150,9 +165,9 @@ def save_answer(
         # The user already confirmed a previously-extracted value (smart-confirm
         # "yes"). Save raw_answer as the value directly, skipping the confidence
         # gate that would otherwise ask to confirm again.
-        result = _build_confirmed_result(session.form_id, answers_map, field_key, raw_answer)
+        result = _build_confirmed_result(session.form_id, answers_map, field_key, raw_answer, schema)
     else:
-        result = run_answer_step(session.form_id, answers_map, field_key, raw_answer)
+        result = run_answer_step(session.form_id, answers_map, field_key, raw_answer, schema)
 
     if not result["success"]:
         return result
@@ -188,11 +203,13 @@ def save_answer(
 
     # ── ZIP auto-fill: when a ZIP field is saved, look up city/state/county
     # and save them automatically so those questions are never asked.
-    zip_autofill_msg = _maybe_autofill_from_zip(db, session_id, session.form_id, field_key, extracted_value)
+    zip_autofill_msg = _maybe_autofill_from_zip(
+        db, session_id, session.form_id, field_key, extracted_value, schema=schema
+    )
 
     # Warm, brief acknowledgment spoken before the next question.
     from app.ai.question_rewriter import acknowledge_answer
-    field_meta = _get_field_meta(field_key, session.form_id)
+    field_meta = _get_field_meta(field_key, session.form_id, schema)
     if field_meta:
         ack = acknowledge_answer(field_meta, extracted_value)
         if zip_autofill_msg:
@@ -202,8 +219,8 @@ def save_answer(
     # Rebuild next_question after potential auto-fills
     updated_answers = {a.field_key: _deserialize(a.value_json)
                        for a in db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()}
-    result["next_question"] = get_current_question_context(session.form_id, updated_answers)
-    result["missing_count"] = len(get_missing_required_fields(session.form_id, updated_answers))
+    result["next_question"] = get_current_question_context(session.form_id, updated_answers, schema)
+    result["missing_count"] = len(get_missing_applicable_fields(session.form_id, updated_answers, schema))
     result["is_complete"] = result["missing_count"] == 0
     result["answers"] = updated_answers
 
@@ -218,13 +235,13 @@ def save_answer(
 
 
 def _build_confirmed_result(
-    form_id: str, answers_map: dict, field_key: str, value: str
+    form_id: str, answers_map: dict, field_key: str, value: str, schema: dict | None = None
 ) -> dict:
     """Build a success result for a user-confirmed value (smart-confirm 'yes')."""
     from app.forms.service import get_field
     from app.forms.validation import validate_answer, ValidationError
 
-    field = get_field(field_key, form_id)
+    field = get_field_from_schema(field_key, schema) if schema is not None else get_field(field_key, form_id)
     if not field:
         return {"success": False, "error": f"Unknown field: {field_key}"}
 
@@ -244,9 +261,9 @@ def _build_confirmed_result(
         "extracted_value": coerced,
         "confidence": 1.0,
         "needs_clarification": False,
-        "is_complete": len(get_missing_required_fields(form_id, new_answers)) == 0,
-        "next_question": get_current_question_context(form_id, new_answers),
-        "missing_count": len(get_missing_required_fields(form_id, new_answers)),
+        "is_complete": len(get_missing_applicable_fields(form_id, new_answers, schema)) == 0,
+        "next_question": get_current_question_context(form_id, new_answers, schema),
+        "missing_count": len(get_missing_applicable_fields(form_id, new_answers, schema)),
     }
 
 
@@ -255,9 +272,12 @@ def skip_field(db: DBSession, session_id: str, field_key: str) -> dict | None:
     if not session:
         return None
 
+    schema = _schema_for_session(session)
     # Only optional fields may be skipped
-    field_meta = _get_field_meta(field_key, session.form_id)
-    if field_meta and field_meta.get("required", False):
+    field_meta = _get_field_meta(field_key, session.form_id, schema)
+    if field_meta is None:
+        return {"success": False, "error": f"Unknown field: {field_key}"}
+    if field_meta.get("required", False):
         return {"success": False, "error": "Required fields cannot be skipped."}
 
     answers = db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
@@ -287,8 +307,8 @@ def skip_field(db: DBSession, session_id: str, field_key: str) -> dict | None:
     db.commit()
 
     answers_map[field_key] = sentinel
-    missing = get_missing_required_fields(session.form_id, answers_map)
-    next_q = get_current_question_context(session.form_id, answers_map)
+    missing = get_missing_applicable_fields(session.form_id, answers_map, schema)
+    next_q = get_current_question_context(session.form_id, answers_map, schema)
     is_complete = len(missing) == 0
 
     if is_complete and session.status != "completed":
@@ -318,9 +338,10 @@ def go_back(db: DBSession, session_id: str) -> dict | None:
     if not session:
         return None
 
+    schema = _schema_for_session(session)
     # Find user-answered fields in the order they appear in the schema, then take
     # the last one — that is the field we want to un-answer.
-    all_field_keys = [f["field_key"] for f in get_all_fields(session.form_id)]
+    all_field_keys = [f["field_key"] for f in get_all_fields_from_schema(schema)]
     user_answers = (
         db.query(FormAnswer)
         .filter(
@@ -354,17 +375,22 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
     if not session:
         return None
 
+    schema = _schema_for_session(session)
     answers = db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
     answers_map = {a.field_key: _deserialize(a.value_json) for a in answers}
     source_map = {a.field_key: a.source for a in answers}
 
-    all_fields = get_all_fields(session.form_id)
-    schema = load_form_schema(session.form_id)
+    all_fields = get_all_fields_from_schema(schema)
     section_titles = {s["section_key"]: s["section_title"] for s in schema["sections"]}
 
     SKIPPED = "__skipped__"
     sections: dict[str, list] = {}
     for field in all_fields:
+        # Conditional branches that are inactive for the current answers should not
+        # appear as review-time gaps. Approval uses the same applicability rule, so
+        # future forms with dependencies keep the UI and API aligned.
+        if not is_field_applicable(field, answers_map):
+            continue
         sec = field["section"]
         if sec not in sections:
             sections[sec] = []
@@ -381,19 +407,23 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
             "is_required": field.get("required", False),
         })
 
-    missing = get_missing_required_fields(session.form_id, answers_map)
+    missing_required = get_missing_required_fields(session.form_id, answers_map, schema)
+    missing_applicable = get_missing_applicable_fields(session.form_id, answers_map, schema)
     return {
         "session_id": session_id,
+        "form_id": session.form_id,
+        "form_title": _form_title(session.form_id, schema),
         "sections": sections,
-        "missing_required": [f["field_key"] for f in missing],
-        "is_complete": len(missing) == 0,
+        "missing_required": [f["field_key"] for f in missing_required],
+        "missing_applicable": [f["field_key"] for f in missing_applicable],
+        "is_complete": len(missing_applicable) == 0,
     }
 
 
-def _build_field_summaries(prefilled: dict, form_id: str) -> list[dict]:
+def _build_field_summaries(prefilled: dict, form_id: str, schema: dict | None = None) -> list[dict]:
     result = []
     for field_key, data in prefilled.items():
-        meta = _get_field_meta(field_key, form_id)
+        meta = _get_field_meta(field_key, form_id, schema)
         if meta:
             result.append({
                 "field_key": field_key,
@@ -406,15 +436,40 @@ def _build_field_summaries(prefilled: dict, form_id: str) -> list[dict]:
     return result
 
 
-def _get_field_meta(field_key: str, form_id: str) -> dict | None:
+def _get_field_meta(field_key: str, form_id: str, schema: dict | None = None) -> dict | None:
+    if schema is not None:
+        return get_field_from_schema(field_key, schema)
     for field in get_all_fields(form_id):
         if field["field_key"] == field_key:
             return field
     return None
 
 
-def _count_required(form_id: str) -> int:
-    return len(get_all_fields(form_id))
+def _count_required(form_id: str, schema: dict | None = None) -> int:
+    # Historical API name: the frontend uses this as the progress denominator for
+    # all schema fields, not just the subset marked required.
+    return len(get_all_fields_from_schema(schema) if schema is not None else get_all_fields(form_id))
+
+
+def _form_title(form_id: str, schema: dict) -> str:
+    return str(schema.get("form_title") or schema.get("title") or form_id)
+
+
+def _schema_for_session(session: FormSession) -> dict:
+    """Return the frozen schema for a session, falling back for legacy rows."""
+    if session.schema_json:
+        try:
+            return json.loads(session.schema_json)
+        except Exception:
+            logger.warning("Invalid schema_json on session %s; falling back to live schema.", session.id)
+    return load_form_schema(session.form_id)
+
+
+def _answers_map(db: DBSession, session_id: str) -> dict[str, Any]:
+    return {
+        a.field_key: _deserialize(a.value_json)
+        for a in db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
+    }
 
 
 def _deserialize(value_json: str | None) -> Any:
@@ -439,6 +494,7 @@ def _maybe_autofill_from_zip(
     form_id: str,
     field_key: str,
     zip_value: Any,
+    schema: dict | None = None,
 ) -> str:
     """
     If field_key is a ZIP field and ZIPcodeAPI is configured, look up the ZIP
@@ -457,6 +513,10 @@ def _maybe_autofill_from_zip(
         return ""
 
     city_key, state_key, county_key = _ZIP_AUTOFILL_MAP[field_key]
+    field_keys = {
+        f["field_key"]
+        for f in (get_all_fields_from_schema(schema) if schema is not None else get_all_fields(form_id))
+    }
     to_fill = [
         (city_key,   info.get("city", "")),
         (state_key,  info.get("state", "")),
@@ -465,6 +525,8 @@ def _maybe_autofill_from_zip(
 
     filled_labels: list[str] = []
     for fk, val in to_fill:
+        if fk not in field_keys:
+            continue
         if not val:
             continue
         existing = db.query(FormAnswer).filter(

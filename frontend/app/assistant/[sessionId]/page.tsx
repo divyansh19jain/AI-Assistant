@@ -76,6 +76,7 @@ function LeftPanel({
   isSensitive,
   submitting,
   sessionId,
+  formTitle,
 }: {
   mode: "idle" | "speaking" | "listening";
   progress: number;
@@ -89,6 +90,7 @@ function LeftPanel({
   isSensitive: boolean;
   submitting: boolean;
   sessionId: string;
+  formTitle: string;
 }) {
   const router = useRouter();
 
@@ -123,7 +125,7 @@ function LeftPanel({
       <div className="w-full flex items-center justify-between z-10">
         <div>
           <p className="text-white text-sm font-bold tracking-tight">AI Form Assistant</p>
-          <p className="text-slate-600 text-[11px]">Ohio Medicaid · ODM 07216</p>
+          <p className="text-slate-600 text-[11px] truncate max-w-[180px]">{formTitle}</p>
         </div>
         {mockMode && (
           <span className="text-[10px] bg-amber-500/15 text-amber-400 border border-amber-500/25 px-2 py-0.5 rounded-full">
@@ -924,7 +926,9 @@ export default function AssistantPage() {
           </div>
           <div>
             <p className="text-base font-bold text-white leading-tight">AI Form Assistant</p>
-            <p className="text-xs text-slate-500 leading-tight">Ohio Medicaid · ODM 07216</p>
+            <p className="text-xs text-slate-500 leading-tight truncate max-w-[220px]">
+              {session?.form_title ?? session?.form_id ?? "Form"}
+            </p>
           </div>
         </div>
         <button className="w-9 h-9 rounded-full flex items-center justify-center border border-white/10 text-slate-400 hover:text-white hover:border-white/20 transition-all">

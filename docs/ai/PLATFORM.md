@@ -1,95 +1,107 @@
-# Platform — the DB-backed, UI-managed multi-form builder
+# Platform - DB-Backed Multi-Form Builder
 
-> This supersedes the single-form framing in [ARCHITECTURE.md](./ARCHITECTURE.md).
-> The app is now a **builder platform**: admins create/manage forms (and their KB,
-> prompts, skills, and completion workflows) in a UI; patients pick a published form
-> and complete it with EMR + voice assistance, then **review → approve → complete**.
+The app is a form-completion platform. `ODM_07216` is the bundled seed form, not a
+hardcoded product limit.
 
-## How it fits together
+## Flow
 
+```text
+Admin builder
+  forms.schema_json
+  forms.prompt_json
+  forms.voice_json
+  forms.workflow_json
+  KB documents / chunks
+  attached skills
+        |
+        v
+Published form picker
+        |
+        v
+Session create -> form_sessions.schema_json snapshot
+        |
+        v
+Assistant asks applicable questions -> review -> approve
+        |
+        v
+Workflow engine: generate_pdf, optional web_submit
 ```
-ADMIN (/admin, JWT)                          PATIENT (/)
-  Form Builder                                 pick a published form (GET /api/forms)
-   ├ schema/field editor   ─┐                   → search/match (masked) or manual
-   ├ prompts & voice        │  forms table       → assistant: one Q at a time
-   ├ knowledgebase (RAG)    │  (schema_json,      → review → "Approve & Complete"
-   ├ skills (capabilities)  │   prompt_json,           │
-   └ completion workflow   ─┘   voice_json,            ▼
-                                workflow_json)     approval gate → workflow engine
-                                                    → generate_pdf / web_submit / …
-```
 
-**Source of truth = the database.** The bundled filesystem **packs**
-(`backend/app/forms/packs/<FORM_ID>/`) are the seed + import/export format. On boot,
-`seed_from_packs()` imports any pack not already in the `forms` table; thereafter the
-DB wins. The form **engine is unchanged** — it reads the schema from a process-local
-cache (`app/forms/cache.py`, DB-backed with a pack fallback) so call sites keep their
-no-`db` signatures.
+## Source Of Truth
 
-## Entities (DB)
+- Database is authoritative after seed/import.
+- Bundled packs live at `backend/app/forms/packs/<FORM_ID>/`.
+- Pack files:
+  - `form.schema.json`
+  - optional `pdf.mapping.json`
+  - optional `prompts/system.md`
+  - optional `prompts/field_overrides.json`
+  - optional `knowledgebase/`
+  - optional `workflow.yaml`
+- `app/forms/cache.py` provides a process-local schema cache for published DB forms.
+- `app/forms/registry.py` is the filesystem-pack fallback and import/seed format.
 
-| Table | What | Edited via |
-|---|---|---|
-| `forms` | `schema_json` (fields), `prompt_json`, `voice_json`, `workflow_json`, status, output_targets | builder CRUD |
-| `kb_documents` / `kb_chunks` | per-form RAG docs + embeddings (JSON vectors) | KB manager |
-| `form_skills` | which built-in capabilities a form uses | Skills toggles |
-| `form_approvals` | the human approval before completion | patient approve |
-| `workflow_runs` / `workflow_task_runs` | each completion run + per-task status/evidence | (runtime) |
-| `form_sessions` / `form_answers` / `generated_pdfs` / `audit_logs` | runtime (unchanged) | — |
+## Session Snapshot Contract
 
-## Subsystems
+On session creation, the live form schema is copied into `form_sessions.schema_json`.
+All session state, answer validation, missing-field logic, review data, approval
+checks, and PDF summary generation must use that snapshot. This prevents in-flight
+sessions from changing when an admin edits, republishes, or deletes a form later.
 
-- **Registry + cache** — `app/forms/registry.py` (discover packs), `app/forms/cache.py`
-  (DB schema cache + pack fallback), `app/forms/seed.py` (seed DB from packs).
-- **Prompts + voice** — `app/forms/prompts.py`: per-form AI persona + per-field
-  question/help overrides + voice config, injected into `question_rewriter` /
-  `help_intent` and `get_tts_service(form_id)` / the STT vocabulary. Field-question
-  overrides work even with **no LLM key**.
-- **Knowledgebase (RAG)** — `app/ai/kb.py`: chunk + embed (OpenAI when keyed, else a
-  **deterministic local hashing embedding** so it runs offline) + cosine retrieval.
-  Injected into the "explain this question" path. 🔒 PHI-free; queries are field-level.
-- **Skills** — `app/skills/registry.py`: built-in capabilities (`zip_lookup`,
-  `kb_lookup`, `glossary`) with `run_skill()`; attached per form via `form_skills`.
-- **Workflow engine** — `app/workflows/engine.py`: ordered tasks
-  (`generate_pdf` | `web_submit` | `notify` | `store_evidence`) run after the approval
-  gate, recording each task's status + output/evidence. Stops at first failure.
-- **Web submission** — `app/workflows/web_submit.py`: a **dry-run mock driver by
-  default** (no network), with a real Playwright-over-Browserless driver gated behind
-  `WEB_SUBMIT_DRIVER=browserless` + `BROWSERLESS_URL`.
+## Key Tables
 
-## API additions (all admin routes behind the JWT `_verify_token`)
+| Table | Purpose |
+|---|---|
+| `forms` | form schema, prompt, voice, workflow, status, output targets |
+| `form_sessions` | runtime session plus immutable schema snapshot |
+| `form_answers` | patient answers and source metadata |
+| `kb_documents` / `kb_chunks` | per-form PHI-free RAG content and embeddings |
+| `form_skills` | built-in skills attached to a form |
+| `form_approvals` | human approval records |
+| `workflow_runs` / `workflow_task_runs` | completion execution and evidence |
+| `generated_pdfs` | generated file records |
+| `audit_logs` | sanitized audit events |
 
-- Forms: `GET/POST /api/admin/forms`, `GET/PUT/DELETE /api/admin/forms/{id}`,
-  `PUT …/schema`, `PUT …/prompts`, `PUT …/workflow`, `POST …/publish` · `…/unpublish`,
-  `GET …/export`, `POST /api/admin/forms/import`.
-- KB: `GET/POST /api/admin/forms/{id}/kb`, `…/{doc}/reembed`, `DELETE …/{doc}`.
-- Skills: `GET /api/admin/skills`, `POST /api/admin/skills/{key}/run`,
-  `GET/PUT /api/admin/forms/{id}/skills`.
-- Public/patient: `GET /api/forms` (published), `POST /api/session/{id}/approve`,
-  `GET /api/session/{id}/workflow`.
+## Supported Workflow Tasks
 
-## Add a form tomorrow
+- `generate_pdf`
+- `web_submit`
 
-1. **In the UI:** `/admin` → Form Builder → New Form → edit the schema/fields, prompts
-   & voice, KB, skills, and the completion workflow → Publish. It appears in the patient
-   picker immediately and is runnable end-to-end.
-2. **As a pack (git-friendly):** copy `backend/app/forms/packs/ODM_07216/` to a new
-   `<FORM_ID>/`, edit `form.schema.json` (+ optional `prompts/`, `knowledgebase/`,
-   `pdf.mapping.json`, `workflow.yaml`); it's seeded on boot. Or export an existing
-   form (`GET …/export`) and `POST …/import` it elsewhere.
+Unknown task types fail closed. Do not add successful no-op tasks. The admin API and
+builder UI validate task types before saving.
 
-## 🔒 Web-submission compliance (Phase G)
+## PDF Behavior
 
-Web submission is **PHI egress** to third-party portals and is gated by: per-form
-opt-in (the `web_submit` task must be added to the workflow), the **human approval
-gate**, audit events (`workflow_completed`/`failed`), and a **safe dry-run default**
-(no real submission unless a Browserless driver is explicitly configured). Per-portal
-data-processing/BAA review is required before enabling a real portal. KB/prompt content
-must stay PHI-free; the vector index never stores patient answers.
+If a form has `pdf.mapping.json` and the referenced `base_pdf` is present, the PDF
+service fills AcroForm widgets. If not, it generates a generic data-summary PDF from
+the session schema snapshot. Every mapping `field_key` should exist in that form's
+schema; `backend/tests/test_form_logic.py` contains a drift regression for ODM.
 
-## Phase log (all on `main`, each green)
+## Knowledgebase And Prompts
 
-A (DB authority + harness + Alembic + PHI search-masking) · B (builder CRUD + UI +
-picker) · C (prompt packs + voice) · D (knowledgebase RAG) · E (skills) · F (workflows
-+ approval gate, PDF) · G (web submission) · H (import/export, CORS/auth lock, eslint,
-CI, docs).
+Knowledgebase documents must be PHI-free form guidance. Help-intent retrieval uses
+field-level query text only; raw patient utterances are not embedded into KB queries.
+Prompt overrides are per form and can be edited in the builder or stored in a pack.
+
+## Web Submission
+
+`web_submit` is PHI egress. It is only allowed after human approval and only when the
+form workflow opts in. The default driver is dry-run and does not make network calls.
+Real portal submission requires `WEB_SUBMIT_DRIVER=browserless`, `BROWSERLESS_URL`,
+a recipe with `portal_url`, selectors, and a separate compliance review.
+
+## Add A New Form Tomorrow
+
+1. Create it in `/admin/forms` or add a pack under `backend/app/forms/packs/<FORM_ID>/`.
+2. Define `form.schema.json` with sections and fields.
+3. Add optional `prefill` mappings for EMR values.
+4. Add prompt/voice settings and PHI-free KB documents.
+5. Add `pdf.mapping.json` only if field-filled PDF output is required.
+6. Configure workflow tasks. Use `generate_pdf`; add `web_submit` only with a real recipe.
+7. Publish the form and run a patient-flow smoke test.
+
+## Verification
+
+- Backend: `cd backend; .\.venv\Scripts\python.exe -m pytest -q`
+- Frontend: `cd frontend; npm run build; npm run lint`
+- Migration changes: `cd backend; .\.venv\Scripts\python.exe -m alembic upgrade head`

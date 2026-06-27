@@ -1,5 +1,5 @@
 {
-  "//": "Per-field prompt overrides for ODM 07216. WIRED IN PHASE 2 (app/forms/prompts.py).",
+  "//": "Per-field prompt overrides for ODM 07216 loaded by app/forms/prompts.py.",
   "//shape": "field_key -> { question?: string, help?: string }. 'question' overrides the schema question_text; 'help' seeds the explain-this-field answer. Empty object means: use the schema defaults.",
   "//phi": "NO PHI here — these are static, form-level strings shared across all applicants.",
   "overrides": {}

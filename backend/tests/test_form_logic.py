@@ -3,7 +3,7 @@
 import pytest
 from app.emr.schemas import EMRPatient, EMRAddress
 from app.forms.mapper import prefill_from_emr
-from app.forms.missing_fields import get_missing_required_fields, _dependency_satisfied
+from app.forms.missing_fields import get_missing_applicable_fields, get_missing_required_fields, _dependency_satisfied
 from app.forms.validation import validate_answer, ValidationError
 from app.forms.service import get_all_fields
 
@@ -58,6 +58,13 @@ def test_missing_required_fields_empty_answers():
     assert "applicant.first_name" in required_keys
     assert "applicant.last_name" in required_keys
     assert "person1.dob" in required_keys
+    assert "applicant.middle_name" not in required_keys
+
+
+def test_applicable_fields_include_optional_until_skipped():
+    applicable = get_missing_applicable_fields("ODM_07216", {})
+    keys = {f["field_key"] for f in applicable}
+    assert "applicant.middle_name" in keys
 
 
 def test_missing_required_fields_with_prefill():
@@ -74,6 +81,13 @@ def test_dependency_skip_pregnancy_fields():
     all_fields = get_all_fields("ODM_07216")
     pregnancy_due = next(f for f in all_fields if f["field_key"] == "person1.pregnancy_due_date")
     assert not _dependency_satisfied(pregnancy_due, answers)
+
+
+def test_skip_sentinel_does_not_satisfy_present_dependency():
+    answers = {"applicant.mailing_address": "__skipped__"}
+    all_fields = get_all_fields("ODM_07216")
+    mailing_city = next(f for f in all_fields if f["field_key"] == "applicant.mailing_city")
+    assert not _dependency_satisfied(mailing_city, answers)
 
 
 def test_dependency_include_pregnancy_fields_when_pregnant():
@@ -121,3 +135,37 @@ def test_validate_zip_pattern():
     assert validate_answer(field, "43215") == "43215"
     with pytest.raises(ValidationError):
         validate_answer(field, "ABCDE")
+
+
+def test_declarative_prefill_from_schema():
+    schema = {
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "S",
+                "fields": [
+                    {"field_key": "s.name", "label": "Name", "section": "s", "type": "text"},
+                    {"field_key": "s.phone", "label": "Phone", "section": "s", "type": "phone"},
+                ],
+            }
+        ],
+        "prefill": {
+            "s.name": {"source": "first_name"},
+            "s.phone": {"source": "phone", "transform": "phone10"},
+        },
+    }
+    prefilled = prefill_from_emr(SAMPLE_PATIENT, "ANY", schema=schema)
+    assert prefilled["s.name"]["value"] == "Alice"
+    assert prefilled["s.phone"]["value"] == "6145559876"
+
+
+def test_odm_pdf_mapping_has_no_stale_schema_keys():
+    import json
+    from pathlib import Path
+
+    backend_root = Path(__file__).resolve().parents[1]
+    schema = json.loads((backend_root / "app/forms/packs/ODM_07216/form.schema.json").read_text(encoding="utf-8"))
+    mapping = json.loads((backend_root / "app/forms/packs/ODM_07216/pdf.mapping.json").read_text(encoding="utf-8"))
+    schema_keys = {f["field_key"] for sec in schema["sections"] for f in sec["fields"]}
+    mapping_keys = {f["field_key"] for f in mapping["fields"]}
+    assert mapping_keys <= schema_keys

@@ -51,9 +51,9 @@ dev/test profile is mock). Tests and the UI depend on this parity.
 
 ## 5. Prefill (`app/forms/mapper.py`)
 
-If a form field should prefill from this column, set the field's
-`emr_source_candidates` in `odm_07216.json` and confirm the mapper reads the new
-`EMRPatient` attribute.
+If a form field should prefill from this column, set the field's `prefill` block
+or legacy `emr_source_candidates` entry in the relevant form pack schema and
+confirm `app/forms/mapper.py` reads the new `EMRPatient` attribute.
 
 ## Gate
 - `cd backend && pytest tests/ -v` — extend `tests/test_patient_search.py`

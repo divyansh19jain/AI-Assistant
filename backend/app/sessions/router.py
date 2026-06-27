@@ -9,6 +9,7 @@ from app.sessions.schemas import (
     ReviewResponse, GeneratePdfResponse,
 )
 from app.sessions import service as svc
+from app.forms.registry import UnknownFormError
 
 router = APIRouter(prefix="/api/session", tags=["session"])
 logger = logging.getLogger(__name__)
@@ -19,12 +20,15 @@ def create_session(
     request: CreateSessionRequest,
     db: DBSession = Depends(get_db),
 ) -> dict:
-    state = svc.create_session(
-        db,
-        form_id=request.form_id,
-        patient_id=request.patient_id,
-        manual_mode=request.manual_mode,
-    )
+    try:
+        state = svc.create_session(
+            db,
+            form_id=request.form_id,
+            patient_id=request.patient_id,
+            manual_mode=request.manual_mode,
+        )
+    except UnknownFormError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     log_event(db, event_type="session_created", session_id=state["session_id"])
     return state
 

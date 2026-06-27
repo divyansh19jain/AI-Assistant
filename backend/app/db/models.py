@@ -13,6 +13,9 @@ class FormSession(Base):
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     form_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Immutable copy of the form schema used to create this session. This keeps
+    # active sessions stable when admins edit, republish, or delete a form later.
+    schema_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     patient_external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="active")
     mock_mode: Mapped[bool] = mapped_column(Boolean, default=False)

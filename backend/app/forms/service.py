@@ -32,9 +32,8 @@ def load_form_schema(form_id: str = "ODM_07216") -> dict:
     return registry.load_schema(form_id)
 
 
-def get_all_fields(form_id: str = "ODM_07216") -> list[dict]:
-    """Flatten the schema's sections into a single ordered list of field dicts."""
-    schema = load_form_schema(form_id)
+def get_all_fields_from_schema(schema: dict) -> list[dict]:
+    """Flatten a parsed schema document into ordered field dicts."""
     fields: list[dict] = []
     for section in schema.get("sections", []):
         for field in section.get("fields", []):
@@ -42,9 +41,19 @@ def get_all_fields(form_id: str = "ODM_07216") -> list[dict]:
     return fields
 
 
-def get_field(field_key: str, form_id: str = "ODM_07216") -> dict | None:
-    """Return a single field dict by ``field_key``, or ``None`` if not in the form."""
-    for field in get_all_fields(form_id):
+def get_all_fields(form_id: str = "ODM_07216") -> list[dict]:
+    """Flatten the schema's sections into a single ordered list of field dicts."""
+    return get_all_fields_from_schema(load_form_schema(form_id))
+
+
+def get_field_from_schema(field_key: str, schema: dict) -> dict | None:
+    """Return a single field dict from a parsed schema, or ``None`` if absent."""
+    for field in get_all_fields_from_schema(schema):
         if field["field_key"] == field_key:
             return field
     return None
+
+
+def get_field(field_key: str, form_id: str = "ODM_07216") -> dict | None:
+    """Return a single field dict by ``field_key``, or ``None`` if not in the form."""
+    return get_field_from_schema(field_key, load_form_schema(form_id))

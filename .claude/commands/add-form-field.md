@@ -1,37 +1,27 @@
 ---
-description: Guided ODM 07216 field addition (schema → prefill → validation → PDF → tests).
-argument-hint: <field key + short description, e.g. applicant.middle_initial "middle initial">
+description: Add or change a field in a form pack or builder-exported form.
+argument-hint: <FORM_ID field_key short description>
 ---
 
-Add or change an ODM 07216 form field: **$ARGUMENTS**
+Add or change a form field: **$ARGUMENTS**
 
-The form is **data-driven** by
-[backend/app/forms/schemas/odm_07216.json](../../backend/app/forms/schemas/odm_07216.json)
-— prefer JSON edits over imperative code. Follow recipe A in
-[docs/ai/WORKFLOWS.md](../../docs/ai/WORKFLOWS.md):
+Use the current platform contract:
 
-1. **Schema** — add the field to `odm_07216.json` with `key` (dot-notation),
-   `label`, `type`, `section`, `question_text`, validation rule, `required`, any
-   `depends_on` (skip-logic), and `"sensitive": true` if it's PHI that must never
-   be echoed/logged.
-2. **Prefill** (if it can come from the EMR) — map it in
-   `app/forms/mapper.py` from the `EMRPatient` field. New EMR column? Use
-   `/emr-introspect` and recipe B first.
-3. **Validation** — extend `app/forms/validation.py` only if a new value
-   type/normalizer is needed; reuse existing boolean/date/phone/SSN normalizers.
-4. **Missing-field logic** — `app/forms/missing_fields.py` honors `depends_on`
-   automatically; verify the field appears/skips on the right branch.
-5. **Question phrasing** — set good `question_text`; the optional LLM rewriter
-   improves it (`app/forms/questions.py`).
-6. **PDF mapping** — add the `field_key → widget` entry in
-   `app/pdf/mappings/odm_07216_mapping.json`. Discover widget names with
-   `python -m app.pdf.inspect_fields`. Handle date format (ISO → MM/DD/YYYY) and
-   radio/checkbox on-states like the existing entries.
-7. **Tests** — extend `tests/test_form_logic.py` (prefill + validation +
-   dependency branch) and `tests/test_session_api.py` if the PDF is affected.
-8. **Gate** — `pytest tests/ -v` + PHI checklist (sensitive flag set if PHI? not
-   logged? masked at output?).
+1. Locate the form definition:
+   - bundled pack: `backend/app/forms/packs/<FORM_ID>/form.schema.json`
+   - DB-created form: export it from `/api/admin/forms/{id}/export`, edit the
+     exported schema shape, then import/update through the admin API/UI.
+2. Add/update the field object with `field_key`, `label`, `section`, `type`,
+   `required`, `sensitive`, `question_text`, `validation_rule`, and `depends_on`.
+3. If EMR prefill is needed, prefer the schema `prefill` block:
+   `{"field.key": {"source": "address.line1", "transform": "phone10"}}`.
+4. If PDF output needs field filling, update that form pack's `pdf.mapping.json`.
+   Use `python -m app.pdf.inspect_fields` for the base PDF's widget names.
+5. If the assistant wording changes, update `prompts/field_overrides.json` or the
+   builder prompt editor.
+6. Add/adjust tests in `backend/tests/test_form_logic.py`, session/PDF tests, or
+   admin builder tests as appropriate.
+7. Run `.\.venv\Scripts\python.exe -m pytest -q` from `backend`, then frontend
+   build/lint if UI was touched.
 
-State the exact field `key`, `type`, section, and whether it's `sensitive` before
-editing. If anything is ambiguous, ask. The `add-form-field` skill has the full
-JSON shape and examples.
+Do not add PHI to knowledgebase docs, prompts, fixtures, logs, or comments.

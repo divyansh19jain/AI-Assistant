@@ -101,7 +101,7 @@ def test_pdf_generation_fallback(client, monkeypatch):
     # we force the no-base-PDF condition to deterministically exercise the summary
     # fallback branch this test is named for — instead of depending on the env.
     import app.pdf.pdf_service as pdf_service
-    monkeypatch.setattr(pdf_service, "_get_base_pdf_path", lambda: None)
+    monkeypatch.setattr(pdf_service, "_get_base_pdf_path", lambda *_args, **_kwargs: None)
 
     create_resp = client.post("/api/session/create", json={
         "patient_id": "mock-001",
@@ -117,3 +117,157 @@ def test_pdf_generation_fallback(client, monkeypatch):
     assert "file_name" in data
     # With the base PDF forced absent, generation must use the summary fallback.
     assert data["is_fallback"] is True
+
+
+def test_builder_form_pdf_summary_uses_form_id(client):
+    h = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()
+    headers = {"Authorization": f"Bearer {h['token']}"}
+    schema = {
+        "form_id": "GENERIC_PDF",
+        "form_title": "Generic Benefit Form",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "main",
+                "section_title": "Main",
+                "fields": [
+                    {
+                        "field_key": "main.name",
+                        "label": "Name",
+                        "section": "main",
+                        "type": "text",
+                        "required": True,
+                        "question_text": "Name?",
+                    }
+                ],
+            }
+        ],
+    }
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "GENERIC_PDF", "title": "Generic Benefit Form"})
+    client.put("/api/admin/forms/GENERIC_PDF/schema", headers=headers, json={"schema": schema})
+    client.post("/api/admin/forms/GENERIC_PDF/publish", headers=headers)
+    sid = client.post("/api/session/create", json={"form_id": "GENERIC_PDF", "manual_mode": True}).json()["session_id"]
+
+    data = client.post(f"/api/session/{sid}/generate-pdf").json()
+    assert data["is_fallback"] is True
+    assert data["file_name"].startswith("GENERIC_PDF_Summary_")
+
+
+def test_session_uses_schema_snapshot_after_form_edit(client):
+    h = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()
+    headers = {"Authorization": f"Bearer {h['token']}"}
+    schema_v1 = {
+        "form_id": "SNAP",
+        "form_title": "Snapshot",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "S",
+                "fields": [
+                    {
+                        "field_key": "s.first",
+                        "label": "First",
+                        "section": "s",
+                        "type": "text",
+                        "required": True,
+                        "question_text": "First?",
+                    }
+                ],
+            }
+        ],
+    }
+    schema_v2 = {
+        **schema_v1,
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "S",
+                "fields": [
+                    {
+                        "field_key": "s.second",
+                        "label": "Second",
+                        "section": "s",
+                        "type": "text",
+                        "required": True,
+                        "question_text": "Second?",
+                    }
+                ],
+            }
+        ],
+    }
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "SNAP", "title": "Snapshot"})
+    client.put("/api/admin/forms/SNAP/schema", headers=headers, json={"schema": schema_v1})
+    client.post("/api/admin/forms/SNAP/publish", headers=headers)
+    sid = client.post("/api/session/create", json={"form_id": "SNAP", "manual_mode": True}).json()["session_id"]
+
+    client.put("/api/admin/forms/SNAP/schema", headers=headers, json={"schema": schema_v2})
+    state = client.get(f"/api/session/{sid}").json()
+    assert state["next_question"]["field_key"] == "s.first"
+
+
+def test_review_omits_inactive_conditional_fields(client):
+    h = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()
+    headers = {"Authorization": f"Bearer {h['token']}"}
+    schema = {
+        "form_id": "COND",
+        "form_title": "Conditional",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "S",
+                "fields": [
+                    {
+                        "field_key": "s.has_other",
+                        "label": "Has other",
+                        "section": "s",
+                        "type": "boolean",
+                        "required": True,
+                        "question_text": "Do you have another value?",
+                    },
+                    {
+                        "field_key": "s.other_value",
+                        "label": "Other value",
+                        "section": "s",
+                        "type": "text",
+                        "required": True,
+                        "question_text": "What is it?",
+                        "depends_on": {"field_key": "s.has_other", "value": True},
+                    },
+                ],
+            }
+        ],
+    }
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "COND", "title": "Conditional"})
+    client.put("/api/admin/forms/COND/schema", headers=headers, json={"schema": schema})
+    client.post("/api/admin/forms/COND/publish", headers=headers)
+    sid = client.post("/api/session/create", json={"form_id": "COND", "manual_mode": True}).json()["session_id"]
+
+    client.post(
+        f"/api/session/{sid}/answer",
+        json={"field_key": "s.has_other", "raw_answer": "no", "input_mode": "typed"},
+    )
+
+    review = client.get(f"/api/session/{sid}/review").json()
+    field_keys = [f["field_key"] for f in review["sections"]["s"]]
+    assert field_keys == ["s.has_other"]
+    assert review["missing_applicable"] == []
+    assert review["is_complete"] is True
+
+
+def test_skip_unknown_field_rejected(client):
+    create_resp = client.post("/api/session/create", json={
+        "form_id": "ODM_07216",
+        "manual_mode": True,
+    })
+    session_id = create_resp.json()["session_id"]
+
+    skip_resp = client.post(f"/api/session/{session_id}/skip", json={
+        "field_key": "not.in.schema",
+        "raw_answer": "skip",
+        "input_mode": "typed",
+    })
+    assert skip_resp.status_code == 200
+    assert skip_resp.json()["success"] is False
+    assert "Unknown field" in skip_resp.json()["error"]

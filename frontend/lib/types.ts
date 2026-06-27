@@ -46,6 +46,7 @@ export interface NextQuestion {
 export interface SessionState {
   session_id: string;
   form_id: string;
+  form_title: string;
   status: string;
   mock_mode: boolean;
   prefilled_count: number;
@@ -86,8 +87,11 @@ export interface ReviewField {
 
 export interface ReviewResponse {
   session_id: string;
+  form_id: string;
+  form_title: string;
   sections: Record<string, ReviewField[]>;
   missing_required: string[];
+  missing_applicable: string[];
   is_complete: boolean;
 }
 

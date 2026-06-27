@@ -107,7 +107,8 @@ def _kb_context(form_id: str | None, label: str, question_text: str, raw_questio
 
         db = SessionLocal()
         try:
-            snippets = retrieve(db, form_id, f"{label} {question_text} {raw_question}", k=3)
+            # Field-level retrieval avoids embedding raw patient utterances.
+            snippets = retrieve(db, form_id, f"{label} {question_text}", k=3)
         finally:
             db.close()
         return "\n\n".join(snippets)

@@ -262,7 +262,7 @@ export default function ReviewPage() {
   const totalFilled  = sections.reduce((acc, [, fields]) => acc + fields.filter((f) => f.source !== "skipped" && f.value !== null && f.value !== undefined).length, 0);
   const totalSkipped = sections.reduce((acc, [, fields]) => acc + fields.filter((f) => f.source === "skipped").length, 0);
   const totalFields  = sections.reduce((acc, [, fields]) => acc + fields.length, 0);
-  const totalMissing = totalFields - totalFilled - totalSkipped;
+  const totalMissing = review.missing_applicable.length;
   const sourceCounts = sections.reduce<Record<string, number>>((acc, [, fields]) => {
     fields.forEach((f) => {
       if (f.value !== null && f.value !== undefined) {
@@ -303,7 +303,7 @@ export default function ReviewPage() {
             </div>
             <div>
               <h2 className="text-lg font-bold">Review Your Application</h2>
-              <p className="text-xs text-slate-400">ODM 07216 – Ohio Medicaid Application</p>
+              <p className="text-xs text-slate-400">{review.form_title}</p>
             </div>
           </div>
 
@@ -344,8 +344,8 @@ export default function ReviewPage() {
               )}
             </p>
             <p className="text-xs text-amber-700 mb-2">
-              {review.missing_required.slice(0, 5).join(", ")}
-              {review.missing_required.length > 5 && ` and ${review.missing_required.length - 5} more…`}
+              {review.missing_applicable.slice(0, 5).join(", ")}
+              {review.missing_applicable.length > 5 && ` and ${review.missing_applicable.length - 5} more…`}
             </p>
             <button
               onClick={() => router.push(`/assistant/${sessionId}`)}
@@ -479,9 +479,7 @@ export default function ReviewPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                     </svg>
                     <span>
-                      PDF generated as summary (fallback mode — base PDF not found).
-                      Place <code className="text-xs bg-amber-100 px-1 rounded">ODM07216fillx.pdf</code> in{" "}
-                      <code className="text-xs bg-amber-100 px-1 rounded">backend/app/pdf/</code> for field-filled output.
+                      PDF generated as a data summary. Add a form-specific PDF mapping and base PDF to enable field-filled output.
                     </span>
                   </>
                 ) : (
@@ -515,10 +513,10 @@ export default function ReviewPage() {
               </button>
             </div>
           ) : (
-            <button
-              onClick={handleGeneratePdf}
-              disabled={generating}
-              className="w-full rounded-xl py-3 text-sm font-semibold text-white transition-all disabled:opacity-60 flex items-center justify-center gap-2"
+              <button
+                onClick={handleGeneratePdf}
+                disabled={generating || totalMissing > 0}
+                className="w-full rounded-xl py-3 text-sm font-semibold text-white transition-all disabled:opacity-60 flex items-center justify-center gap-2"
               style={{ background: "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)" }}
             >
               {generating ? (

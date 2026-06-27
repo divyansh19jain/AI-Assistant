@@ -14,11 +14,11 @@ from __future__ import annotations
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.admin.router import _verify_token
-from app.db.models import FormSkill
+from app.db.models import Form, FormSkill
 from app.db.session import get_db
 from app.skills import registry
 
@@ -26,11 +26,16 @@ router = APIRouter(prefix="/api/admin", tags=["admin:skills"])
 
 
 class SkillRunRequest(BaseModel):
-    params: dict = {}
+    params: dict = Field(default_factory=dict)
 
 
 class FormSkillsUpdate(BaseModel):
     skill_keys: list[str]
+
+
+def _ensure_form(db: Session, form_id: str) -> None:
+    if db.query(Form).filter(Form.form_id == form_id).first() is None:
+        raise HTTPException(status_code=404, detail=f"Form {form_id!r} not found")
 
 
 @router.get("/skills")
@@ -58,6 +63,7 @@ def get_form_skills(
     db: Session = Depends(get_db),
 ) -> dict:
     """Return ``{"attached": [skill_key, ...]}`` for a form."""
+    _ensure_form(db, form_id)
     rows = db.query(FormSkill).filter(FormSkill.form_id == form_id, FormSkill.enabled.is_(True)).all()
     return {"attached": [r.skill_key for r in rows]}
 
@@ -69,8 +75,12 @@ def set_form_skills(
     _admin: Annotated[str, Depends(_verify_token)],
     db: Session = Depends(get_db),
 ) -> dict:
-    """Replace a form's attached skills with the given (valid) keys."""
-    valid = [k for k in body.skill_keys if k in registry.BUILTINS]
+    """Replace a form's attached skills with the given built-in keys."""
+    _ensure_form(db, form_id)
+    unknown = [k for k in body.skill_keys if k not in registry.BUILTINS]
+    if unknown:
+        raise HTTPException(status_code=422, detail=f"Unknown skill key(s): {', '.join(unknown)}")
+    valid = list(dict.fromkeys(body.skill_keys))
     db.query(FormSkill).filter(FormSkill.form_id == form_id).delete()
     for key in valid:
         db.add(FormSkill(form_id=form_id, skill_key=key, enabled=True))

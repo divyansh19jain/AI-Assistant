@@ -27,7 +27,7 @@
     {"field_key": "applicant.phone",             "acroform_name": "14 Phone number",                     "page": 5,  "x": 130, "y": 535, "font_size": 10},
     {"field_key": "applicant.other_phone",       "acroform_name": "15 Other phone number",               "page": 5,  "x": 330, "y": 535, "font_size": 10},
     {"field_key": "applicant.email",             "acroform_name": "Email address",                        "page": 5,  "x": 130, "y": 510, "font_size": 10},
-    {"field_key": "applicant.language",          "acroform_name": "Spoken or written language",          "page": 5,  "x": 130, "y": 485, "font_size": 10},
+    {"field_key": "applicant.preferred_language",          "acroform_name": "Spoken or written language",          "page": 5,  "x": 130, "y": 485, "font_size": 10},
 
     {"field_key": "applicant.voter_registration_choice", "acroform_name": "Yes I want to register",                                              "page": 5, "x": 53,  "y": 479, "font_size": 10, "field_type": "checkbox", "check_when_value": "yes"},
     {"field_key": "applicant.voter_registration_choice", "acroform_name": "No I do not want to register to vote",                                 "page": 5, "x": 172, "y": 479, "font_size": 10, "field_type": "checkbox", "check_when_value": "no"},
@@ -81,8 +81,8 @@
 
     {"field_key": "person1.pregnant",            "acroform_name": "12 Are you pregnant",                   "page": 7,  "x": 138, "y": 683, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_4", "check_when": true},
     {"field_key": "person1.pregnant",            "acroform_name": "12 Are you pregnant",                   "page": 7,  "x": 176, "y": 683, "font_size": 10, "field_type": "radio", "radio_on_state": "No_5",  "check_when": false},
-    {"field_key": "person1.pregnant_due_date",   "acroform_name": "Expected Due Date",                     "page": 7,  "x": 513, "y": 673, "font_size": 10},
-    {"field_key": "person1.pregnant_babies",     "acroform_name": "How many babies expected",              "page": 7,  "x": 307, "y": 673, "font_size": 10},
+    {"field_key": "person1.pregnancy_due_date",   "acroform_name": "Expected Due Date",                     "page": 7,  "x": 513, "y": 673, "font_size": 10},
+    {"field_key": "person1.pregnancy_babies_expected",     "acroform_name": "How many babies expected",              "page": 7,  "x": 307, "y": 673, "font_size": 10},
 
     {"field_key": "person1.recently_pregnant",   "acroform_name": "13 If not currently pregnant were you pregnant recently", "page": 7, "x": 282, "y": 653, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_5", "check_when": true},
     {"field_key": "person1.recently_pregnant",   "acroform_name": "13 If not currently pregnant were you pregnant recently", "page": 7, "x": 316, "y": 653, "font_size": 10, "field_type": "radio", "radio_on_state": "No_6",  "check_when": false},
@@ -116,13 +116,13 @@
     {"field_key": "person1.enrollment_status",   "acroform_name": "Half Time",                            "page": 7,  "x": 173, "y": 475, "font_size": 10, "field_type": "checkbox", "check_when_value": "half_time"},
     {"field_key": "person1.enrollment_status",   "acroform_name": "Less than Half Time",                  "page": 7,  "x": 232, "y": 475, "font_size": 10, "field_type": "checkbox", "check_when_value": "less_than_half_time"},
 
-    {"field_key": "person1.immigration_doc_type","acroform_name": "Document Type",                        "page": 7,  "x": 130, "y": 470, "font_size": 10},
-    {"field_key": "person1.immigration_doc_id",  "acroform_name": "Document ID Number",                   "page": 7,  "x": 307, "y": 470, "font_size": 10},
+    {"field_key": "person1.immigration_document_type","acroform_name": "Document Type",                        "page": 7,  "x": 130, "y": 470, "font_size": 10},
+    {"field_key": "person1.immigration_document_id",  "acroform_name": "Document ID Number",                   "page": 7,  "x": 307, "y": 470, "font_size": 10},
 
     {"field_key": "person1.foster_care_after_18","acroform_name": "18 Were you in foster care at age 18 or older", "page": 7, "x": 237, "y": 457, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_12", "check_when": true},
     {"field_key": "person1.foster_care_after_18","acroform_name": "18 Were you in foster care at age 18 or older", "page": 7, "x": 272, "y": 457, "font_size": 10, "field_type": "radio", "radio_on_state": "No_12",  "check_when": false},
-    {"field_key": "person1.foster_care_entry",   "acroform_name": "a If yes when did you enter foster care", "page": 7, "x": 225, "y": 444, "font_size": 10},
-    {"field_key": "person1.foster_care_exit",    "acroform_name": "b When did you leave foster care",    "page": 7,  "x": 200, "y": 422, "font_size": 10},
+    {"field_key": "person1.foster_care_entered_date",   "acroform_name": "a If yes when did you enter foster care", "page": 7, "x": 225, "y": 444, "font_size": 10},
+    {"field_key": "person1.foster_care_left_date",    "acroform_name": "b When did you leave foster care",    "page": 7,  "x": 200, "y": 422, "font_size": 10},
     {"field_key": "person1.foster_care_state",   "acroform_name": "c In which state were you in foster care", "page": 7, "x": 225, "y": 402, "font_size": 10},
 
     {"field_key": "person1.incarcerated",        "acroform_name": "19 Are you currently incarcerated detained or jailed", "page": 7, "x": 271, "y": 383, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_13", "check_when": true},
@@ -135,14 +135,14 @@
 
     {"field_key": "person1.received_benefits_other_state","acroform_name": "undefined_14",                "page": 7,  "x": 360, "y": 331, "font_size": 10, "field_type": "checkbox", "check_when": true},
     {"field_key": "person1.received_benefits_other_state","acroform_name": "undefined_15",                "page": 7,  "x": 393, "y": 331, "font_size": 10, "field_type": "checkbox", "check_when": false},
-    {"field_key": "person1.benefits_other_state","acroform_name": "21 Are you currently or did you previously receive benefits in another state Yes No If yes where", "page": 7, "x": 35, "y": 310, "font_size": 10},
+    {"field_key": "person1.received_benefits_other_state","acroform_name": "21 Are you currently or did you previously receive benefits in another state Yes No If yes where", "page": 7, "x": 35, "y": 310, "font_size": 10},
 
-    {"field_key": "person1.race_other",          "acroform_name": "Other_2",                              "page": 7,  "x": 428, "y": 200, "font_size": 10},
+    {"field_key": "person1.race_optional",          "acroform_name": "Other_2",                              "page": 7,  "x": 428, "y": 200, "font_size": 10},
 
     {"field_key": "person2.first_name",          "acroform_name": "1 First name_2",                      "page": 8,  "x": 130, "y": 695, "font_size": 10},
     {"field_key": "person2.middle_name",         "acroform_name": "Middle name_3",                        "page": 8,  "x": 295, "y": 695, "font_size": 10},
     {"field_key": "person2.last_name",           "acroform_name": "Last name_3",                          "page": 8,  "x": 400, "y": 695, "font_size": 10},
-    {"field_key": "person2.relationship",        "acroform_name": "2 Relationship to you",                "page": 8,  "x": 130, "y": 670, "font_size": 10},
+    {"field_key": "person2.relationship_to_applicant",        "acroform_name": "2 Relationship to you",                "page": 8,  "x": 130, "y": 670, "font_size": 10},
     {"field_key": "person2.dob",                 "acroform_name": "3 Date of birth mmddyyyy_2",           "page": 8,  "x": 130, "y": 645, "font_size": 10, "date_format": "mm/dd/yyyy"},
     {"field_key": "person2.ssn",                 "acroform_name": "2_SSN_P2",                             "page": 8,  "x": 320, "y": 620, "font_size": 10},
     {"field_key": "person2.sex",                 "acroform_name": "4 Sex",                                "page": 8,  "x": 191, "y": 677, "font_size": 10, "field_type": "radio", "radio_on_state": "Male",   "check_when_value": "male",   "use_check_when_value": true},
@@ -155,16 +155,16 @@
 
     {"field_key": "person2.file_jointly_with_spouse","acroform_name": "undefined_20",                     "page": 8,  "x": 228, "y": 579, "font_size": 10, "field_type": "checkbox", "check_when": true},
     {"field_key": "person2.file_jointly_with_spouse","acroform_name": "undefined_21",                     "page": 8,  "x": 263, "y": 579, "font_size": 10, "field_type": "checkbox", "check_when": false},
-    {"field_key": "person2.tax_spouse_name",     "acroform_name": "a Will PERSON 2 file jointly with a spouse Yes No If yes list name of spouse", "page": 8, "x": 34, "y": 557, "font_size": 10},
+    {"field_key": "person2.spouse_name",     "acroform_name": "a Will PERSON 2 file jointly with a spouse Yes No If yes list name of spouse", "page": 8, "x": 34, "y": 557, "font_size": 10},
 
     {"field_key": "person2.claim_dependents",    "acroform_name": "undefined_22",                         "page": 8,  "x": 306, "y": 543, "font_size": 10, "field_type": "checkbox", "check_when": true},
     {"field_key": "person2.claim_dependents",    "acroform_name": "undefined_23",                         "page": 8,  "x": 341, "y": 543, "font_size": 10, "field_type": "checkbox", "check_when": false},
-    {"field_key": "person2.tax_dependents",      "acroform_name": "b Will PERSON 2 claim any dependents on his or her tax return Yes No If yes list names of dependents", "page": 8, "x": 34, "y": 523, "font_size": 10},
+    {"field_key": "person2.dependent_names",      "acroform_name": "b Will PERSON 2 claim any dependents on his or her tax return Yes No If yes list names of dependents", "page": 8, "x": 34, "y": 523, "font_size": 10},
 
     {"field_key": "person2.claimed_as_dependent","acroform_name": "c Will PERSON 2 be claimed as a dependent on someone elses tax return", "page": 8, "x": 352, "y": 505, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_14", "check_when": true},
     {"field_key": "person2.claimed_as_dependent","acroform_name": "c Will PERSON 2 be claimed as a dependent on someone elses tax return", "page": 8, "x": 384, "y": 505, "font_size": 10, "field_type": "radio", "radio_on_state": "No_14",  "check_when": false},
     {"field_key": "person2.tax_filer_name",      "acroform_name": "If yes please list the name of the tax filer_2", "page": 8, "x": 222, "y": 494, "font_size": 10},
-    {"field_key": "person2.tax_filer_relationship","acroform_name": "How is PERSON 2 related to the tax filer", "page": 8, "x": 218, "y": 476, "font_size": 10},
+    {"field_key": "person2.relationship_to_tax_filer","acroform_name": "How is PERSON 2 related to the tax filer", "page": 8, "x": 218, "y": 476, "font_size": 10},
 
     {"field_key": "person2.married",             "acroform_name": "undefined_24",                         "page": 8,  "x": 145, "y": 453, "font_size": 10, "field_type": "checkbox", "check_when": true},
     {"field_key": "person2.married",             "acroform_name": "undefined_25",                         "page": 8,  "x": 180, "y": 453, "font_size": 10, "field_type": "checkbox", "check_when": false},
@@ -183,8 +183,8 @@
 
     {"field_key": "person2.pregnant",            "acroform_name": "13 Is PERSON 2 pregnant",              "page": 8,  "x": 153, "y": 346, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_16", "check_when": true},
     {"field_key": "person2.pregnant",            "acroform_name": "13 Is PERSON 2 pregnant",              "page": 8,  "x": 188, "y": 346, "font_size": 10, "field_type": "radio", "radio_on_state": "No_17",  "check_when": false},
-    {"field_key": "person2.pregnant_babies",     "acroform_name": "babies expected",                      "page": 8,  "x": 310, "y": 337, "font_size": 10},
-    {"field_key": "person2.pregnant_due_date",   "acroform_name": "End date",                             "page": 8,  "x": 501, "y": 337, "font_size": 10},
+    {"field_key": "person2.pregnancy_babies_expected",     "acroform_name": "babies expected",                      "page": 8,  "x": 310, "y": 337, "font_size": 10},
+    {"field_key": "person2.pregnancy_due_date",   "acroform_name": "End date",                             "page": 8,  "x": 501, "y": 337, "font_size": 10},
 
     {"field_key": "person2.recently_pregnant",   "acroform_name": "14 If not currently pregnant was PERSON 2 pregnant recently", "page": 8, "x": 303, "y": 321, "font_size": 10, "field_type": "radio", "radio_on_state": "Yes_17", "check_when": true},
     {"field_key": "person2.recently_pregnant",   "acroform_name": "14 If not currently pregnant was PERSON 2 pregnant recently", "page": 8, "x": 338, "y": 321, "font_size": 10, "field_type": "radio", "radio_on_state": "No_18",  "check_when": false},
@@ -196,8 +196,8 @@
 
     {"field_key": "person2.eligible_immigration_status","acroform_name": "Yes Fill in PERSON 2s document type and ID number below", "page": 8, "x": 56, "y": 257, "font_size": 10, "field_type": "checkbox", "check_when": true},
     {"field_key": "person2.eligible_immigration_status","acroform_name": "No_19",                          "page": 8,  "x": 336, "y": 257, "font_size": 10, "field_type": "checkbox", "check_when": false},
-    {"field_key": "person2.immigration_doc_type","acroform_name": "Document Type_2",                      "page": 8,  "x": 34,  "y": 233, "font_size": 10},
-    {"field_key": "person2.immigration_doc_id",  "acroform_name": "Document ID Number_2",                 "page": 8,  "x": 318, "y": 233, "font_size": 10},
+    {"field_key": "person2.immigration_document_type","acroform_name": "Document Type_2",                      "page": 8,  "x": 34,  "y": 233, "font_size": 10},
+    {"field_key": "person2.immigration_document_id",  "acroform_name": "Document ID Number_2",                 "page": 8,  "x": 318, "y": 233, "font_size": 10},
 
     {"field_key": "person2.lived_us_since_1996", "acroform_name": "undefined_32",                         "page": 8,  "x": 47,  "y": 205, "font_size": 10, "field_type": "checkbox", "check_when": true},
     {"field_key": "person2.lived_us_since_1996", "acroform_name": "undefined_33",                         "page": 8,  "x": 82,  "y": 205, "font_size": 10, "field_type": "checkbox", "check_when": false},
@@ -218,13 +218,13 @@
     {"field_key": "person2.enrollment_status",   "acroform_name": "Half Time_2",                          "page": 8,  "x": 193, "y": 116, "font_size": 10, "field_type": "checkbox", "check_when_value": "half_time"},
     {"field_key": "person2.enrollment_status",   "acroform_name": "Less than Half Time_2",                "page": 8,  "x": 250, "y": 116, "font_size": 10, "field_type": "checkbox", "check_when_value": "less_than_half_time"},
 
-    {"field_key": "person2.foster_care_entry",   "acroform_name": "a If yes when did PERSON 2 enter foster care", "page": 9, "x": 130, "y": 695, "font_size": 10},
-    {"field_key": "person2.foster_care_exit",    "acroform_name": "b When did PERSON 2 leave foster care", "page": 9, "x": 130, "y": 675, "font_size": 10},
+    {"field_key": "person2.foster_care_entered_date",   "acroform_name": "a If yes when did PERSON 2 enter foster care", "page": 9, "x": 130, "y": 695, "font_size": 10},
+    {"field_key": "person2.foster_care_left_date",    "acroform_name": "b When did PERSON 2 leave foster care", "page": 9, "x": 130, "y": 675, "font_size": 10},
     {"field_key": "person2.foster_care_state",   "acroform_name": "c In which state was PERSON 2 in foster care", "page": 9, "x": 130, "y": 655, "font_size": 10},
     {"field_key": "person2.incarceration_date",  "acroform_name": "If yes please provide date of incarceration", "page": 9, "x": 130, "y": 620, "font_size": 10},
-    {"field_key": "person2.incarceration_release","acroform_name": "Expected date of release optional",   "page": 9,  "x": 350, "y": 620, "font_size": 10},
-    {"field_key": "person2.benefits_other_state","acroform_name": "If yes where",                         "page": 9,  "x": 350, "y": 590, "font_size": 10},
-    {"field_key": "person2.race_other",          "acroform_name": "Other_4",                              "page": 9,  "x": 130, "y": 280, "font_size": 10},
+    {"field_key": "person2.expected_release_date","acroform_name": "Expected date of release optional",   "page": 9,  "x": 350, "y": 620, "font_size": 10},
+    {"field_key": "person2.received_benefits_other_state","acroform_name": "If yes where",                         "page": 9,  "x": 350, "y": 590, "font_size": 10},
+    {"field_key": "person2.race_optional",          "acroform_name": "Other_4",                              "page": 9,  "x": 130, "y": 280, "font_size": 10},
 
     {"field_key": "income.has_employment",        "acroform_name": "If anyone in the household is currently employed tell us about the income", "page": 10, "field_type": "checkbox", "check_when_value": "employed"},
     {"field_key": "income.has_employment",        "acroform_name": "undefined_38",                         "page": 10, "field_type": "checkbox", "check_when_value": "self_employed"},

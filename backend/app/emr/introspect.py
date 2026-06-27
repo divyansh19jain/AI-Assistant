@@ -109,7 +109,7 @@ def run_introspection() -> None:
                 print(f"\n  {schema}.{table}: {', '.join(matched)}")
 
     print("\nIntrospection complete. Use these results to update talbot_adapter.py.")
-    print("Look for the TODO comments in backend/app/emr/talbot_adapter.py\n")
+    print("Review the adapter SELECT and EMRPatient mapping before wiring new fields.\n")
 
 
 if __name__ == "__main__":

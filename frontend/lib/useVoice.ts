@@ -99,9 +99,14 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
   const onTranscriptRef = useRef(onTranscript);
   const onErrorRef      = useRef(onError);
   const hintRef         = useRef(hint);
+  const formIdRef      = useRef(formId);
   useEffect(() => { onTranscriptRef.current = onTranscript; }, [onTranscript]);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
   useEffect(() => { hintRef.current = hint; }, [hint]);
+  useEffect(() => {
+    formIdRef.current = formId;
+    ttsCacheRef.current.clear();
+  }, [formId]);
 
   useEffect(() => {
     const hasSynth = typeof window !== "undefined" && "speechSynthesis" in window;
@@ -232,8 +237,10 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
   }, []);
 
   const prefetchTts = useCallback((text: string) => {
-    if (!text || ttsCacheRef.current.has(text)) return;
-    ttsCacheRef.current.set(text, api.tts(text, formId));
+    const currentFormId = formIdRef.current;
+    const cacheKey = `${currentFormId}::${text}`;
+    if (!text || ttsCacheRef.current.has(cacheKey)) return;
+    ttsCacheRef.current.set(cacheKey, api.tts(text, currentFormId));
     // Evict old entries beyond 5 to avoid unbounded growth
     if (ttsCacheRef.current.size > 5) {
       const firstKey = ttsCacheRef.current.keys().next().value;
@@ -250,8 +257,10 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
     setStatus("speaking");
 
     // Use prefetched buffer if available, otherwise fetch now
-    const bufPromise = ttsCacheRef.current.get(text) ?? api.tts(text, formId);
-    ttsCacheRef.current.delete(text); // consume from cache
+    const currentFormId = formIdRef.current;
+    const cacheKey = `${currentFormId}::${text}`;
+    const bufPromise = ttsCacheRef.current.get(cacheKey) ?? api.tts(text, currentFormId);
+    ttsCacheRef.current.delete(cacheKey); // consume from cache
 
     bufPromise.then((buf) => {
       if (speakGenRef.current !== myGen) return; // stopSpeaking called while in-flight
@@ -328,7 +337,7 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
     setStatus("processing");
     const fullHint = [BASE_HINT, hintRef.current].filter(Boolean).join(", ");
     try {
-      const text = await transcribeBlob(blob, fullHint, formId);
+      const text = await transcribeBlob(blob, fullHint, formIdRef.current);
       log("whisper transcript:", text);
       if (text) {
         setTranscript(text);

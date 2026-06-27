@@ -40,6 +40,93 @@ router = APIRouter(prefix="/api/admin/forms", tags=["admin:forms"])
 # form_id is an identifier used in URLs, the cache, and pack folder names: keep it to a
 # safe, predictable shape (letters/digits/_/-, e.g. "ODM_07216").
 _FORM_ID_RE = re.compile(r"^[A-Za-z0-9_-]{2,64}$")
+_FIELD_TYPES = {"text", "textarea", "date", "boolean", "phone", "ssn", "number", "select", "email"}
+_OUTPUT_TARGETS = {"pdf", "web"}
+_WORKFLOW_TASK_TYPES = {"generate_pdf", "web_submit"}
+
+
+def _validate_targets(value: list[str]) -> list[str]:
+    bad = [v for v in value if v not in _OUTPUT_TARGETS]
+    if bad:
+        raise ValueError(f"unsupported output target(s): {', '.join(bad)}")
+    return value or ["pdf"]
+
+
+def _validate_schema_document(schema: dict) -> dict:
+    """
+    Validate the engine's minimum schema contract before a builder save succeeds.
+
+    This intentionally checks structure, unique field keys, supported field types, and
+    dependency references. It does not validate agency-specific business rules.
+    """
+    if not isinstance(schema.get("sections"), list):
+        raise ValueError("schema must contain a 'sections' list")
+
+    field_keys: set[str] = set()
+    section_keys: set[str] = set()
+    fields: list[dict] = []
+
+    for si, section in enumerate(schema["sections"]):
+        if not isinstance(section, dict):
+            raise ValueError(f"section {si + 1} must be an object")
+        section_key = section.get("section_key")
+        if not isinstance(section_key, str) or not section_key.strip():
+            raise ValueError(f"section {si + 1} must have section_key")
+        if section_key in section_keys:
+            raise ValueError(f"duplicate section_key: {section_key}")
+        section_keys.add(section_key)
+        if not isinstance(section.get("fields"), list):
+            raise ValueError(f"section {section_key} must contain a fields list")
+
+        for fi, field in enumerate(section["fields"]):
+            if not isinstance(field, dict):
+                raise ValueError(f"field {fi + 1} in {section_key} must be an object")
+            field_key = field.get("field_key")
+            if not isinstance(field_key, str) or not field_key.strip():
+                raise ValueError(f"field {fi + 1} in {section_key} must have field_key")
+            if field_key in field_keys:
+                raise ValueError(f"duplicate field_key: {field_key}")
+            field_keys.add(field_key)
+            if not isinstance(field.get("label"), str) or not field.get("label", "").strip():
+                raise ValueError(f"field {field_key} must have label")
+            if field.get("section") != section_key:
+                raise ValueError(f"field {field_key} section must equal parent section_key")
+            if field.get("type") not in _FIELD_TYPES:
+                raise ValueError(f"field {field_key} has unsupported type")
+            if field.get("validation_rule") is not None and not isinstance(field.get("validation_rule"), dict):
+                raise ValueError(f"field {field_key} validation_rule must be an object")
+            dep = field.get("depends_on")
+            if dep is not None:
+                if not isinstance(dep, dict) or not isinstance(dep.get("field_key"), str):
+                    raise ValueError(f"field {field_key} depends_on must include field_key")
+            fields.append(field)
+
+    for field in fields:
+        dep = field.get("depends_on")
+        if dep and dep.get("field_key") not in field_keys:
+            raise ValueError(f"field {field['field_key']} depends on unknown field {dep.get('field_key')}")
+
+    return schema
+
+
+def _validate_workflow(workflow: dict) -> dict:
+    if not isinstance(workflow, dict):
+        raise ValueError("workflow must be an object")
+    tasks = workflow.get("tasks")
+    if not isinstance(tasks, list) or not tasks:
+        raise ValueError("workflow.tasks must be a non-empty list")
+    for i, task in enumerate(tasks):
+        if not isinstance(task, dict):
+            raise ValueError(f"workflow task {i + 1} must be an object")
+        ttype = task.get("type")
+        if ttype not in _WORKFLOW_TASK_TYPES:
+            raise ValueError(f"unsupported workflow task type: {ttype}")
+        if "config" in task and task["config"] is not None and not isinstance(task["config"], dict):
+            raise ValueError(f"workflow task {ttype} config must be an object")
+    approval = workflow.get("approval")
+    if approval is not None and not isinstance(approval, dict):
+        raise ValueError("workflow.approval must be an object")
+    return workflow
 
 
 # ──────────────────────────── request / response models ────────────────────────────
@@ -75,7 +162,7 @@ class FormCreate(BaseModel):
     form_id: str
     title: str = Field(min_length=1, max_length=256)
     version: str = "1.0"
-    output_targets: list[str] = ["pdf"]
+    output_targets: list[str] = Field(default_factory=lambda: ["pdf"])
     # Optional starting schema; JSON key "schema" via alias (see FormDetail note).
     form_schema: dict | None = Field(default=None, alias="schema")
 
@@ -86,6 +173,16 @@ class FormCreate(BaseModel):
             raise ValueError("form_id must be 2-64 chars of letters, digits, '_' or '-'")
         return v
 
+    @field_validator("output_targets")
+    @classmethod
+    def _valid_targets(cls, v: list[str]) -> list[str]:
+        return _validate_targets(v)
+
+    @field_validator("form_schema")
+    @classmethod
+    def _valid_schema(cls, v: dict | None) -> dict | None:
+        return _validate_schema_document(v) if v is not None else v
+
 
 class FormMetaUpdate(BaseModel):
     """Partial update of a form's metadata (not its schema — see :class:`SchemaUpdate`)."""
@@ -93,6 +190,11 @@ class FormMetaUpdate(BaseModel):
     title: str | None = Field(default=None, max_length=256)
     version: str | None = None
     output_targets: list[str] | None = None
+
+    @field_validator("output_targets")
+    @classmethod
+    def _valid_targets(cls, v: list[str] | None) -> list[str] | None:
+        return _validate_targets(v) if v is not None else v
 
 
 class SchemaUpdate(BaseModel):
@@ -104,10 +206,7 @@ class SchemaUpdate(BaseModel):
     @field_validator("form_schema")
     @classmethod
     def _has_sections(cls, v: dict) -> dict:
-        # Minimal structural validation: the engine iterates schema["sections"][*]["fields"].
-        if not isinstance(v.get("sections"), list):
-            raise ValueError("schema must contain a 'sections' list")
-        return v
+        return _validate_schema_document(v)
 
 
 class PromptUpdate(BaseModel):
@@ -125,6 +224,11 @@ class WorkflowDefUpdate(BaseModel):
     # {"tasks": [{"type": "generate_pdf"|"web_submit"|..., "config": {...}}], "approval": {"required": bool}}
     workflow: dict
 
+    @field_validator("workflow")
+    @classmethod
+    def _valid_workflow(cls, v: dict) -> dict:
+        return _validate_workflow(v)
+
 
 class FormImport(BaseModel):
     """A portable form bundle (the export format) for importing a form into the DB."""
@@ -134,7 +238,7 @@ class FormImport(BaseModel):
     form_id: str
     title: str
     version: str = "1.0"
-    output_targets: list[str] = ["pdf"]
+    output_targets: list[str] = Field(default_factory=lambda: ["pdf"])
     form_schema: dict = Field(alias="schema")
     prompt: dict | None = None
     voice: dict | None = None
@@ -146,6 +250,21 @@ class FormImport(BaseModel):
         if not _FORM_ID_RE.match(v):
             raise ValueError("form_id must be 2-64 chars of letters, digits, '_' or '-'")
         return v
+
+    @field_validator("output_targets")
+    @classmethod
+    def _valid_targets(cls, v: list[str]) -> list[str]:
+        return _validate_targets(v)
+
+    @field_validator("form_schema")
+    @classmethod
+    def _valid_schema(cls, v: dict) -> dict:
+        return _validate_schema_document(v)
+
+    @field_validator("workflow")
+    @classmethod
+    def _valid_workflow(cls, v: dict | None) -> dict | None:
+        return _validate_workflow(v) if v is not None else v
 
 
 # ──────────────────────────────── helpers ────────────────────────────────
@@ -187,6 +306,22 @@ def _sync_cache(row: Form) -> None:
         cache.set_schema(row.form_id, json.loads(row.schema_json))
     else:
         cache.drop(row.form_id)
+
+
+def _normalize_schema_metadata(schema: dict, form_id: str, title: str, version: str) -> dict:
+    """
+    Keep row metadata and schema metadata in lockstep.
+
+    The public catalog reads ``forms.title`` while active sessions display
+    ``schema.form_title`` from the frozen snapshot. Normalizing here prevents a
+    builder/import mismatch from creating a form that is listed under one title but
+    shown to users under another.
+    """
+    normalized = dict(schema)
+    normalized["form_id"] = form_id
+    normalized["form_title"] = title
+    normalized["version"] = version
+    return normalized
 
 
 _EMPTY_SCHEMA_SECTIONS: list[dict] = [
@@ -231,6 +366,7 @@ def create_form(
         "version": body.version,
         "sections": _EMPTY_SCHEMA_SECTIONS,
     }
+    schema = _normalize_schema_metadata(schema, body.form_id, body.title, body.version)
     row = Form(
         form_id=body.form_id,
         title=body.title,
@@ -261,6 +397,9 @@ def update_form_meta(
         row.version = body.version
     if body.output_targets is not None:
         row.output_targets = ",".join(body.output_targets)
+    row.schema_json = json.dumps(
+        _normalize_schema_metadata(json.loads(row.schema_json), row.form_id, row.title, row.version)
+    )
     row.updated_at = utcnow()
     db.commit()
     db.refresh(row)
@@ -277,7 +416,7 @@ def update_form_schema(
 ) -> FormDetail:
     """Replace a form's field schema (the schema/field editor's save action)."""
     row = _get_or_404(db, form_id)
-    row.schema_json = json.dumps(body.form_schema)
+    row.schema_json = json.dumps(_normalize_schema_metadata(body.form_schema, row.form_id, row.title, row.version))
     row.updated_at = utcnow()
     db.commit()
     db.refresh(row)
@@ -411,7 +550,7 @@ def import_form(
         version=body.version,
         status="draft",
         output_targets=",".join(body.output_targets),
-        schema_json=json.dumps(body.form_schema),
+        schema_json=json.dumps(_normalize_schema_metadata(body.form_schema, body.form_id, body.title, body.version)),
         prompt_json=json.dumps(body.prompt) if body.prompt else None,
         voice_json=json.dumps(body.voice) if body.voice else None,
         workflow_json=json.dumps(body.workflow) if body.workflow else None,

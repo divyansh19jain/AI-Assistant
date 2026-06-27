@@ -1,11 +1,11 @@
 "use client";
 
 /**
- * Builder — form editor.
+ * Builder - form editor.
  *
  * Edit a form's metadata (title / version / output targets) and its field schema.
  * The schema editor is structured (sections -> fields with the common props) with a
- * raw-JSON escape hatch for advanced edits (validation_rule, depends_on, prefill, …).
+ * raw-JSON escape hatch for advanced edits (validation_rule, depends_on, prefill, ...).
  * Saving the schema calls PUT /api/admin/forms/{id}/schema; if the form is published
  * the change is live in the patient flow immediately (server-side cache sync).
  */
@@ -16,8 +16,11 @@ import Link from "next/link";
 import { api } from "@/lib/api";
 import type { FormDetail, FormSchemaDoc, SectionDef, FieldDef, KbDocSummary, SkillCatalogItem } from "@/lib/types";
 
-const FIELD_TYPES = ["text", "textarea", "date", "boolean", "phone", "ssn", "number", "select"];
+const FIELD_TYPES = ["text", "textarea", "date", "boolean", "phone", "ssn", "number", "select", "email"];
 const OUTPUT_TARGETS = ["pdf", "web"];
+const WORKFLOW_TASK_TYPES = ["generate_pdf", "web_submit"];
+
+type WorkflowEditorTask = { type: string; configText: string };
 
 export default function FormEditorPage() {
   const router = useRouter();
@@ -48,12 +51,12 @@ export default function FormEditorPage() {
   const [kbTitle, setKbTitle] = useState("");
   const [kbText, setKbText] = useState("");
 
-  // Skills (reusable AI capabilities) — catalog + which are attached to this form.
+  // Skills (reusable AI capabilities) - catalog + which are attached to this form.
   const [skillCatalog, setSkillCatalog] = useState<SkillCatalogItem[]>([]);
   const [attachedSkills, setAttachedSkills] = useState<string[]>([]);
 
   // Completion workflow (ordered tasks that run after the user approves).
-  const [wfTasks, setWfTasks] = useState<{ type: string }[]>([]);
+  const [wfTasks, setWfTasks] = useState<WorkflowEditorTask[]>([]);
 
   useEffect(() => {
     if (typeof window !== "undefined" && !localStorage.getItem("admin_token")) router.replace("/admin");
@@ -80,7 +83,13 @@ export default function FormEditorPage() {
       const voice = (f.voice ?? {}) as { voice_id?: string; stt_vocabulary?: string };
       setVoiceId(voice.voice_id ?? "");
       setSttVocab(voice.stt_vocabulary ?? "");
-      setWfTasks((f.workflow?.tasks as { type: string }[] | undefined) ?? [{ type: "generate_pdf" }]);
+      setWfTasks(
+        ((f.workflow?.tasks as { type: string; config?: Record<string, unknown> }[] | undefined) ?? [{ type: "generate_pdf" }])
+          .map((task) => ({
+            type: task.type,
+            configText: JSON.stringify(task.config ?? {}, null, 2),
+          }))
+      );
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Load failed.");
@@ -127,7 +136,16 @@ export default function FormEditorPage() {
     setError(null);
     setNotice(null);
     try {
-      await api.admin.updateFormWorkflow(formId, { tasks: wfTasks, approval: { required: true } });
+      const tasks = wfTasks.map((task, index) => {
+        let config: Record<string, unknown> = {};
+        try {
+          config = task.configText.trim() ? JSON.parse(task.configText) : {};
+        } catch {
+          throw new Error(`Step ${index + 1} config is not valid JSON.`);
+        }
+        return Object.keys(config).length > 0 ? { type: task.type, config } : { type: task.type };
+      });
+      await api.admin.updateFormWorkflow(formId, { tasks, approval: { required: true } });
       setNotice("Workflow saved.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Save failed.");
@@ -164,7 +182,7 @@ export default function FormEditorPage() {
     }
   }
 
-  // ── immutable schema mutations (keep rawText mirrored) ──
+  // -- immutable schema mutations (keep rawText mirrored) --
   function commit(next: FormSchemaDoc) {
     setSchema(next);
     setRawText(JSON.stringify(next, null, 2));
@@ -281,13 +299,13 @@ export default function FormEditorPage() {
     try {
       const f = form.status === "published" ? await api.admin.unpublishForm(formId) : await api.admin.publishForm(formId);
       setForm(f);
-      setNotice(f.status === "published" ? "Published — now in the patient picker." : "Unpublished — hidden from patients.");
+      setNotice(f.status === "published" ? "Published - now in the patient picker." : "Unpublished - hidden from patients.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Action failed.");
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-gray-50 p-8 text-sm text-gray-400">Loading…</div>;
+  if (loading) return <div className="min-h-screen bg-gray-50 p-8 text-sm text-gray-400">Loading...</div>;
   if (!form || !schema) return <div className="min-h-screen bg-gray-50 p-8 text-sm text-red-600">{error ?? "Not found."}</div>;
 
   const isPublished = form.status === "published";
@@ -299,11 +317,11 @@ export default function FormEditorPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <Link href="/admin/forms" className="text-sm text-indigo-600 hover:underline">
-              ← All forms
+              Back to forms
             </Link>
             <h1 className="text-2xl font-bold text-gray-900 mt-1">{form.title}</h1>
             <p className="text-xs text-gray-400">
-              {form.form_id} ·{" "}
+              {form.form_id} |{" "}
               <span className={isPublished ? "text-green-600" : "text-amber-600"}>{form.status}</span>
             </p>
           </div>
@@ -346,14 +364,14 @@ export default function FormEditorPage() {
                     onChange={() => setTargets((p) => (p.includes(t) ? p.filter((x) => x !== t) : [...p, t]))}
                   />
                   {t.toUpperCase()}
-                  {t === "web" && <span className="text-xs text-gray-400">(submission — Phase G)</span>}
+                  {t === "web" && <span className="text-xs text-gray-400">(web submission)</span>}
                 </label>
               ))}
             </div>
           </div>
           <button onClick={saveMeta} disabled={saving}
             className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
-            {saving ? "Saving…" : "Save details"}
+            {saving ? "Saving..." : "Save details"}
           </button>
         </section>
 
@@ -405,7 +423,7 @@ export default function FormEditorPage() {
                         <label className="block mt-2">
                           <span className="block text-[10px] font-semibold text-gray-400 uppercase">Question text</span>
                           <input value={fld.question_text ?? ""} onChange={(e) => patchField(si, fi, { question_text: e.target.value })}
-                            placeholder="What is…?"
+                            placeholder="What is...?"
                             className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
                         </label>
                         <div className="flex flex-wrap items-center gap-3 mt-2">
@@ -443,10 +461,10 @@ export default function FormEditorPage() {
           <div className="mt-5 flex items-center gap-3">
             <button onClick={saveSchema} disabled={saving}
               className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
-              {saving ? "Saving…" : "Save schema"}
+              {saving ? "Saving..." : "Save schema"}
             </button>
             <span className="text-xs text-gray-400">
-              {isPublished ? "Published — saves go live immediately." : "Draft — publish to use in the patient flow."}
+              {isPublished ? "Published - saves go live immediately." : "Draft - publish to use in the patient flow."}
             </span>
           </div>
         </section>
@@ -461,7 +479,7 @@ export default function FormEditorPage() {
               value={persona}
               onChange={(e) => setPersona(e.target.value)}
               rows={4}
-              placeholder="You are a warm, patient assistant helping complete this form…"
+              placeholder="You are a warm, patient assistant helping complete this form..."
               className="w-full text-sm border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
             <span className="text-xs text-gray-400">Sets the assistant&apos;s tone. Structural voice/format rules are always kept.</span>
@@ -475,14 +493,14 @@ export default function FormEditorPage() {
             </label>
             <label className="block">
               <span className="block text-xs font-semibold text-gray-500 mb-1">Speech vocabulary hints</span>
-              <input value={sttVocab} onChange={(e) => setSttVocab(e.target.value)} placeholder="Medicaid, applicant, household…"
+              <input value={sttVocab} onChange={(e) => setSttVocab(e.target.value)} placeholder="Medicaid, applicant, household..."
                 className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
             </label>
           </div>
 
           <div>
             <span className="block text-xs font-semibold text-gray-500 mb-2">
-              Per-field question overrides <span className="text-gray-400 normal-case font-normal">(optional — reword how a field is asked)</span>
+              Per-field question overrides <span className="text-gray-400 normal-case font-normal">(optional - reword how a field is asked)</span>
             </span>
             <div className="space-y-1.5 max-h-72 overflow-auto pr-1">
               {schema.sections.flatMap((sec) => sec.fields).map((fld) => (
@@ -503,7 +521,7 @@ export default function FormEditorPage() {
 
           <button onClick={savePrompts} disabled={saving}
             className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
-            {saving ? "Saving…" : "Save prompts & voice"}
+            {saving ? "Saving..." : "Save prompts & voice"}
           </button>
         </section>
 
@@ -521,7 +539,7 @@ export default function FormEditorPage() {
               kbDocs.map((d) => (
                 <div key={d.id} className="flex items-center gap-2 text-sm border border-gray-150 rounded-lg px-3 py-2">
                   <span className="flex-1 truncate">{d.title}</span>
-                  <span className="text-xs text-gray-400">{d.chunk_count} chunks · {d.status}</span>
+                  <span className="text-xs text-gray-400">{d.chunk_count} chunks | {d.status}</span>
                   <button onClick={() => delKb(d.id)} className="text-xs text-red-500 hover:underline">delete</button>
                 </div>
               ))
@@ -531,11 +549,11 @@ export default function FormEditorPage() {
           <div className="space-y-2">
             <input value={kbTitle} onChange={(e) => setKbTitle(e.target.value)} placeholder="Document title"
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
-            <textarea value={kbText} onChange={(e) => setKbText(e.target.value)} rows={4} placeholder="Paste PHI-free guidance text…"
+            <textarea value={kbText} onChange={(e) => setKbText(e.target.value)} rows={4} placeholder="Paste PHI-free guidance text..."
               className="w-full text-sm border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
             <button onClick={addKb} disabled={saving || !kbTitle.trim() || !kbText.trim()}
               className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
-              {saving ? "Adding…" : "+ Add & embed"}
+              {saving ? "Adding..." : "+ Add & embed"}
             </button>
           </div>
         </section>
@@ -564,30 +582,39 @@ export default function FormEditorPage() {
           <p className="text-xs text-gray-400 mb-3">Ordered steps that run after the user reviews &amp; approves their answers.</p>
           <div className="space-y-2 mb-3">
             {wfTasks.map((t, i) => (
-              <div key={i} className="flex items-center gap-2">
-                <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
-                <select
-                  value={t.type}
-                  onChange={(e) => setWfTasks((p) => p.map((x, j) => (j === i ? { type: e.target.value } : x)))}
-                  className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5"
-                >
-                  {["generate_pdf", "web_submit", "notify", "store_evidence"].map((tt) => (
-                    <option key={tt} value={tt}>{tt}</option>
-                  ))}
-                </select>
-                {t.type === "web_submit" && <span className="text-[10px] text-amber-600 uppercase tracking-wide">phase g</span>}
-                <button onClick={() => setWfTasks((p) => p.filter((_, j) => j !== i))} className="text-xs text-red-500 hover:underline">remove</button>
+              <div key={i} className="border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
+                  <select
+                    value={t.type}
+                    onChange={(e) => setWfTasks((p) => p.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))}
+                    className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5"
+                  >
+                    {WORKFLOW_TASK_TYPES.map((tt) => (
+                      <option key={tt} value={tt}>{tt}</option>
+                    ))}
+                  </select>
+                  <button onClick={() => setWfTasks((p) => p.filter((_, j) => j !== i))} className="text-xs text-red-500 hover:underline">remove</button>
+                </div>
+                <textarea
+                  value={t.configText}
+                  onChange={(e) => setWfTasks((p) => p.map((x, j) => (j === i ? { ...x, configText: e.target.value } : x)))}
+                  rows={t.type === "web_submit" ? 6 : 2}
+                  spellCheck={false}
+                  className="mt-2 w-full font-mono text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  placeholder={t.type === "web_submit" ? '{\n  "recipe": {\n    "portal_url": "https://example.test/apply",\n    "field_selectors": {}\n  }\n}' : "{}"}
+                />
               </div>
             ))}
           </div>
           <div className="flex items-center gap-3">
-            <button onClick={() => setWfTasks((p) => [...p, { type: "generate_pdf" }])}
+            <button onClick={() => setWfTasks((p) => [...p, { type: "generate_pdf", configText: "{}" }])}
               className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100">
               + Add step
             </button>
             <button onClick={saveWorkflow} disabled={saving}
               className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
-              {saving ? "Saving…" : "Save workflow"}
+              {saving ? "Saving..." : "Save workflow"}
             </button>
           </div>
         </section>

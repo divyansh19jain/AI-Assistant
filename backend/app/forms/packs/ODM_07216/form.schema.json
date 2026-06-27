@@ -1972,6 +1972,29 @@
           }
         },
         {
+          "field_key": "person2.address_if_different",
+          "label": "Person 2 Address if Different",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "If Person 2 does not live at the same address as you, what is their address? Say skip if the same.",
+          "validation_rule": {
+            "max_length": 160
+          },
+          "depends_on": {
+            "field_key": "person2.adding_person2",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_address_if_different",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
           "field_key": "person2.file_jointly_with_spouse",
           "label": "Person 2 File Taxes Jointly",
           "section": "step2_person2",
@@ -1993,6 +2016,73 @@
           }
         },
         {
+          "field_key": "person2.spouse_name",
+          "label": "Person 2 Spouse Name",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the name of the spouse Person 2 will file jointly with?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "person2.file_jointly_with_spouse",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_spouse_name",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.claim_dependents",
+          "label": "Person 2 Claims Dependents on Taxes",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Will Person 2 claim any dependents on their tax return?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.tax_file_next_year",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_claim_dependents",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.dependent_names",
+          "label": "Person 2 Dependent Names",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What are the names of the dependents Person 2 will claim?",
+          "validation_rule": {
+            "max_length": 256
+          },
+          "depends_on": {
+            "field_key": "person2.claim_dependents",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_dependent_names",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
           "field_key": "person2.claimed_as_dependent",
           "label": "Person 2 Claimed as Dependent",
           "section": "step2_person2",
@@ -2008,6 +2098,52 @@
           },
           "pdf_mapping": {
             "field_name": "person2_claimed_dependent",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.tax_filer_name",
+          "label": "Person 2 Tax Filer Name",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "What is the name of the tax filer who will claim Person 2?",
+          "validation_rule": {
+            "max_length": 128
+          },
+          "depends_on": {
+            "field_key": "person2.claimed_as_dependent",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_tax_filer_name",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.relationship_to_tax_filer",
+          "label": "Person 2 Relationship to Tax Filer",
+          "section": "step2_person2",
+          "type": "text",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "How is Person 2 related to the tax filer?",
+          "validation_rule": {
+            "max_length": 64
+          },
+          "depends_on": {
+            "field_key": "person2.claimed_as_dependent",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_relationship_to_tax_filer",
             "page": 3,
             "x": 0,
             "y": 0
@@ -2223,6 +2359,27 @@
           },
           "pdf_mapping": {
             "field_name": "person2_us_citizen",
+            "page": 3,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "field_key": "person2.naturalized_or_derived_citizen",
+          "label": "Person 2 Naturalized or Derived Citizen",
+          "section": "step2_person2",
+          "type": "boolean",
+          "required": false,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Did Person 2 become a citizen through naturalization or derivation?",
+          "validation_rule": {},
+          "depends_on": {
+            "field_key": "person2.us_citizen_or_national",
+            "value": true
+          },
+          "pdf_mapping": {
+            "field_name": "person2_naturalized_or_derived",
             "page": 3,
             "x": 0,
             "y": 0

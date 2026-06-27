@@ -23,6 +23,7 @@ out/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.tsbuildinfo
 
 # Generated PDFs (exclude from git)
 backend/app/pdf/generated_pdfs/*.pdf

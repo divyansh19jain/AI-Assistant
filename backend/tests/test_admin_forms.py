@@ -80,11 +80,79 @@ def test_update_schema_reflected(client):
     assert r.json()["schema"]["sections"][0]["fields"][0]["field_key"] == "a.b"
 
 
+def test_schema_metadata_stays_in_sync_with_form_row(client):
+    h = _auth(client)
+    schema = {
+        "form_id": "WRONG",
+        "form_title": "Wrong title",
+        "version": "9.9",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "S",
+                "fields": [],
+            }
+        ],
+    }
+    r = client.post(
+        "/api/admin/forms",
+        headers=h,
+        json={"form_id": "META", "title": "Metadata Title", "version": "1.2", "schema": schema},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["schema"]["form_id"] == "META"
+    assert r.json()["schema"]["form_title"] == "Metadata Title"
+    assert r.json()["schema"]["version"] == "1.2"
+
+    r = client.put("/api/admin/forms/META", headers=h, json={"title": "Renamed", "version": "2.0"})
+    assert r.status_code == 200, r.text
+    assert r.json()["schema"]["form_title"] == "Renamed"
+    assert r.json()["schema"]["version"] == "2.0"
+
+    client.post("/api/admin/forms/META/publish", headers=h)
+    s = client.post("/api/session/create", json={"form_id": "META", "manual_mode": True})
+    assert s.status_code == 200, s.text
+    assert s.json()["form_title"] == "Renamed"
+
+
 def test_invalid_schema_rejected(client):
     h = _auth(client)
     client.post("/api/admin/forms", headers=h, json={"form_id": "F3", "title": "F3"})
     # A schema with no 'sections' list is structurally invalid -> 422.
     r = client.put("/api/admin/forms/F3/schema", headers=h, json={"schema": {"nope": 1}})
+    assert r.status_code == 422
+
+    bad_field_schema = {
+        "form_id": "F3",
+        "form_title": "F3",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "S",
+                "fields": [
+                    {
+                        "field_key": "s.a",
+                        "label": "A",
+                        "section": "wrong",
+                        "type": "text",
+                    }
+                ],
+            }
+        ],
+    }
+    r = client.put("/api/admin/forms/F3/schema", headers=h, json={"schema": bad_field_schema})
+    assert r.status_code == 422
+
+
+def test_invalid_workflow_rejected(client):
+    h = _auth(client)
+    client.post("/api/admin/forms", headers=h, json={"form_id": "WFBAD", "title": "WFBAD"})
+    r = client.put(
+        "/api/admin/forms/WFBAD/workflow",
+        headers=h,
+        json={"workflow": {"tasks": [{"type": "notify"}], "approval": {"required": True}}},
+    )
     assert r.status_code == 422
 
 

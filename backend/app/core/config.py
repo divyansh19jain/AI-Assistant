@@ -26,7 +26,7 @@ class Settings(BaseSettings):
 
     PDF_OUTPUT_DIR: str = "app/pdf/generated_pdfs"
 
-    # Web-submission (Phase G). Default driver is a safe DRY-RUN mock (no network egress).
+    # Web-submission. Default driver is a safe DRY-RUN mock (no network egress).
     # Set WEB_SUBMIT_DRIVER=browserless + BROWSERLESS_URL to enable real portal submission.
     WEB_SUBMIT_DRIVER: str = "mock"
     BROWSERLESS_URL: str = ""

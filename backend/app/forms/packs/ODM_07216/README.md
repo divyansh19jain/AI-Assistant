@@ -40,6 +40,7 @@ transform registry lives in `app/forms/mapper.py` (`_TRANSFORMS`): `strip`,
   values are never echoed via TTS, never sent to the LLM, and masked at output.
 - `knowledgebase/` and `prompts/` must contain **NO PHI** — see
   [`knowledgebase/SOURCES.md`](./knowledgebase/SOURCES.md).
-- The base fillable PDF currently resolves from `backend/app/pdf/ODM07216fillx.pdf`
-  (legacy location); generated PDFs contain full PHI and are written to the
-  gitignored `PDF_OUTPUT_DIR`, served only by the session-scoped download endpoint.
+- `pdf.mapping.json` names the base fillable PDF. Relative paths resolve beside the
+  form pack first, with the legacy `backend/app/pdf/` location as a fallback.
+  Generated PDFs contain full PHI and are written to the gitignored
+  `PDF_OUTPUT_DIR`, served only by the session-scoped download endpoint.

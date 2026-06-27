@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.admin.router import _verify_token
 from app.ai import kb
-from app.db.models import KbChunk, KbDocument
+from app.db.models import Form, KbChunk, KbDocument
 from app.db.session import get_db
 
 router = APIRouter(prefix="/api/admin/forms", tags=["admin:kb"])
@@ -53,12 +53,18 @@ def _summary(db: Session, doc: KbDocument) -> KbDocSummary:
     )
 
 
+def _ensure_form(db: Session, form_id: str) -> None:
+    if db.query(Form).filter(Form.form_id == form_id).first() is None:
+        raise HTTPException(status_code=404, detail=f"Form {form_id!r} not found")
+
+
 @router.get("/{form_id}/kb", response_model=list[KbDocSummary])
 def list_kb(
     form_id: str,
     _admin: Annotated[str, Depends(_verify_token)],
     db: Session = Depends(get_db),
 ) -> list[KbDocSummary]:
+    _ensure_form(db, form_id)
     docs = db.query(KbDocument).filter(KbDocument.form_id == form_id).order_by(KbDocument.id).all()
     return [_summary(db, d) for d in docs]
 
@@ -71,6 +77,7 @@ def create_kb(
     db: Session = Depends(get_db),
 ) -> KbDocSummary:
     """Add a KB document and embed it immediately."""
+    _ensure_form(db, form_id)
     doc = KbDocument(
         form_id=form_id,
         doc_key=_slug(body.title),
@@ -96,6 +103,7 @@ def reembed_kb(
     _admin: Annotated[str, Depends(_verify_token)],
     db: Session = Depends(get_db),
 ) -> KbDocSummary:
+    _ensure_form(db, form_id)
     doc = db.query(KbDocument).filter(KbDocument.id == doc_id, KbDocument.form_id == form_id).first()
     if doc is None:
         raise HTTPException(status_code=404, detail="KB document not found")
@@ -111,6 +119,7 @@ def delete_kb(
     _admin: Annotated[str, Depends(_verify_token)],
     db: Session = Depends(get_db),
 ) -> None:
+    _ensure_form(db, form_id)
     doc = db.query(KbDocument).filter(KbDocument.id == doc_id, KbDocument.form_id == form_id).first()
     if doc is None:
         raise HTTPException(status_code=404, detail="KB document not found")

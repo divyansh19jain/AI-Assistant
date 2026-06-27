@@ -1,9 +1,11 @@
-"""Maps normalized EMR patient data to ODM form fields."""
+"""Maps normalized EMR patient data to form fields."""
 
 import json
 import re
+from typing import Any, Callable
 from app.emr.schemas import EMRPatient
-from app.forms.service import get_all_fields
+from app.forms import registry
+from app.forms.service import get_all_fields, get_all_fields_from_schema
 
 
 def _format_dob(dob: str | None) -> str | None:
@@ -68,8 +70,18 @@ def _income_summary(patient: EMRPatient) -> str | None:
     return "; ".join(str(i) for i in patient.income[:3])
 
 
-# field_key -> callable(EMRPatient) -> value
-_PREFILL_MAP: dict[str, callable] = {
+_TRANSFORMS: dict[str, Callable[[Any], Any]] = {
+    "date_mmddyyyy": _format_dob,
+    "phone10": _clean_phone,
+    "ssn9": _clean_ssn,
+    "sex": _map_sex,
+    "married_bool": _map_marital,
+}
+
+
+# Legacy ODM prefill for the bundled form. New form packs should use a schema-level
+# "prefill" block so EMR mappings travel with the form definition.
+_PREFILL_MAP: dict[str, Callable[[EMRPatient], Any]] = {
     # ── Step 1: Applicant contact info ──────────────────────────────────
     "applicant.first_name":   lambda p: p.first_name or None,
     "applicant.middle_name":  lambda p: p.middle_name or None,
@@ -106,13 +118,68 @@ _PREFILL_MAP: dict[str, callable] = {
 }
 
 
-def prefill_from_emr(patient: EMRPatient, form_id: str = "ODM_07216") -> dict[str, dict]:
+def _read_path(obj: Any, path: str) -> Any:
+    """Read a dotted path from a Pydantic model, object, or dict."""
+    cur = obj
+    for part in path.split("."):
+        if cur is None:
+            return None
+        if isinstance(cur, dict):
+            cur = cur.get(part)
+        else:
+            cur = getattr(cur, part, None)
+    return cur
+
+
+def _extract_declarative_value(patient: EMRPatient, spec: Any) -> Any:
+    """
+    Evaluate a schema ``prefill`` spec.
+
+    Supported shapes:
+      "first_name"
+      {"source": "address.line1", "transform": "phone10"}
+      {"sources": ["preferred", "fallback"], "transform": "date_mmddyyyy"}
+      {"const": "Self"}
+    """
+    if isinstance(spec, str):
+        value = _read_path(patient, spec)
+        transform = None
+    elif isinstance(spec, dict):
+        if "const" in spec:
+            value = spec.get("const")
+        else:
+            sources = spec.get("sources") or [spec.get("source")]
+            value = None
+            for source in sources:
+                if not source:
+                    continue
+                candidate = _read_path(patient, str(source))
+                if candidate not in (None, ""):
+                    value = candidate
+                    break
+        transform = spec.get("transform")
+    else:
+        return None
+
+    if transform:
+        fn = _TRANSFORMS.get(str(transform))
+        if fn is None:
+            return None
+        value = fn(value)
+    return value
+
+
+def prefill_from_emr(
+    patient: EMRPatient,
+    form_id: str = "ODM_07216",
+    schema: dict | None = None,
+) -> dict[str, dict]:
     """
     Returns {field_key: {"value": ..., "value_json": ..., "source": "emr", "confidence": 1.0}}
     for each field that can be prefilled from the patient record.
     """
     prefilled: dict[str, dict] = {}
-    all_fields = get_all_fields(form_id)
+    all_fields = get_all_fields_from_schema(schema) if schema is not None else get_all_fields(form_id)
     field_keys = {f["field_key"] for f in all_fields}
 
     for field_key, extractor in _PREFILL_MAP.items():
@@ -123,6 +190,26 @@ def prefill_from_emr(patient: EMRPatient, form_id: str = "ODM_07216") -> dict[st
         except Exception:
             value = None
 
+        if value is not None and value != "":
+            prefilled[field_key] = {
+                "value": value,
+                "value_json": json.dumps(value),
+                "source": "emr",
+                "confidence": 1.0,
+            }
+
+    try:
+        declarative_map = (schema or {}).get("prefill") or registry.load_prefill_map(form_id)
+    except Exception:
+        declarative_map = (schema or {}).get("prefill") or {}
+
+    for field_key, spec in declarative_map.items():
+        if field_key not in field_keys:
+            continue
+        try:
+            value = _extract_declarative_value(patient, spec)
+        except Exception:
+            value = None
         if value is not None and value != "":
             prefilled[field_key] = {
                 "value": value,

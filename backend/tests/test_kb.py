@@ -74,3 +74,35 @@ def test_kb_crud_via_api(client):
 
     assert client.delete(f"/api/admin/forms/KBF/kb/{doc_id}", headers=h).status_code == 204
     assert client.get("/api/admin/forms/KBF/kb", headers=h).json() == []
+
+
+def test_kb_requires_existing_form(client):
+    h = _auth(client)
+    assert client.get("/api/admin/forms/NOPE/kb", headers=h).status_code == 404
+    r = client.post(
+        "/api/admin/forms/NOPE/kb",
+        headers=h,
+        json={"title": "Nope", "text": "General guidance."},
+    )
+    assert r.status_code == 404
+
+
+def test_help_kb_query_excludes_raw_question(monkeypatch):
+    from app.ai import help_intent
+
+    captured = {}
+
+    def fake_retrieve(db, form_id, query, k=3):
+        captured["query"] = query
+        return []
+
+    class FakeDb:
+        def close(self):
+            pass
+
+    monkeypatch.setattr("app.ai.kb.retrieve", fake_retrieve)
+    monkeypatch.setattr("app.db.base.SessionLocal", lambda: FakeDb())
+
+    help_intent._kb_context("F", "SSN", "Why do you need my SSN?", "my ssn is 123-45-6789")
+    assert "123-45-6789" not in captured["query"]
+    assert captured["query"] == "SSN Why do you need my SSN?"

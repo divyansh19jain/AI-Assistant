@@ -39,6 +39,8 @@ class MockWebDriver(WebSubmissionDriver):
     """Dry-run driver: records what would be submitted, performs NO network call."""
 
     def submit(self, recipe: dict, answers: dict) -> dict:
+        if not recipe.get("portal_url"):
+            return {"driver": "mock", "dry_run": True, "error": "recipe has no portal_url"}
         return {
             "driver": "mock",
             "dry_run": True,
@@ -53,8 +55,7 @@ class BrowserlessWebDriver(WebSubmissionDriver):
 
     Only used when explicitly configured. Defensive throughout: any missing dependency
     or runtime error is returned as ``{"error": ...}`` so the workflow records a failed
-    task rather than crashing. Evidence captures the confirmation text (and could capture
-    a screenshot to the BlobStore — left as a hook).
+    task rather than crashing. Evidence captures the confirmation text returned by the portal.
     """
 
     def __init__(self, browserless_url: str):
@@ -122,4 +123,11 @@ def get_web_driver() -> WebSubmissionDriver:
 
 def submit_web(recipe: dict, answers: dict) -> dict:
     """Submit answers via the configured driver and return the evidence dict."""
-    return get_web_driver().submit(recipe or {}, answers or {})
+    recipe = recipe or {}
+    driver = get_web_driver()
+    if not isinstance(recipe, dict) or not recipe.get("portal_url"):
+        return {
+            "driver": driver.__class__.__name__.replace("WebDriver", "").lower(),
+            "error": "recipe has no portal_url",
+        }
+    return driver.submit(recipe, answers or {})

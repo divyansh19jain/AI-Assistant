@@ -1,9 +1,33 @@
-"""Determine which required fields are still missing given current answers."""
+"""Determine which form fields are still missing given current answers."""
 
-from app.forms.service import get_all_fields
+from typing import Any
+
+from app.forms.service import get_all_fields, get_all_fields_from_schema
 
 
-def _dependency_satisfied(field: dict, answers: dict[str, any]) -> bool:
+SKIPPED = "__skipped__"
+
+
+def _has_meaningful_value(value: Any) -> bool:
+    """Return False for values that should not satisfy dependency ``present`` checks."""
+    if value is None:
+        return False
+    if isinstance(value, str) and value.strip() in ("", SKIPPED, "null", "None"):
+        return False
+    return True
+
+
+def _field_answered(field_key: str, answers: dict[str, Any]) -> bool:
+    """A field is answered when it has a stored value or the explicit skip sentinel."""
+    if field_key not in answers:
+        return False
+    value = answers[field_key]
+    if value == SKIPPED:
+        return True
+    return _has_meaningful_value(value)
+
+
+def _dependency_satisfied(field: dict, answers: dict[str, Any]) -> bool:
     """Check whether a field's dependency condition is met."""
     dep = field.get("depends_on")
     if dep is None:
@@ -14,33 +38,67 @@ def _dependency_satisfied(field: dict, answers: dict[str, any]) -> bool:
         return True
 
     dep_answer = answers.get(dep_key)
-    if dep_answer is None:
+    if not _has_meaningful_value(dep_answer):
         return False
 
     if "value" in dep:
         return dep_answer == dep["value"]
 
     if dep.get("condition") == "present":
-        return bool(dep_answer)
+        return _has_meaningful_value(dep_answer)
 
     return True
 
 
-def get_missing_required_fields(
+def is_field_applicable(field: dict, answers: dict[str, Any]) -> bool:
+    """Public helper for review/output views that must hide inactive branches."""
+    return _dependency_satisfied(field, answers)
+
+
+def _fields_for(form_id: str, schema: dict | None) -> list[dict]:
+    return get_all_fields_from_schema(schema) if schema is not None else get_all_fields(form_id)
+
+
+def get_missing_applicable_fields(
     form_id: str,
-    answers: dict[str, any],
+    answers: dict[str, Any],
+    schema: dict | None = None,
 ) -> list[dict]:
     """
-    Return ALL unanswered fields whose dependency conditions are met,
-    in schema order (section by section, field by field).
-    """
-    all_fields = get_all_fields(form_id)
-    missing = []
+    Return unanswered fields whose dependency conditions are met, in schema order.
 
-    for field in all_fields:
+    The conversational assistant uses this broader list so optional fields are either
+    answered or explicitly skipped before review/approval.
+    """
+    missing = []
+    for field in _fields_for(form_id, schema):
         if not _dependency_satisfied(field, answers):
             continue
-        if field["field_key"] in answers:
+        if _field_answered(field["field_key"], answers):
+            continue
+        missing.append(field)
+    return missing
+
+
+def get_missing_required_fields(
+    form_id: str,
+    answers: dict[str, Any],
+    schema: dict | None = None,
+) -> list[dict]:
+    """
+    Return unanswered required fields whose dependency conditions are met.
+
+    Review/approval uses this stricter view to distinguish required gaps from
+    optional questions the user may skip.
+    """
+    missing = []
+
+    for field in _fields_for(form_id, schema):
+        if not field.get("required", False):
+            continue
+        if not _dependency_satisfied(field, answers):
+            continue
+        if _field_answered(field["field_key"], answers):
             continue
         missing.append(field)
 
@@ -49,25 +107,26 @@ def get_missing_required_fields(
 
 def get_next_question(
     form_id: str,
-    answers: dict[str, any],
+    answers: dict[str, Any],
+    schema: dict | None = None,
 ) -> dict | None:
-    """Return the next unanswered required field, or None if complete."""
-    missing = get_missing_required_fields(form_id, answers)
+    """Return the next unanswered applicable field, or None if complete."""
+    missing = get_missing_applicable_fields(form_id, answers, schema)
     return missing[0] if missing else None
 
 
 def get_optional_missing_fields(
     form_id: str,
-    answers: dict[str, any],
+    answers: dict[str, Any],
+    schema: dict | None = None,
 ) -> list[dict]:
     """Return optional fields that are not yet answered and whose deps are met."""
-    all_fields = get_all_fields(form_id)
     missing = []
-    for field in all_fields:
+    for field in _fields_for(form_id, schema):
         if field.get("required", False):
             continue
         if not _dependency_satisfied(field, answers):
             continue
-        if field["field_key"] not in answers:
+        if not _field_answered(field["field_key"], answers):
             missing.append(field)
     return missing

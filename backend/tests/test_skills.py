@@ -40,10 +40,20 @@ def test_attach_skills_to_form(client):
     # initially none
     assert client.get("/api/admin/forms/SKF/skills", headers=h).json()["attached"] == []
 
-    # attach two (one bogus key is filtered out)
+    # bogus keys fail instead of being silently dropped
     r = client.put("/api/admin/forms/SKF/skills", headers=h, json={"skill_keys": ["glossary", "kb_lookup", "bogus"]})
+    assert r.status_code == 422
+
+    # attach two valid skills
+    r = client.put("/api/admin/forms/SKF/skills", headers=h, json={"skill_keys": ["glossary", "kb_lookup"]})
     assert r.status_code == 200
     assert set(r.json()["attached"]) == {"glossary", "kb_lookup"}
 
     # readable back; and the registry helper agrees
     assert set(client.get("/api/admin/forms/SKF/skills", headers=h).json()["attached"]) == {"glossary", "kb_lookup"}
+
+
+def test_skills_require_existing_form(client):
+    h = _auth(client)
+    assert client.get("/api/admin/forms/NOPE/skills", headers=h).status_code == 404
+    assert client.put("/api/admin/forms/NOPE/skills", headers=h, json={"skill_keys": ["glossary"]}).status_code == 404

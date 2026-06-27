@@ -1,17 +1,12 @@
 """
-Workflow engine — runs a form's completion tasks after human approval.
+Workflow engine: runs a form's completion tasks after human approval.
 
-A form's **workflow** is an ordered list of **tasks** (steps) that run once the user
-approves their answers: ``generate_pdf``, ``notify``, ``store_evidence``, and (Phase G)
-``web_submit``. Task handlers share one signature — ``handler(db, session, config) ->
-dict`` — mirroring the EMR-adapter/skill pattern, so new task types are easy to add.
+Supported task types are deliberately small and real:
+  - generate_pdf: create the session PDF or summary PDF.
+  - web_submit: submit the approved answers through the configured web driver.
 
-Every run is recorded (:class:`WorkflowRun` + :class:`WorkflowTaskRun`) with each
-task's status and output/evidence, so the patient (and an admin) can see exactly what
-happened. Execution stops at the first failed task.
-
-The definition is read from ``forms.workflow_json`` (edited in the builder), falling
-back to one derived from the form's ``output_targets`` (``pdf`` -> a generate_pdf task).
+Unknown task types fail the run. They are never skipped, because a skipped
+completion step can look like a successful submission to users and auditors.
 """
 
 from __future__ import annotations
@@ -35,7 +30,7 @@ def _default_tasks(output_targets: list[str]) -> list[dict]:
 
 
 def get_workflow_def(db, form_id: str) -> dict:
-    """Return ``{"tasks":[...], "approval":{...}}`` for a form (explicit or derived)."""
+    """Return {"tasks":[...], "approval":{...}} for a form."""
     form = db.query(Form).filter(Form.form_id == form_id).first()
     if form and form.workflow_json:
         try:
@@ -48,29 +43,17 @@ def get_workflow_def(db, form_id: str) -> dict:
     return {"tasks": _default_tasks(targets), "approval": {"required": True}}
 
 
-# ── task handlers: handler(db, session, config) -> output dict ────────────────
 def _task_generate_pdf(db, session, config: dict) -> dict:
     from app.pdf.pdf_service import generate_session_pdf
 
     result = generate_session_pdf(db, session.id)
     if not result:
         raise RuntimeError("PDF generation returned no result")
-    return result  # {session_id, download_url, file_name, is_fallback}
-
-
-def _task_notify(db, session, config: dict) -> dict:
-    # Stub: real delivery (email/SMS) would go here. Log identifiers only (no PHI).
-    logger.info("Workflow notify task ran for session %s.", session.id)
-    return {"notified": True, "channel": config.get("channel", "log")}
-
-
-def _task_store_evidence(db, session, config: dict) -> dict:
-    # Stub: real evidence capture (to the BlobStore) is fleshed out with web_submit (Phase G).
-    return {"stored": True}
+    return result
 
 
 def _session_answers(db, session_id: str) -> dict:
-    """Load a session's answers as ``{field_key: value}``."""
+    """Load a session's answers as {field_key: value}."""
     from app.db.models import FormAnswer
 
     out: dict = {}
@@ -83,7 +66,7 @@ def _session_answers(db, session_id: str) -> dict:
 
 
 def _form_web_recipe(db, form_id: str) -> dict:
-    """The web-submission recipe for a form (from its pack ``workflow.yaml`` ``web:`` block)."""
+    """Return the bundled pack web-submission recipe, when the form has one."""
     try:
         from app.forms import registry
 
@@ -95,10 +78,7 @@ def _form_web_recipe(db, form_id: str) -> dict:
 
 
 def _task_web_submit(db, session, config: dict) -> dict:
-    """🔒 PHI EGRESS — submit answers to an external portal (gated; see web_submit.py).
-
-    Uses the safe dry-run mock driver unless WEB_SUBMIT_DRIVER=browserless is configured.
-    """
+    """Submit answers to an external portal after approval."""
     from app.workflows.web_submit import submit_web
 
     recipe = config.get("recipe") or _form_web_recipe(db, session.form_id)
@@ -111,14 +91,12 @@ def _task_web_submit(db, session, config: dict) -> dict:
 
 TASK_HANDLERS = {
     "generate_pdf": _task_generate_pdf,
-    "notify": _task_notify,
-    "store_evidence": _task_store_evidence,
     "web_submit": _task_web_submit,
 }
 
 
 def run_workflow(db, session_id: str) -> WorkflowRun:
-    """Execute a session's form workflow, recording each task. Stops at first failure."""
+    """Execute a session's form workflow and stop at the first failure."""
     session = db.query(FormSession).filter(FormSession.id == session_id).first()
     if session is None:
         raise ValueError(f"session {session_id} not found")
@@ -139,10 +117,12 @@ def run_workflow(db, session_id: str) -> WorkflowRun:
 
         handler = TASK_HANDLERS.get(ttype)
         if handler is None:
-            tr.status = "skipped"
-            tr.error = f"no handler for task type {ttype!r}"
+            tr.status = "failed"
+            tr.error = f"unsupported workflow task type {ttype!r}"
             db.commit()
-            continue
+            failed = True
+            break
+
         try:
             out = handler(db, session, task.get("config") or {})
             tr.status = "completed"
@@ -173,7 +153,7 @@ def get_latest_run(db, session_id: str) -> WorkflowRun | None:
 
 
 def run_status_dict(db, run: WorkflowRun) -> dict:
-    """Serialize a run + its tasks (with outputs) for the API."""
+    """Serialize a run and its task outputs for the API."""
     tasks = (
         db.query(WorkflowTaskRun)
         .filter(WorkflowTaskRun.workflow_run_id == run.id)

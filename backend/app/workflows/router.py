@@ -16,6 +16,8 @@ from sqlalchemy.orm import Session
 from app.core.audit import log_event
 from app.db.models import FormApproval, FormSession, utcnow
 from app.db.session import get_db
+from app.forms.missing_fields import get_missing_applicable_fields
+from app.sessions.service import _answers_map, _schema_for_session
 from app.workflows.engine import get_latest_run, run_status_dict, run_workflow
 
 router = APIRouter(prefix="/api/session", tags=["workflow"])
@@ -32,6 +34,17 @@ def approve_and_run(session_id: str, body: ApproveRequest, db: Session = Depends
     session = db.query(FormSession).filter(FormSession.id == session_id).first()
     if session is None:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    schema = _schema_for_session(session)
+    missing = get_missing_applicable_fields(session.form_id, _answers_map(db, session_id), schema)
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "Cannot approve until all applicable fields are answered or skipped.",
+                "missing_fields": [f["field_key"] for f in missing],
+            },
+        )
 
     db.add(FormApproval(session_id=session_id, form_id=session.form_id, approved_by=body.approved_by, note=body.note))
     session.status = "completed"

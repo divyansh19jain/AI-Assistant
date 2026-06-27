@@ -29,6 +29,7 @@ class SessionFieldSummary(BaseModel):
 class SessionState(BaseModel):
     session_id: str
     form_id: str
+    form_title: str
     status: str
     mock_mode: bool
     prefilled_count: int
@@ -52,8 +53,11 @@ class ReviewField(BaseModel):
 
 class ReviewResponse(BaseModel):
     session_id: str
+    form_id: str
+    form_title: str
     sections: dict[str, list[ReviewField]]
     missing_required: list[str]
+    missing_applicable: list[str]
     is_complete: bool
 
 

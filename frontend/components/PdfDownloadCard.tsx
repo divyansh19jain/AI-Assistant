@@ -19,7 +19,7 @@ export default function PdfDownloadCard({ sessionId, result, onRegenerate, gener
         }`}
       >
         {result.is_fallback
-          ? "PDF generated as data summary (fallback). Place ODM07216fillx.pdf in backend/app/pdf/ to enable field-filled output."
+          ? "PDF generated as a data summary. Add a form-specific PDF mapping and base PDF to enable field-filled output."
           : "PDF generated with filled form fields."}
       </div>
       <a
@@ -27,7 +27,7 @@ export default function PdfDownloadCard({ sessionId, result, onRegenerate, gener
         download={result.file_name}
         className="block w-full text-center bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg py-2.5 text-sm"
       >
-        Download PDF — {result.file_name}
+        Download PDF - {result.file_name}
       </a>
       <button
         onClick={onRegenerate}

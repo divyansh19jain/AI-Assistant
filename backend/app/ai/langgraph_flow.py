@@ -18,7 +18,7 @@ from typing import Any
 
 from app.ai.answer_extractor import extract_answer, ExtractionResult
 from app.forms.questions import get_current_question_context, build_question_prompt
-from app.forms.missing_fields import get_missing_required_fields
+from app.forms.missing_fields import get_missing_applicable_fields
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class AssistantState:
     form_id: str
+    schema: dict | None = None
     answers: dict[str, Any] = field(default_factory=dict)
     current_field: dict | None = None
     current_question: str = ""
@@ -42,7 +43,7 @@ class AssistantState:
 
 def node_determine_next_question(state: AssistantState) -> AssistantState:
     """Select the next missing required field and build its question text."""
-    ctx = get_current_question_context(state.form_id, state.answers)
+    ctx = get_current_question_context(state.form_id, state.answers, state.schema)
     if ctx is None:
         state.is_complete = True
         state.current_field = None
@@ -127,6 +128,7 @@ def run_answer_step(
     current_answers: dict,
     field_key: str,
     raw_answer: str,
+    schema: dict | None = None,
 ) -> dict:
     """
     Process a single answer submission and return updated state.
@@ -134,9 +136,9 @@ def run_answer_step(
     Tries the LangGraph compiled graph first; falls back to the plain
     synchronous orchestrator if the graph is unavailable.
     """
-    from app.forms.service import get_field
+    from app.forms.service import get_field, get_field_from_schema
 
-    field = get_field(field_key, form_id)
+    field = get_field_from_schema(field_key, schema) if schema is not None else get_field(field_key, form_id)
     if not field:
         return {
             "success": False,
@@ -151,7 +153,7 @@ def run_answer_step(
 
     if classify_intent(field, raw_answer) == "help":
         explanation = explain_field(field, raw_answer, form_id)
-        next_ctx = get_current_question_context(form_id, current_answers)
+        next_ctx = get_current_question_context(form_id, current_answers, schema)
         return {
             "success": False,
             # `error` is the message the frontend shows + speaks when not
@@ -164,11 +166,12 @@ def run_answer_step(
             "confidence": 0.0,
             "needs_clarification": True,
             "next_question": next_ctx,
-            "missing_count": len(get_missing_required_fields(form_id, current_answers)),
+            "missing_count": len(get_missing_applicable_fields(form_id, current_answers, schema)),
         }
 
     state = AssistantState(
         form_id=form_id,
+        schema=schema,
         answers=dict(current_answers),
         last_raw_answer=raw_answer,
         current_field=field,
@@ -213,7 +216,7 @@ def run_answer_step(
             "extracted_value": None,
             "confidence": 0.0,
             "needs_clarification": False,
-            "next_question": get_current_question_context(form_id, current_answers),
+            "next_question": get_current_question_context(form_id, current_answers, schema),
         }
 
     # Smart-confirm: plausible but low-confidence — ask the user to confirm
@@ -228,10 +231,10 @@ def run_answer_step(
             "extracted_value": ext.value,
             "confidence": ext.confidence,
             "needs_clarification": False,
-            "next_question": get_current_question_context(form_id, current_answers),
+            "next_question": get_current_question_context(form_id, current_answers, schema),
         }
 
-    next_ctx = get_current_question_context(form_id, state.answers)
+    next_ctx = get_current_question_context(form_id, state.answers, schema)
 
     return {
         "success": True,
@@ -242,7 +245,7 @@ def run_answer_step(
         "needs_clarification": False,
         "is_complete": state.is_complete,
         "next_question": next_ctx,
-        "missing_count": len(get_missing_required_fields(form_id, state.answers)),
+        "missing_count": len(get_missing_applicable_fields(form_id, state.answers, schema)),
     }
 
 

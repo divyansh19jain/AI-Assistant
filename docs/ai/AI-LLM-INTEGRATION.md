@@ -74,10 +74,11 @@ The existing helpers that follow it:
 
 ## Voice / STT / TTS
 
-- `speech_to_text.py` / `tts` services are interface-first with provider
-  implementations behind env keys (`DEEPGRAM_API_KEY`, `ELEVENLABS_API_KEY`,
-  `ELEVENLABS_VOICE_ID`, plus OpenAI TTS). With no keys, mocks/browser fallback
-  are used. The `/api/stt` and `/api/tts` routers are the only `async` parts.
+- `stt_router.py`, `tts_router.py`, and `text_to_speech.py` are interface-first
+  with provider implementations behind env keys (`DEEPGRAM_API_KEY`,
+  `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`, plus OpenAI TTS). With no keys,
+  mocks/browser fallback are used. The `/api/stt` and `/api/tts` routers are the
+  only `async` parts.
 
 ## LangGraph
 
