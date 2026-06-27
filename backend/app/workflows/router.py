@@ -10,6 +10,7 @@ latest run's status for polling. Both are patient actions (no admin token).
 
 from __future__ import annotations
 
+import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,7 +23,7 @@ from app.core.audit import log_event
 from app.db.models import FormAnswer, FormApproval, FormSession, utcnow
 from app.db.session import get_db
 from app.sessions.service import get_session_readiness
-from app.workflows.engine import get_latest_run, run_status_dict, run_workflow
+from app.workflows.engine import get_latest_run, get_workflow_def, run_status_dict, run_workflow
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/session", tags=["workflow"])
@@ -31,6 +32,10 @@ router = APIRouter(prefix="/api/session", tags=["workflow"])
 class ApproveRequest(BaseModel):
     approved_by: str = "patient"
     note: str | None = None
+    # Typed legal-name e-signature + consent. Required only when the form's workflow
+    # sets approval.require_signature; otherwise recorded if supplied.
+    signature: str | None = None
+    consent: bool = False
 
 
 @router.post("/{session_id}/approve")
@@ -51,8 +56,28 @@ def approve_and_run(session_id: str, body: ApproveRequest, db: Session = Depends
             },
         )
 
-    if not _latest_approval_is_current(db, session):
-        db.add(FormApproval(session_id=session_id, form_id=session.form_id, approved_by=body.approved_by, note=body.note))
+    approval_cfg = (get_workflow_def(db, session.form_id) or {}).get("approval", {}) or {}
+    require_signature = bool(approval_cfg.get("require_signature"))
+    signature = (body.signature or "").strip()
+    if require_signature and (not signature or not body.consent):
+        raise HTTPException(
+            status_code=422,
+            detail="This form requires a typed signature and your consent before it can be submitted.",
+        )
+
+    latest = _latest_approval(db, session)
+    # Record a fresh approval when answers changed since the last one, or when a
+    # signature is now required but the current approval is unsigned.
+    if not _latest_approval_is_current(db, session) or (require_signature and (latest is None or not latest.signature)):
+        consent_json = json.dumps({"agreed": bool(body.consent)}) if (signature or body.consent) else None
+        db.add(FormApproval(
+            session_id=session_id,
+            form_id=session.form_id,
+            approved_by=body.approved_by,
+            note=body.note,
+            signature=signature or None,
+            consent_json=consent_json,
+        ))
     session.status = "ready_for_review"
     session.completed_at = None
     db.commit()
@@ -137,14 +162,18 @@ def _finalize_completion_status(db: Session, session: FormSession, completed: bo
     db.commit()
 
 
-def _latest_approval_is_current(db: Session, session: FormSession) -> bool:
-    """Return True when the newest approval is newer than every stored answer."""
-    approval = (
+def _latest_approval(db: Session, session: FormSession) -> FormApproval | None:
+    return (
         db.query(FormApproval)
         .filter(FormApproval.session_id == session.id)
         .order_by(FormApproval.created_at.desc())
         .first()
     )
+
+
+def _latest_approval_is_current(db: Session, session: FormSession) -> bool:
+    """Return True when the newest approval is newer than every stored answer."""
+    approval = _latest_approval(db, session)
     if approval is None:
         return False
     latest_answer_at = (
