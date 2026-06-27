@@ -402,10 +402,12 @@ export default function AssistantPage() {
                   <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} autoFocus
                     placeholder={isListening ? "Listening — speak your answer…" : "Type your answer, or tap the mic to speak"}
                     className="flex-1 bg-transparent outline-none text-[1.0625rem] text-slate-800 placeholder-slate-400 py-1.5" />
+                  {/* Tapping while Mia is speaking interrupts her and starts listening
+                      (barge-in) — toggleMic calls stopSpeaking() before startListening(). */}
                   {voiceSupported && (
-                    <button type="button" onClick={toggleMic} disabled={isSpeaking || isProcessing || thinking}
-                      title={isListening ? "Stop listening" : "Speak your answer"}
-                      className={`shrink-0 flex items-center justify-center w-10 h-10 rounded-xl transition-all ${isListening ? "bg-red-500 text-white mic-live" : (isSpeaking || isProcessing || thinking) ? "text-slate-300 cursor-not-allowed" : "text-slate-500 hover:text-blue-600 hover:bg-blue-50"}`}>
+                    <button type="button" onClick={toggleMic} disabled={isProcessing || thinking}
+                      title={isListening ? "Stop listening" : isSpeaking ? "Tap to interrupt" : "Speak your answer"}
+                      className={`shrink-0 flex items-center justify-center w-10 h-10 rounded-xl transition-all ${isListening ? "bg-red-500 text-white mic-live" : isSpeaking ? "text-blue-600 bg-blue-50 hover:bg-blue-100" : (isProcessing || thinking) ? "text-slate-300 cursor-not-allowed" : "text-slate-500 hover:text-blue-600 hover:bg-blue-50"}`}>
                       {isListening
                         ? <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>
                         : <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>}
