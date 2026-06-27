@@ -1,0 +1,20 @@
+# Installed/built artifacts are produced inside the image.
+node_modules/
+.next/
+out/
+
+# Never ship local env / secrets into the image.
+.env
+.env.local
+.env.*
+
+# VCS / logs / editor noise
+.git/
+.gitignore
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.tsbuildinfo
+Dockerfile
+.dockerignore
+.DS_Store

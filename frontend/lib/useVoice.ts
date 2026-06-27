@@ -54,7 +54,8 @@ const SILENCE_THRESHOLD = 20;   // RMS below this = silent (0–255 scale); rais
 const SILENCE_GRACE_MS  = 1800; // stop after this many ms of continuous silence
 const MIN_SPEECH_MS     = 600;  // don't stop before this even if silent (catch short words)
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+// `??` so an explicitly-empty value routes through the same-origin /api proxy; see lib/api.ts.
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 async function transcribeBlob(blob: Blob, hint: string, formId = ""): Promise<string> {
   const form = new FormData();

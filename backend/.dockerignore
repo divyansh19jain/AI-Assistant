@@ -1,0 +1,24 @@
+# Keep the build context small and secret-free.
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Never ship local env / secrets into the image.
+.env
+.env.*
+
+# Tests and generated output are not needed at runtime.
+tests/
+app/pdf/generated_pdfs/*.pdf
+
+# VCS / logs / editor noise
+.git/
+.gitignore
+*.log
+*.err
+.DS_Store

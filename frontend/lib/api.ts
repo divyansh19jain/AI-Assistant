@@ -13,7 +13,10 @@ import type {
   WorkflowState,
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
+// `??` (not `||`) so an explicitly-empty NEXT_PUBLIC_API_BASE_URL means "call the
+// backend same-origin via the Next /api proxy". Unset (native dev) still falls back
+// to localhost; an absolute URL (split-domain) is used directly.
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

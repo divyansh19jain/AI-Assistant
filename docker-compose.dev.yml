@@ -1,0 +1,28 @@
+# Hot-reload development override. Layer it on top of the base compose:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Bind-mounts the source over the built images so backend (uvicorn --reload) and
+# frontend (next dev) pick up edits live. Mock EMR + permissive localhost CORS.
+services:
+  backend:
+    environment:
+      APP_ENV: development
+    volumes:
+      - ./backend:/app
+      - pdf_data:/app/app/pdf/generated_pdfs
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  frontend:
+    build:
+      context: ./frontend
+      target: dev
+    environment:
+      # Native-style dev: talk to the backend directly on the published localhost port.
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:${BACKEND_PORT:-8000}
+      BACKEND_INTERNAL_URL: http://backend:8000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    command: ["npm", "run", "dev"]
