@@ -14,6 +14,9 @@ export type VoiceStatus =
 interface UseVoiceOptions {
   onTranscript?: (text: string) => void;
   onError?: (msg: string) => void;
+  /** Fires when a listen attempt captured nothing usable (silence/echo/hallucination)
+   *  so the caller can re-arm the mic instead of dead-ending the conversation. */
+  onNoSpeech?: () => void;
   /** Passed to Whisper as a prompt hint — use the current field label + common values. */
   hint?: string;
   /** Selects the form's configured voice (TTS) + speech vocabulary (STT). */
@@ -49,6 +52,22 @@ export function selectFemaleVoice(voices: SpeechSynthesisVoice[]): SpeechSynthes
 // Whisper prompt that biases transcription toward form-filling vocabulary
 const BASE_HINT = "yes, no, skip, correct, wrong, Jackson, Johnson, Smith, Jones, Williams, Medicare, Medicaid";
 
+// Whisper, primed with the vocabulary hint above, tends to *regurgitate* those words
+// when it hears near-silence or the tail of the assistant's own TTS — producing junk
+// like "yes, no, skip, correct, yes, no, skip…". Treat a transcript that is mostly
+// repeated hint/command words as a non-answer so it never auto-submits.
+const _HALLUCINATION_TOKENS = new Set([
+  "yes", "no", "skip", "correct", "wrong", "yeah", "yep", "nope", "okay", "ok",
+  "sure", "jackson", "johnson", "smith", "jones", "williams", "medicare",
+  "medicaid", "patient", "name", "address", "date", "of", "birth", "the", "a",
+]);
+function isLikelyHallucination(text: string): boolean {
+  const tokens = text.toLowerCase().replace(/[.,!?;:'"-]/g, " ").split(/\s+/).filter(Boolean);
+  if (tokens.length < 4) return false; // genuine short answers ("yes", "skip") are fine
+  const hits = tokens.filter((t) => _HALLUCINATION_TOKENS.has(t)).length;
+  return hits / tokens.length >= 0.7;
+}
+
 // Silence detection tuning
 const SILENCE_THRESHOLD = 20;   // RMS below this = silent (0–255 scale); raised to ignore background noise
 const SILENCE_GRACE_MS  = 1800; // stop after this many ms of continuous silence
@@ -57,18 +76,24 @@ const MIN_SPEECH_MS     = 600;  // don't stop before this even if silent (catch 
 // `??` so an explicitly-empty value routes through the same-origin /api proxy; see lib/api.ts.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+// 🔒 Browser SpeechRecognition (Chrome/Edge) streams mic audio to Google's speech
+// service — fine for a local mock/demo, NOT for real PHI. Set
+// NEXT_PUBLIC_FORCE_SERVER_STT=1 to force the server Whisper path (audio stays on the
+// already-configured OpenAI-compatible endpoint) for any real deployment.
+const FORCE_SERVER_STT = (process.env.NEXT_PUBLIC_FORCE_SERVER_STT ?? "0") === "1";
+
 async function transcribeBlob(blob: Blob, hint: string, formId = ""): Promise<string> {
   const form = new FormData();
   form.append("audio", blob, "audio.webm");
   form.append("prompt", hint);
   if (formId) form.append("form_id", formId);
-  const res = await fetch(`${API_BASE}/api/stt`, { method: "POST", body: form });
+  const res = await fetch(`${API_BASE}/api/stt`, { method: "POST", body: form, signal: AbortSignal.timeout(20000) });
   if (!res.ok) throw new Error(`STT ${res.status}`);
   const data = await res.json();
   return (data.transcript ?? "").trim();
 }
 
-export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseVoiceOptions = {}) {
+export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId = "" }: UseVoiceOptions = {}) {
   const [status, setStatus] = useState<VoiceStatus>("idle");
   const [transcript, setTranscript] = useState("");
   const [supported, setSupported] = useState(false);
@@ -85,6 +110,7 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
   const ttsCacheRef     = useRef<Map<string, Promise<ArrayBuffer | null>>>(new Map());
 
   // STT refs
+  const recognitionRef     = useRef<any>(null);   // browser SpeechRecognition (primary)
   const mediaRecorderRef   = useRef<MediaRecorder | null>(null);
   const chunksRef          = useRef<Blob[]>([]);
   // Warm mic stream — acquired once, reused across turns so startListening is instant
@@ -95,14 +121,19 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
   const silenceTimerRef    = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speechStartRef     = useRef<number>(0);
   const silenceRafRef      = useRef<number | null>(null);
+  // Set true once clear speech (well above the calibrated floor) is heard, so a
+  // recording of pure silence/echo is dropped instead of sent to Whisper.
+  const sawSpeechRef       = useRef(false);
 
   // Stable callback refs
   const onTranscriptRef = useRef(onTranscript);
   const onErrorRef      = useRef(onError);
+  const onNoSpeechRef   = useRef(onNoSpeech);
   const hintRef         = useRef(hint);
   const formIdRef      = useRef(formId);
   useEffect(() => { onTranscriptRef.current = onTranscript; }, [onTranscript]);
   useEffect(() => { onErrorRef.current = onError; }, [onError]);
+  useEffect(() => { onNoSpeechRef.current = onNoSpeech; }, [onNoSpeech]);
   useEffect(() => { hintRef.current = hint; }, [hint]);
   useEffect(() => {
     formIdRef.current = formId;
@@ -164,6 +195,9 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
       audioCtxRef.current = new AudioContext();
     }
     const ctx = audioCtxRef.current;
+    // A suspended context (autoplay policy) starves the analyser, so silence
+    // detection would see flat zeros and never register speech — resume it.
+    if (ctx.state === "suspended") ctx.resume().catch(() => {});
     const source  = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 512;
@@ -214,7 +248,8 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
           }, SILENCE_GRACE_MS);
         }
       } else {
-        // Real speech — cancel any pending silence timer
+        // Real speech — remember we heard it, and cancel any pending silence timer.
+        if (rms > effectiveThreshold * 1.4) sawSpeechRef.current = true;
         if (silenceTimerRef.current !== null) {
           clearTimeout(silenceTimerRef.current);
           silenceTimerRef.current = null;
@@ -276,14 +311,34 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
         source.buffer = decoded;
         source.connect(ctx.destination);
         audioSourceRef.current = source;
-        source.onended = () => {
-          if (speakGenRef.current !== myGen) return;
+
+        // Fire the "done speaking" handler exactly once. A safety timer guarantees
+        // it runs even if the browser blocks/suspends audio and `onended` never
+        // fires — otherwise a hands-free flow waiting on onEnd would dead-end.
+        let ended = false;
+        const finishSpeaking = () => {
+          if (ended || speakGenRef.current !== myGen) return;
+          ended = true;
           audioSourceRef.current = null;
           setStatus("idle");
           onEnd?.();
         };
-        onStart?.(); // audio is about to start — show the question bubble now
-        source.start(0);
+        source.onended = finishSpeaking;
+
+        const startPlayback = () => {
+          onStart?.(); // audio is about to start — show the question bubble now
+          try { source.start(0); } catch { /* already started / invalid state */ }
+        };
+        // Autoplay policy: a context created without a user gesture starts
+        // "suspended" — resume it so audio actually plays and onended can fire.
+        if (ctx.state === "suspended") {
+          ctx.resume().then(startPlayback).catch(startPlayback);
+        } else {
+          startPlayback();
+        }
+        // Safety net: advance the conversation after the clip's duration even if
+        // audio was blocked (silent first-load greeting must not hang the flow).
+        setTimeout(finishSpeaking, Math.ceil((decoded.duration || 2) * 1000) + 1200);
       }).catch(() => {
         if (speakGenRef.current !== myGen) return;
         setStatus("idle");
@@ -330,9 +385,15 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
 
   const finishRecording = useCallback(async (chunks: Blob[], mimeType: string) => {
     const blob = new Blob(chunks, { type: mimeType || "audio/webm" });
-    if (blob.size < 1000) {
-      log("blob too small, skipping");
+    // The MediaRecorder captures the real mic audio regardless of the analyser, so
+    // we gate only on a too-short clip here. (The analyser-based "energy gate" was
+    // removed: a suspended AudioContext makes the analyser read flat zeros, which
+    // wrongly discarded real speech. The post-transcription hallucination filter
+    // below is what blocks Whisper's silence/echo "yes, no, skip" garbage.)
+    if (blob.size < 1400) {
+      log("recording too short, skipping");
       setStatus("idle");
+      onNoSpeechRef.current?.();
       return;
     }
     setStatus("processing");
@@ -340,22 +401,34 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
     try {
       const text = await transcribeBlob(blob, fullHint, formIdRef.current);
       log("whisper transcript:", text);
+      if (text && isLikelyHallucination(text)) {
+        log("discarded hallucinated transcript:", text);
+        setStatus("idle");
+        onNoSpeechRef.current?.();
+        return;
+      }
       if (text) {
         setTranscript(text);
         onTranscriptRef.current?.(text);
       } else {
         setStatus("idle");
+        onNoSpeechRef.current?.();
       }
     } catch (err) {
       log("transcription error:", err);
-      onErrorRef.current?.("Transcription failed — please try again.");
+      onErrorRef.current?.("I didn't catch that — tap the mic to try again, or type your answer.");
       setStatus("idle");
+      onNoSpeechRef.current?.();
     }
   }, []);
 
   const stopListening = useCallback(() => {
     log("stopListening");
     wantListeningRef.current = false;
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch {}
+      recognitionRef.current = null;
+    }
     stopSilenceDetection();
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
       try { mediaRecorderRef.current.stop(); } catch {}
@@ -370,9 +443,70 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
 
   const startListening = useCallback(async () => {
     log("startListening");
+    // Idempotent guard: never layer a second engine on the same mic. Overlapping
+    // timers (speakReply onEnd, toggleMic, rearm) could otherwise start twice.
+    if (wantListeningRef.current && (recognitionRef.current || mediaRecorderRef.current?.state === "recording")) {
+      log("already listening — ignoring duplicate start");
+      return;
+    }
+    // Tear down any half-stopped prior engine before starting fresh.
+    if (recognitionRef.current) { try { recognitionRef.current.stop(); } catch {} recognitionRef.current = null; }
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try { mediaRecorderRef.current.stop(); } catch {}
+    }
+    stopSilenceDetection();
     wantListeningRef.current = true;
     setStatus("listening");
 
+    // Primary path: browser-native SpeechRecognition. It owns the mic, detects the
+    // start/end of speech itself, and returns a transcript — no AudioContext, no
+    // silence timer, no Whisper hallucination. Reliable in Chrome/Edge.
+    // Disabled when FORCE_SERVER_STT is set (PHI deployments use server Whisper).
+    const SR: any = typeof window !== "undefined"
+      ? ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+      : null;
+    if (SR && !FORCE_SERVER_STT) {
+      try {
+        const rec = new SR();
+        rec.lang = "en-US";
+        rec.interimResults = false;
+        rec.continuous = false;
+        rec.maxAlternatives = 1;
+        let got = false;
+        rec.onresult = (e: any) => {
+          let text = "";
+          for (let i = e.resultIndex; i < e.results.length; i++) text += e.results[i][0].transcript;
+          text = text.trim();
+          log("SpeechRecognition result:", text);
+          if (text && !isLikelyHallucination(text)) {
+            got = true;
+            setTranscript(text);
+            onTranscriptRef.current?.(text);
+          }
+        };
+        rec.onerror = (e: any) => {
+          log("SpeechRecognition error:", e?.error);
+          if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
+            setStatus("error");
+            onErrorRef.current?.("Microphone access is blocked. Allow the mic in your browser, then try again.");
+          }
+        };
+        rec.onend = () => {
+          recognitionRef.current = null;
+          setStatus("idle");
+          if (!got && wantListeningRef.current) onNoSpeechRef.current?.();
+          wantListeningRef.current = false;
+        };
+        recognitionRef.current = rec;
+        rec.start();
+        log("SpeechRecognition started");
+        return;
+      } catch (err) {
+        log("SpeechRecognition unavailable, falling back to recorder:", err);
+      }
+    }
+
+    // Fallback path: MediaRecorder + server Whisper (browsers without SpeechRecognition).
     const stream = await ensureWarmStream();
     if (!stream) return; // permission denied — error already set
 
@@ -391,6 +525,7 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
     }
     mediaRecorderRef.current = recorder;
     speechStartRef.current = Date.now();
+    sawSpeechRef.current = false; // reset per recording for the energy gate
 
     recorder.ondataavailable = (e) => {
       if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
@@ -402,18 +537,39 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
       chunksRef.current = [];
     };
 
-    recorder.start(200);
+    try {
+      recorder.start(200);
+    } catch (e) {
+      log("recorder.start failed", e);
+      setStatus("idle");
+      onNoSpeechRef.current?.();
+      return;
+    }
     startSilenceDetection(stream);
     log("recorder started", { mimeType });
   }, [ensureWarmStream, startSilenceDetection, stopSilenceDetection, finishRecording]);
 
   const clearTranscript = useCallback(() => setTranscript(""), []);
 
+  // Resume the AudioContext from a user gesture so first-load TTS/STT aren't blocked
+  // by the browser autoplay policy (a suspended context plays no sound and never
+  // fires `onended`, which would stall a hands-free conversation).
+  const unlockAudio = useCallback(() => {
+    try {
+      if (!audioCtxRef.current || audioCtxRef.current.state === "closed") {
+        audioCtxRef.current = new AudioContext();
+      }
+      if (audioCtxRef.current.state === "suspended") audioCtxRef.current.resume().catch(() => {});
+    } catch { /* AudioContext unavailable */ }
+  }, []);
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       synthRef.current?.cancel();
       wantListeningRef.current = false;
+      try { recognitionRef.current?.stop(); } catch {}
+      recognitionRef.current = null;
       stopSilenceDetection();
       if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
         try { mediaRecorderRef.current.stop(); } catch {}
@@ -434,5 +590,6 @@ export function useVoice({ onTranscript, onError, hint = "", formId = "" }: UseV
     stopListening,
     clearTranscript,
     prefetchTts,
+    unlockAudio,
   };
 }

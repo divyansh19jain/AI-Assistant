@@ -18,6 +18,20 @@ import type {
 // to localhost; an absolute URL (split-domain) is used directly.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+export interface AgentTurn {
+  assistant_message: string;
+  done: boolean;
+  go_to_review: boolean;
+  state: {
+    answered_count: number;
+    missing_count: number;
+    missing_required_count: number;
+    total: number;
+    next_field_key: string | null;
+  };
+  answers: Record<string, unknown>;
+}
+
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json" },
@@ -77,6 +91,16 @@ export const api = {
 
   getSession: (sessionId: string): Promise<SessionState> =>
     request(`/api/session/${sessionId}`),
+
+  // Conversational agent turn: send what the person said (typed or transcribed),
+  // get the assistant's spoken reply + updated form state.
+  agent: (sessionId: string, message: string, inputMode: string = "voice"): Promise<AgentTurn> =>
+    request(`/api/session/${sessionId}/agent`, {
+      method: "POST",
+      body: JSON.stringify({ message, input_mode: inputMode }),
+      // Never spin forever on a stuck turn — surface an error instead.
+      signal: AbortSignal.timeout(45000),
+    }),
 
   submitAnswer: (
     sessionId: string,

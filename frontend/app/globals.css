@@ -211,6 +211,134 @@ body {
 
 /* ─── Thin scrollbar ─────────────────────────── */
 
-.chat-area::-webkit-scrollbar        { width: 3px; }
+.chat-area::-webkit-scrollbar        { width: 8px; }
 .chat-area::-webkit-scrollbar-track  { background: transparent; }
-.chat-area::-webkit-scrollbar-thumb  { background: rgba(99,102,241,0.2); border-radius: 2px; }
+.chat-area::-webkit-scrollbar-thumb  {
+  background: rgba(99,102,241,0.22);
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+.chat-area::-webkit-scrollbar-thumb:hover {
+  background: rgba(99,102,241,0.42);
+  background-clip: padding-box;
+}
+
+/* ─── UI refresh: depth, calm surface, toasts ── */
+
+/* Soft depth on bubbles so they lift off the surface. */
+.bubble-ai   { box-shadow: 0 6px 22px -12px rgba(2,6,23,0.85); }
+.bubble-user { box-shadow: 0 8px 24px -12px rgba(79,70,229,0.6); }
+
+/* Faint glow so the conversation space reads as intentional, not empty. */
+.chat-area {
+  background-image:
+    radial-gradient(820px 380px at 50% -10%, rgba(99,102,241,0.10), transparent 70%),
+    radial-gradient(640px 460px at 108% 112%, rgba(139,92,246,0.06), transparent 70%);
+}
+
+/* Input composer: text field + inline mic in one rounded shell. */
+.composer { transition: border-color .18s ease, box-shadow .18s ease, background-color .18s ease; }
+.composer:focus-within {
+  border-color: #6366f1;
+  background-color: rgba(30,41,59,0.92);
+  box-shadow: 0 0 0 4px rgba(99,102,241,0.14);
+}
+
+/* Inline toast — sits just above the composer, never floats in the void. */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.625rem 0.5rem 0.625rem 0.875rem;
+  border-radius: 0.875rem;
+  font-size: 0.8125rem;
+  line-height: 1.35;
+  backdrop-filter: blur(8px);
+  animation: slideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.toast-error { background: rgba(190,18,60,0.16); border: 1px solid rgba(244,63,94,0.34); color: #fda4af; }
+.toast-info  { background: rgba(245,158,11,0.13); border: 1px solid rgba(245,158,11,0.30); color: #fcd34d; }
+.toast-dismiss { border-radius: 0.5rem; padding: 0.25rem; opacity: 0.7; transition: opacity .15s, background-color .15s; }
+.toast-dismiss:hover { opacity: 1; background: rgba(255,255,255,0.08); }
+
+/* ════════════════════════════════════════════════════════════════════════
+   CLINICAL LIGHT THEME (assistant) — overrides the dark styles above so the
+   patient-facing form experience is calm, accessible, and professional.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.bubble-ai {
+  max-width: 88%;
+  background: #ffffff;
+  border: 1px solid #e6eaf0;
+  border-radius: 1.15rem;
+  border-top-left-radius: 0.35rem;
+  padding: 0.85rem 1.15rem;
+  color: #1e293b;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  box-shadow: 0 1px 2px rgba(15,23,42,0.05), 0 10px 26px -18px rgba(15,23,42,0.30);
+}
+.bubble-user {
+  max-width: 88%;
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  border: none;
+  border-radius: 1.15rem;
+  border-top-right-radius: 0.35rem;
+  padding: 0.85rem 1.15rem;
+  color: #ffffff;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  box-shadow: 0 8px 22px -10px rgba(37,99,235,0.55);
+}
+.bubble-warn {
+  max-width: 88%;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  color: #92400e;
+  border-radius: 1.15rem;
+  border-top-left-radius: 0.35rem;
+  padding: 0.85rem 1.15rem;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+}
+
+.chat-area { background-image: none; }
+.chat-area::-webkit-scrollbar-thumb { background: rgba(37,99,235,0.20); background-clip: padding-box; }
+.chat-area::-webkit-scrollbar-thumb:hover { background: rgba(37,99,235,0.38); background-clip: padding-box; }
+
+.typing-dot { background: #2563eb; }
+
+.toast-info  { background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
+.toast-error { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+
+.composer:focus-within {
+  border-color: #2563eb;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 4px rgba(37,99,235,0.12);
+}
+
+/* Brand orb on light surfaces */
+.orb-clinical {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 55%, #1e40af 100%);
+  box-shadow: 0 6px 18px -6px rgba(37,99,235,0.55);
+}
+
+/* Mic "live" pulse (clinical blue) */
+@keyframes micPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(37,99,235,0.45); }
+  100% { box-shadow: 0 0 0 12px rgba(37,99,235,0); }
+}
+.mic-live { animation: micPulse 1.3s ease-out infinite; }
+
+/* Equalizer bars for the status pill */
+@keyframes eq { 0%,100% { transform: scaleY(0.35); } 50% { transform: scaleY(1); } }
+.eq-bar { width: 3px; height: 13px; border-radius: 9999px; background: currentColor; transform-origin: bottom; animation: eq 0.8s ease-in-out infinite; }
+.eq-bar:nth-child(2) { animation-delay: .15s; }
+.eq-bar:nth-child(3) { animation-delay: .30s; }
+.eq-bar:nth-child(4) { animation-delay: .12s; }
+.eq-bar:nth-child(5) { animation-delay: .24s; }
