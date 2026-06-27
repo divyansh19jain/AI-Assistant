@@ -365,16 +365,57 @@ def _tools(form_id: str | None = None) -> list[dict]:
         {
             "type": "function",
             "function": {
+                "name": "screen_income_sources",
+                "description": (
+                    "Use after walking through ALL of the household's income — each job "
+                    "(how often paid, or an hourly rate with hours per week), plus any "
+                    "Social Security, unemployment, pension, child support, rental, or cash "
+                    "help. Pass every source; it sums them to a monthly total and screens "
+                    "against the 2026 Ohio Medicaid guideline. Screening only, never final."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "category": {
+                            "type": "string",
+                            "enum": ["parent_caretaker", "adult_19_64", "child_with_insurance", "pregnant", "child_without_insurance"],
+                            "description": "Likely Medicaid income category to screen.",
+                        },
+                        "household_size": {"type": "integer", "minimum": 1, "maximum": 12, "description": "Household/family size."},
+                        "sources": {
+                            "type": "array",
+                            "description": "Every income source in the household.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "kind": {"type": "string", "enum": ["wages", "self_employment", "social_security", "unemployment", "pension", "child_support", "rental", "cash_help", "other"]},
+                                    "amount": {"type": "number", "minimum": 0},
+                                    "frequency": {"type": "string", "enum": ["weekly", "every_two_weeks", "twice_a_month", "monthly", "yearly", "hourly"]},
+                                    "person": {"type": "string", "description": "Whose income (e.g. applicant, spouse)."},
+                                    "before_tax": {"type": "boolean"},
+                                    "hours_per_week": {"type": "number", "description": "Required only when frequency is hourly."},
+                                },
+                                "required": ["kind", "amount", "frequency"],
+                            },
+                        },
+                    },
+                    "required": ["category", "household_size", "sources"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
                 "name": "go_to_review",
                 "description": "Call when every applicable field is filled or skipped and the person is ready to review.",
                 "parameters": {"type": "object", "properties": {}},
             },
         },
     ]
-    # screen_income is Ohio-Medicaid specific (its chart is OH-2026) — only offer it on
-    # forms that ship the chart, so it can't misfire on a non-Medicaid form.
+    # The income-screening tools are Ohio-Medicaid specific (their chart is OH-2026) — only
+    # offer them on forms that ship the chart, so they can't misfire on a non-Medicaid form.
     if not _supports_income_screening(form_id):
-        tools = [t for t in tools if t["function"]["name"] != "screen_income"]
+        tools = [t for t in tools if t["function"]["name"] not in ("screen_income", "screen_income_sources")]
     return tools
 
 
@@ -427,6 +468,31 @@ def _exec_screen_income(args: dict) -> dict:
     if normalized:
         result["income_normalized_from"] = normalized
     return result
+
+
+def _exec_screen_income_sources(args: dict) -> dict:
+    """Aggregate every household income source, then screen the monthly total."""
+    from app.ai.income import IncomeSource, screen_income_sources
+
+    try:
+        household_size = int(args.get("household_size", 0) or 0)
+    except (TypeError, ValueError):
+        return {"ok": False, "error": "invalid_household_size"}
+    sources: list[IncomeSource] = []
+    for item in (args.get("sources") or []):
+        if not isinstance(item, dict):
+            continue
+        sources.append(IncomeSource(
+            kind=str(item.get("kind", "wages")),
+            amount=item.get("amount", 0),
+            frequency=str(item.get("frequency", "monthly")),
+            person=str(item.get("person", "applicant")),
+            before_tax=bool(item.get("before_tax", True)),
+            hours_per_week=item.get("hours_per_week"),
+        ))
+    if not sources:
+        return {"ok": False, "error": "no_income_sources"}
+    return screen_income_sources(str(args.get("category", "")), household_size, sources)
 
 
 def _next_action_reply(schema: dict, answers: dict[str, Any], form_id: str = "") -> str:
@@ -654,6 +720,8 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                         out = _exec_skip_fields(db, session, schema, args)
                     elif name == "screen_income":
                         out = _exec_screen_income(args)
+                    elif name == "screen_income_sources":
+                        out = _exec_screen_income_sources(args)
                     elif name == "go_to_review":
                         # Match the review/approval gate exactly: the agent can
                         # request review only after deterministic readiness passes.
