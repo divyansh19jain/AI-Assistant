@@ -210,6 +210,7 @@ def save_answer(
     # ── ZIP auto-fill: when a ZIP field is saved, look up city/state/county
     # and save them automatically so those questions are never asked.
     carry_forward_msg = _apply_answer_carry_forward(db, session, schema)
+    _invalidate_stale_answers(db, session, schema)  # revise model if a gate changed
     zip_autofill_msg = _maybe_autofill_from_zip(
         db, session_id, session.form_id, field_key, extracted_value, schema=schema
     )
@@ -311,8 +312,9 @@ def skip_field(db: DBSession, session_id: str, field_key: str) -> dict | None:
         ))
     db.commit()
     _apply_answer_carry_forward(db, session, schema)
+    _invalidate_stale_answers(db, session, schema)  # revise model if a skipped gate changed
 
-    answers_map[field_key] = sentinel
+    answers_map = _answers_map(db, session_id)
     missing = get_missing_applicable_fields(session.form_id, answers_map, schema)
     next_q = get_current_question_context(session.form_id, answers_map, schema)
     is_complete = len(missing) == 0
@@ -391,6 +393,7 @@ def set_field(
         ))
     db.commit()
     carry_forward_msg = _apply_answer_carry_forward(db, session, schema)
+    _invalidate_stale_answers(db, session, schema)  # revise model if a gate changed
 
     auto_msg = ""
     if coerced is not None:
@@ -681,6 +684,36 @@ def _apply_answer_carry_forward(db: DBSession, session: FormSession, schema: dic
         db.commit()
         return "I also used that for Person 1 so I won't ask for it again."
     return ""
+
+
+def _invalidate_stale_answers(db: DBSession, session: FormSession, schema: dict) -> list[str]:
+    """Correction-aware cleanup: revise the model when a gating answer changes.
+
+    When the person corrects an answer that gates other questions — sex, citizenship,
+    household size, "same as mailing address", whether anyone else is applying, etc. —
+    any answer that is no longer applicable is removed, so a stale value can't linger or
+    silently reappear if the branch is re-opened. Fields that become applicable again are
+    naturally re-asked by the missing-field logic.
+
+    This is driven entirely by the schema's ``depends_on`` (the same authority used for
+    missing-field detection), so it stays correct and inclusive as the form evolves —
+    no hardcoded business rules. Returns the list of field keys that were cleared.
+    """
+    fields = get_all_fields_from_schema(schema)
+    known_keys = {f["field_key"] for f in fields}
+    answers = _answers_map(db, session.id)
+    applicable_keys = {f["field_key"] for f in fields if is_field_applicable(f, answers)}
+
+    cleared: list[str] = []
+    for row in db.query(FormAnswer).filter(FormAnswer.session_id == session.id).all():
+        if row.field_key in known_keys and row.field_key not in applicable_keys:
+            db.delete(row)
+            cleared.append(row.field_key)
+    if cleared:
+        db.commit()
+        # 🔒 audit metadata only — the field keys, never the cleared values (PHI).
+        logger.info("Correction-aware cleanup cleared %d now-inapplicable answer(s).", len(cleared))
+    return cleared
 
 
 def _upsert_carry_forward_answer(
