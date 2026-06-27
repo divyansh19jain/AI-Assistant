@@ -156,6 +156,21 @@ def get_readiness(session_id: str, db: DBSession = Depends(get_db)) -> dict:
     return readiness
 
 
+@router.get("/{session_id}/caseworker-review")
+def caseworker_review(session_id: str, db: DBSession = Depends(get_db)) -> dict:
+    """Caseworker-style pre-approval view: what's missing, low-confidence, looks off,
+    was inferred/skipped, and which documents the county will likely ask for."""
+    from app.ai.caseworker_review import build_caseworker_review
+    from app.db.models import FormAnswer, FormSession
+
+    session = db.query(FormSession).filter(FormSession.id == session_id).first()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    schema = svc._schema_for_session(session)
+    rows = db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
+    return build_caseworker_review(session.form_id, schema, rows)
+
+
 @router.post("/{session_id}/household")
 def apply_household(session_id: str, body: HouseholdRequest, db: DBSession = Depends(get_db)) -> dict:
     """Build the household once and populate ODM applicant/Person 2 fields from it,
