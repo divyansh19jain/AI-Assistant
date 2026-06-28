@@ -173,4 +173,9 @@ def explain_field(field: dict, raw_question: str, form_id: str | None = None) ->
     except Exception:
         logger.warning("Field explanation failed; using static fallback.", exc_info=True)
 
-    return f"This is asking for your {label.lower()}. {question_text}".strip()
+    opt = "" if required else " If it doesn't apply to you, you can say 'skip'."
+    base = (override_help or f"This is asking for your {label.lower()}.").strip()
+    base = f"{base}{opt} {question_text}".strip()
+    if kb_context:
+        base = f"{base} {kb_context.splitlines()[0][:240]}".strip()
+    return base

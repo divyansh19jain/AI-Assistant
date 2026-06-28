@@ -184,3 +184,142 @@ def test_voice_date_capture_requires_readback_confirmation(client, db, monkeypat
     db.refresh(row)
     assert row.confidence == 1.0
     assert confirmed["state"]["next_field_key"] is None
+
+
+def test_agent_help_request_explains_current_field_without_saving(client, db, monkeypatch):
+    """A help question about the active field must not be stored as an answer."""
+    from app.ai.agent import run_agent_turn
+    from app.core.config import get_settings
+    from app.db.models import FormAnswer
+
+    schema = {
+        "form_id": "AGENT_HELP",
+        "form_title": "Agent Help",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "Programs",
+                "fields": [
+                    {
+                        "field_key": "applicant.programs.wic",
+                        "label": "Applying for WIC",
+                        "section": "s",
+                        "type": "boolean",
+                        "required": False,
+                        "question_text": "Are you applying for WIC (Women, Infants and Children)?",
+                    }
+                ],
+            }
+        ],
+    }
+    token = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "AGENT_HELP", "title": "Agent Help"})
+    client.put("/api/admin/forms/AGENT_HELP/schema", headers=headers, json={"schema": schema})
+    client.post("/api/admin/forms/AGENT_HELP/publish", headers=headers)
+    session_id = client.post(
+        "/api/session/create",
+        json={"form_id": "AGENT_HELP", "manual_mode": True},
+    ).json()["session_id"]
+
+    class FakeCompletions:
+        def create(self, **_kwargs):
+            raise AssertionError("Help turns should be answered before the model call.")
+
+    class FakeOpenAI:
+        def __init__(self, **_kwargs):
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
+    monkeypatch.setattr("app.ai.llm.get_chat_model", lambda: None)
+    get_settings.cache_clear()
+    try:
+        result = run_agent_turn(
+            db,
+            session_id,
+            "I don't know what that is can you explain",
+            input_mode="voice",
+            answered_field_key="applicant.programs.wic",
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert result is not None
+    assert result["state"]["next_field_key"] == "applicant.programs.wic"
+    assert result["next_field"]["field_key"] == "applicant.programs.wic"
+    assert "wic" in result["assistant_message"].lower()
+    assert "women" in result["assistant_message"].lower()
+    assert not result["assistant_message"].lower().startswith("got it")
+    assert db.query(FormAnswer).filter(FormAnswer.session_id == session_id).count() == 0
+
+
+def test_agent_start_fallback_introduces_form_and_checklist(client, db, monkeypatch):
+    """If the LLM fails on startup, the deterministic opening still orients the user."""
+    from app.ai.agent import run_agent_turn
+    from app.core.config import get_settings
+
+    schema = {
+        "form_id": "AGENT_START",
+        "form_title": "Ohio Medicaid Application",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "Applicant",
+                "fields": [
+                    {
+                        "field_key": "person1.first_name",
+                        "label": "First Name",
+                        "section": "s",
+                        "type": "text",
+                        "required": True,
+                        "question_text": "What is your first name?",
+                    },
+                    {
+                        "field_key": "income.emp1_gross_wages",
+                        "label": "Gross wages",
+                        "section": "s",
+                        "type": "number",
+                        "required": False,
+                        "question_text": "What is your gross pay before taxes?",
+                    },
+                ],
+            }
+        ],
+    }
+    token = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "AGENT_START", "title": "Ohio Medicaid Application"})
+    client.put("/api/admin/forms/AGENT_START/schema", headers=headers, json={"schema": schema})
+    client.post("/api/admin/forms/AGENT_START/publish", headers=headers)
+    session_id = client.post(
+        "/api/session/create",
+        json={"form_id": "AGENT_START", "manual_mode": True},
+    ).json()["session_id"]
+
+    class FakeCompletions:
+        def create(self, **_kwargs):
+            raise RuntimeError("simulated quota or provider failure")
+
+    class FakeOpenAI:
+        def __init__(self, **_kwargs):
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
+    get_settings.cache_clear()
+    try:
+        result = run_agent_turn(db, session_id, "__start__", input_mode="voice")
+    finally:
+        get_settings.cache_clear()
+
+    text = result["assistant_message"].lower()
+    assert "smart ai assistant" in text
+    assert "ohio medicaid application" in text
+    assert "10 to 15 minutes" in text
+    assert "review everything" in text
+    assert "income" in text
+    assert "what is your first name" in text
+    assert not text.startswith("got it")

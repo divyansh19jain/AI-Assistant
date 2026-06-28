@@ -45,6 +45,27 @@ Tests:
 The LLM chooses the human order. The deterministic layer only enforces the field
 identity and state rules.
 
+## Startup Contract
+
+The first assistant message must orient the user before collecting data. It
+should say the assistant is a smart AI assistant for the current form, that the
+user can answer by voice or typing, that the interview usually takes about 10 to
+15 minutes, and that the user reviews everything before anything is submitted.
+
+It must also give a short "have this nearby" checklist. `agent.py` builds that
+with `_prep_checklist()`: ODM 07216 gets a Medicaid-specific checklist, while
+future forms get a schema-derived checklist based on fields such as contact,
+SSN/citizenship, income, insurance, and care details.
+
+This is enforced in two places:
+
+- the LLM startup system message, for normal AI turns;
+- `_opening_prompt()`, for no-key, timeout, quota, or empty-response fallbacks.
+
+Do not make startup behavior prompt-only. If OpenAI credits expire or the model
+times out, the user should still get a human opening instead of a bare first
+question.
+
 ## Field Binding Contract
 
 The most common repeated-question bug is a mismatch between the spoken question
@@ -89,6 +110,19 @@ answer. The direct path handles:
 If a direct save fails validation, the LLM still gets the turn and can split a
 combined utterance, clarify, or save multiple volunteered facts. This preserves
 smart behavior while keeping one-field answers reliable.
+
+## Help And Explanation Contract
+
+Questions like "what is WIC?", "what does that mean?", or "can you explain?" are
+not answers. Before deterministic field saving runs, `run_agent_turn()` checks
+the active field with `help_intent.classify_intent()`. Help turns call
+`explain_field()` and return the same `next_field`, so the UI stays bound to the
+same question after the explanation.
+
+Field-specific help should live in `prompts/field_overrides.json` or the form
+knowledgebase. The fallback explanation path uses those overrides even when an
+LLM key exists but the model call fails because of quota, timeout, or provider
+errors.
 
 ## Recursive Dependency Contract
 

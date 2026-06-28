@@ -18,6 +18,14 @@
       "question": "Is anyone on Medicare asking for help paying Medicare premiums or other Medicare costs?",
       "help": "Medicare Premium Assistance can help some people with limited income or assets pay Medicare premiums, deductibles, copays, or coinsurance."
     },
+    "applicant.programs.help_me_grow": {
+      "question": "Are you also applying for Help Me Grow, Ohio's support program for pregnant people, infants, and young children?",
+      "help": "Help Me Grow is an Ohio program that can connect eligible pregnant people, babies, toddlers, and families with home visiting, early intervention, and child-development support. If you are not asking for that program, say no."
+    },
+    "applicant.programs.wic": {
+      "question": "Are you also applying for WIC, the nutrition program for pregnant people, babies, and young children?",
+      "help": "WIC means Women, Infants, and Children. It is a separate nutrition program that can help eligible pregnant or postpartum people, babies, and young children with healthy food, formula, breastfeeding support, and nutrition guidance. If you are not applying for WIC, say no."
+    },
     "person1.tax_file_next_year": {
       "question": "Next year, do you expect to file a federal income tax return?",
       "help": "It is okay if you do not file taxes. The form asks because tax relationships help decide household size and income rules."

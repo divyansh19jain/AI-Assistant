@@ -157,6 +157,7 @@ def test_odm_pack_prompt_defaults_merge_under_db_prompt():
     prompts.set_prompt_pack("ODM_07216", {"system": "Custom system", "field_overrides": {}}, {})
     assert prompts.get_system_persona("ODM_07216") == "Custom system"
     assert "self-employed" in prompts.get_field_override("ODM_07216", "income.has_employment")["question"]
+    assert "Women, Infants, and Children" in prompts.get_field_override("ODM_07216", "applicant.programs.wic")["help"]
 
     prompts.set_prompt_pack(
         "ODM_07216",

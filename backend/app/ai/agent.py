@@ -14,8 +14,8 @@ Tools the agent can call:
   - screen_income(...)   -> compare income to official ODM 2026 screening chart
   - go_to_review()       -> when every applicable field is answered or skipped
 
-Falls back gracefully: if no OPENAI_API_KEY is configured, run_agent_turn returns
-None so the caller can use the legacy per-field flow.
+Falls back gracefully: if no OPENAI_API_KEY is configured or the provider fails,
+run_agent_turn uses deterministic field handling instead of leaving the user stuck.
 
 🔒 PHI: the patient's words are never logged. Sensitive field VALUES are never sent
 back into the model context or spoken — only the fact that they're filled.
@@ -187,6 +187,29 @@ def _readback_prompt(field: dict, value: Any) -> str:
     label = field.get("label", field["field_key"])
     rendered = _format_readback_value(field, value)
     return f"I heard {rendered} for {label}. Is that right?"
+
+
+def _is_help_request(field: dict, user_text: str) -> bool:
+    """True when the user is asking for an explanation, not answering the field."""
+    try:
+        from app.ai.help_intent import classify_intent
+
+        return classify_intent(field, user_text) == "help"
+    except Exception:
+        logger.warning("Help-intent check failed; treating utterance as an answer.", exc_info=True)
+        return False
+
+
+def _field_help_reply(field: dict, user_text: str, form_id: str) -> str:
+    """Plain-language help for the current field; works with or without an LLM."""
+    try:
+        from app.ai.help_intent import explain_field
+
+        return explain_field(field, user_text, form_id)
+    except Exception:
+        logger.warning("Field help generation failed; using static field wording.", exc_info=True)
+        question = field.get("question_text") or f"Please provide your {field.get('label', field['field_key'])}."
+        return f"This question is asking about {field.get('label', field['field_key'])}. {question}"
 
 
 def _first_low_confidence_field(db, session_id: str, schema: dict) -> tuple[dict, Any] | None:
@@ -722,12 +745,58 @@ def _exec_screen_income_sources(args: dict) -> dict:
     return screen_income_sources(str(args.get("category", "")), household_size, sources)
 
 
-def _next_action_reply(schema: dict, answers: dict[str, Any], form_id: str = "") -> str:
+def _prep_checklist(form_id: str, schema: dict) -> str:
+    """Short startup checklist so users know what information to keep nearby.
+
+    The ODM pack gets explicit Medicaid wording. Other future form packs receive
+    a schema-derived checklist, which keeps the platform extensible without
+    hard-coding every form's opening script in the agent.
+    """
+    if form_id == "ODM_07216":
+        return (
+            "It helps to have names and birth dates for household members, your "
+            "address and phone, Social Security or immigration information if you "
+            "have it, income and employer or pay details, insurance or Medicare "
+            "information, and recent medical bills, pregnancy, or care details if "
+            "those apply."
+        )
+
+    field_keys = " ".join(f.get("field_key", "").lower() for f in get_all_fields_from_schema(schema))
+    items: list[str] = ["names and birth dates for people on the form"]
+    if any(token in field_keys for token in ("address", "phone", "email", "zip")):
+        items.append("address and contact information")
+    if any(token in field_keys for token in ("ssn", "social", "citizen", "immigration")):
+        items.append("Social Security, citizenship, or immigration information if available")
+    if any(token in field_keys for token in ("income", "employer", "wage", "pay", "job")):
+        items.append("income, employer, and pay details")
+    if any(token in field_keys for token in ("insurance", "medicare", "coverage")):
+        items.append("insurance or coverage information")
+    if any(token in field_keys for token in ("bill", "pregnant", "care", "disabled", "nursing")):
+        items.append("medical bill, pregnancy, disability, or care details if they apply")
+    if len(items) == 1:
+        return f"It helps to have {items[0]} handy."
+    return f"It helps to have {', '.join(items[:-1])}, and {items[-1]} handy."
+
+
+def _opening_prompt(question: str, *, form_title: str = "this form", prep_checklist: str = "") -> str:
+    """Human opening used when the LLM is unavailable during the first turn."""
+    prep = prep_checklist or "It helps to have the basic information this form asks for handy."
+    return (
+        f"Hi, I'm Mia, a smart AI assistant for {form_title}. I'll help you fill it "
+        "out by voice or typing, one question at a time. It usually takes about "
+        f"10 to 15 minutes, and you'll review everything before anything is submitted. "
+        f"{prep} You can ask me to explain anything. {question}"
+    )
+
+
+def _next_action_reply(schema: dict, answers: dict[str, Any], form_id: str = "", *, is_start: bool = False) -> str:
     """Return a deterministic spoken prompt when the model gives no final text.
 
     Tool-only turns happen with real models, especially after duplicate or corrected
     answers. The voice UI needs a concrete next question, not a generic "Okay!",
     otherwise it reopens the mic with no clear instruction and appears stuck.
+    When the LLM is unavailable, this path should still sound like a helper,
+    not a scripted acknowledgment loop.
     """
     missing = get_missing_applicable_fields("", answers, schema)
     if not missing:
@@ -745,7 +814,13 @@ def _next_action_reply(schema: dict, answers: dict[str, Any], form_id: str = "")
         or field.get("question_text")
         or f"Please provide your {field.get('label', field['field_key'])}."
     )
-    return f"Got it. {question}"
+    if is_start:
+        return _opening_prompt(
+            question,
+            form_title=svc._form_title(form_id, schema),
+            prep_checklist=_prep_checklist(form_id, schema),
+        )
+    return question
 
 
 # ──────────────────────────── keyless fallback ────────────────────────────
@@ -762,6 +837,39 @@ def _turn_state(form_id: str, answers: dict, schema: dict) -> dict:
         "next_field_key": nxt["field_key"] if nxt else None,
         "_missing_applicable": missing_applicable,
         "_missing_required": missing_required,
+    }
+
+
+def _help_turn_response(db, session, schema: dict, field: dict, user_text: str, answers: dict[str, Any]) -> dict:
+    """Return a same-field explanation without storing the user's question as data.
+
+    This is the guardrail behind the "smart human helper" behavior. A person asking
+    "what is WIC?" is asking for context, not answering yes/no; the agent should
+    explain and keep the same field active instead of saving bad data or looping.
+    """
+    assistant_text = _field_help_reply(field, user_text, session.form_id)
+    db.add(SessionMessage(session_id=session.id, role="assistant", content=assistant_text))
+    db.commit()
+
+    missing_applicable = get_missing_applicable_fields(session.form_id, answers, schema)
+    missing_required = get_missing_required_fields(session.form_id, answers, schema)
+    readiness = svc.get_session_readiness(db, session.id) or {"ready": False}
+    done = bool(readiness["ready"])
+    svc._set_collection_status(session, len(missing_applicable) == 0)
+    db.commit()
+    return {
+        "assistant_message": assistant_text,
+        "done": done,
+        "go_to_review": False,
+        "state": {
+            "answered_count": len([k for k, v in answers.items() if v not in (None, "")]),
+            "missing_count": len(missing_applicable),
+            "missing_required_count": len(missing_required),
+            "total": len(get_all_fields_from_schema(schema)),
+            "next_field_key": field["field_key"],
+        },
+        "next_field": _next_field_payload(db, field, answers),
+        "answers": answers,
     }
 
 
@@ -784,15 +892,27 @@ def _rule_based_turn(db, session_id: str, user_text: str, input_mode: str) -> di
     ctx = get_current_question_context(session.form_id, answers, schema)
 
     if not is_start and ctx:
-        res = svc.save_answer(db, session_id, ctx["field_key"], user_text, input_mode)
-        answers = svc._answers_map(db, session_id)
-        ctx = get_current_question_context(session.form_id, answers, schema)
-        ack = (res.get("acknowledgment") or "Thanks.").strip() if res.get("success") \
-            else (res.get("error") or "Let's try that again.").strip()
-        assistant_text = f"{ack} {ctx['question']}".strip() if ctx \
-            else f"{ack} That's everything I need — let's review your answers.".strip()
+        field = ctx.get("field") or {}
+        if field and _is_help_request(field, user_text):
+            # A question like "what is WIC?" is not an answer to save. Explain
+            # the current field and keep the same next_field binding active.
+            assistant_text = _field_help_reply(field, user_text, session.form_id)
+        else:
+            res = svc.save_answer(db, session_id, ctx["field_key"], user_text, input_mode)
+            answers = svc._answers_map(db, session_id)
+            ctx = get_current_question_context(session.form_id, answers, schema)
+            ack = (res.get("acknowledgment") or "Thanks.").strip() if res.get("success") \
+                else (res.get("error") or "Let's try that again.").strip()
+            if ack.lower() in {"got it", "got it.", "thanks", "thanks."}:
+                ack = ""
+            assistant_text = f"{ack} {ctx['question']}".strip() if ctx \
+                else f"{ack} That's everything I need - let's review your answers.".strip()
     elif ctx:
-        assistant_text = f"Hi, I'll help you fill this out together. {ctx['question']}"
+        assistant_text = _opening_prompt(
+            ctx["question"],
+            form_title=svc._form_title(session.form_id, schema),
+            prep_checklist=_prep_checklist(session.form_id, schema),
+        )
     else:
         assistant_text = "Everything's filled in. Let's review your answers."
 
@@ -823,8 +943,9 @@ def _rule_based_turn(db, session_id: str, user_text: str, input_mode: str) -> di
 def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice", answered_field_key: str | None = None) -> dict | None:
     """Process one user turn through the conversational agent.
 
-    Returns a dict {assistant_message, state, done} or None if the agent is
-    unavailable (no API key) so the caller can fall back to the legacy flow.
+    Returns a dict {assistant_message, state, done}. None is reserved for a
+    missing session/client construction failure; no-key deployments use the
+    deterministic rule-based assistant path.
     """
     settings = get_settings()
     if not settings.OPENAI_API_KEY:
@@ -848,8 +969,8 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
             max_retries=1,
         )
     except Exception:
-        logger.warning("OpenAI client unavailable; agent disabled.", exc_info=True)
-        return None
+        logger.warning("OpenAI client unavailable; using deterministic assistant fallback.", exc_info=True)
+        return _rule_based_turn(db, session_id, user_text, input_mode)
 
     # An empty / "__start__" message is the opening trigger: the agent greets and
     # asks the first needed field instead of treating it as a real answer.
@@ -865,8 +986,12 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     # the #1 cause of frustrating loops. The LLM can still save volunteered extra facts,
     # but the field that was actually asked gets first chance to save, skip, or confirm.
     captured = False
+    answered_field = None
     if not is_start and answered_field_key:
-        fld = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), None)
+        answered_field = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), None)
+        if answered_field and _is_help_request(answered_field, user_text):
+            return _help_turn_response(db, session, schema, answered_field, user_text, answers)
+        fld = answered_field
         if fld and answered_field_key in answers:
             captured = _handle_low_confidence_confirmation(db, session, schema, answered_field_key, user_text)
             if captured:
@@ -932,6 +1057,8 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         messages.append({"role": m.role, "content": m.content})
 
     if is_start:
+        form_title = svc._form_title(session.form_id, schema)
+        prep_checklist = _prep_checklist(session.form_id, schema)
         messages.append({
             "role": "system",
             "content": (
@@ -942,6 +1069,17 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                 "clearly ask the FIRST thing still needed — usually their first name — as a direct "
                 "question. End on that question so they know exactly what to answer. Keep it human "
                 "and brief, like a real person, not a script."
+            ),
+        })
+
+        messages.append({
+            "role": "system",
+            "content": (
+                "Startup requirement: your first spoken message MUST say you are a smart AI "
+                f"assistant helping them complete {form_title}; mention voice or typing, the "
+                "10 to 15 minute estimate, and that they review everything before submission. "
+                f"Briefly say what to keep nearby: {prep_checklist} Tell them they can ask you "
+                "to explain any question. End with the first needed form question."
             ),
         })
 
@@ -1055,7 +1193,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         assistant_text = ""  # filled below by the deterministic next-question helper
 
     if not assistant_text:
-        assistant_text = _next_action_reply(schema, svc._answers_map(db, session_id), session.form_id)
+        assistant_text = _next_action_reply(schema, svc._answers_map(db, session_id), session.form_id, is_start=is_start)
 
     # Persist the assistant reply.
     db.add(SessionMessage(session_id=session_id, role="assistant", content=assistant_text))
