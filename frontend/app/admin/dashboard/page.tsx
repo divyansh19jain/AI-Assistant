@@ -13,6 +13,7 @@ interface SessionRow {
   patient_external_id: string | null;
   status: string;
   mock_mode: boolean;
+  archived: boolean;
   answer_count: number;
   has_pdf: boolean;
   created_at: string | null;
@@ -25,7 +26,11 @@ interface Stats {
   completed: number;
   active: number;
   ready_for_review: number;
+  orphan: number;
+  archived: number;
 }
+
+type Filter = "all" | "active" | "ready_for_review" | "completed" | "orphan" | "archived";
 
 function fmtDate(iso: string | null) {
   if (!iso) return "—";
@@ -54,7 +59,12 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"all" | "active" | "ready_for_review" | "completed">("all");
+  const [filter, setFilter] = useState<Filter>("all");
+  const [busy, setBusy] = useState<string | null>(null);
+
+  function authHeaders(): HeadersInit {
+    return { Authorization: `Bearer ${localStorage.getItem("admin_token") ?? ""}`, "Content-Type": "application/json" };
+  }
 
   const load = useCallback(async () => {
     const token = localStorage.getItem("admin_token");
@@ -63,7 +73,8 @@ export default function AdminDashboardPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API}/api/admin/dashboard`, {
+      // Fetch archived too so the Archived tab works; non-archived tabs filter them out.
+      const res = await fetch(`${API}/api/admin/dashboard?include_archived=true`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.status === 401) {
@@ -89,8 +100,43 @@ export default function AdminDashboardPage() {
     router.push("/admin");
   }
 
+  async function mutate(path: string, method: string) {
+    setBusy(path);
+    setError(null);
+    try {
+      const res = await fetch(`${API}${path}`, { method, headers: authHeaders() });
+      if (res.status === 401) { localStorage.removeItem("admin_token"); router.replace("/admin"); return; }
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+  const archive = (id: string) => mutate(`/api/admin/sessions/${id}/archive`, "POST");
+  const unarchive = (id: string) => mutate(`/api/admin/sessions/${id}/unarchive`, "POST");
+  const remove = (id: string) => {
+    if (confirm("Permanently delete this application and ALL its data? This cannot be undone.")) {
+      mutate(`/api/admin/sessions/${id}`, "DELETE");
+    }
+  };
+  const archiveOrphans = () => {
+    if (confirm("Archive every abandoned application (0 answers)? You can still find them under Archived.")) {
+      mutate(`/api/admin/sessions/archive-orphans`, "POST");
+    }
+  };
+
+  const isOrphan = (s: SessionRow) => !s.archived && s.status === "active" && s.answer_count === 0;
   const visible = sessions.filter((s) => {
-    if (filter !== "all" && s.status !== filter) return false;
+    if (filter === "archived") {
+      if (!s.archived) return false;
+    } else if (filter === "orphan") {
+      if (!isOrphan(s)) return false;
+    } else {
+      if (s.archived) return false; // non-archived tabs never show archived rows
+      if (filter !== "all" && s.status !== filter) return false;
+    }
     if (search) {
       const q = search.toLowerCase();
       return (
@@ -147,10 +193,10 @@ export default function AdminDashboardPage() {
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[
-              { label: "Total Forms", value: stats.total, color: "text-gray-900" },
-              { label: "Active", value: stats.active, color: "text-blue-600" },
-              { label: "Ready", value: stats.ready_for_review, color: "text-amber-600" },
-              { label: "Completed", value: stats.completed, color: "text-green-600" },
+              { label: "Applications", value: stats.total, color: "text-gray-900" },
+              { label: "In progress", value: stats.active, color: "text-blue-600" },
+              { label: "Ready / Completed", value: stats.ready_for_review + stats.completed, color: "text-green-600" },
+              { label: "Abandoned (0 answers)", value: stats.orphan, color: "text-gray-500" },
             ].map((s) => (
               <div key={s.label} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
                 <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">{s.label}</p>
@@ -162,21 +208,33 @@ export default function AdminDashboardPage() {
 
         {/* Filters */}
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1">
-            {(["all", "active", "ready_for_review", "completed"] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setFilter(f)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${
-                  filter === f
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {f === "ready_for_review" ? "ready" : f}
-              </button>
-            ))}
+          <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 flex-wrap">
+            {(["all", "active", "ready_for_review", "completed", "orphan", "archived"] as const).map((f) => {
+              const count = f === "orphan" ? stats?.orphan : f === "archived" ? stats?.archived : undefined;
+              return (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${
+                    filter === f
+                      ? "bg-indigo-600 text-white"
+                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {f === "ready_for_review" ? "ready" : f}{count ? ` (${count})` : ""}
+                </button>
+              );
+            })}
           </div>
+          {(stats?.orphan ?? 0) > 0 && (
+            <button
+              onClick={archiveOrphans}
+              disabled={!!busy}
+              className="text-xs font-medium text-amber-700 border border-amber-200 bg-amber-50 rounded-lg px-3 py-1.5 hover:bg-amber-100 transition-colors disabled:opacity-50"
+            >
+              Archive {stats?.orphan} abandoned
+            </button>
+          )}
           <input
             type="text"
             value={search}
@@ -261,18 +319,35 @@ export default function AdminDashboardPage() {
                         {fmtDate(s.completed_at)}
                       </td>
                       <td className="px-4 py-3">
-                        <a
-                          href={`/review/${s.id}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-600 border border-indigo-200 hover:bg-indigo-50 transition-colors whitespace-nowrap"
-                        >
-                          <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          </svg>
-                          Review
-                        </a>
+                        <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          <a
+                            href={`/review/${s.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-indigo-600 border border-indigo-200 hover:bg-indigo-50 transition-colors"
+                          >
+                            <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Review
+                          </a>
+                          {s.archived ? (
+                            <button onClick={() => unarchive(s.id)} disabled={!!busy}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-600 border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50">
+                              Unarchive
+                            </button>
+                          ) : (
+                            <button onClick={() => archive(s.id)} disabled={!!busy}
+                              className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-500 border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50">
+                              Archive
+                            </button>
+                          )}
+                          <button onClick={() => remove(s.id)} disabled={!!busy}
+                            className="px-2.5 py-1.5 rounded-lg text-xs font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50">
+                            Delete
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

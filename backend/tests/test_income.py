@@ -67,3 +67,31 @@ def test_exec_screen_income_sources_requires_sources():
 
     out = _exec_screen_income_sources({"category": "adult_19_64", "household_size": 1, "sources": []})
     assert out == {"ok": False, "error": "no_income_sources"}
+
+
+def test_screen_income_sources_flags_incomplete_when_unresolved():
+    sources = [
+        IncomeSource(kind="wages", amount=2000, frequency="monthly"),
+        IncomeSource(kind="wages", amount=15, frequency="hourly"),  # missing hours -> unresolved
+    ]
+    result = screen_income_sources("adult_19_64", household_size=1, sources=sources)
+    assert result.get("incomplete") is True
+    assert result["screening_result"] == "incomplete"
+    assert len(result["unresolved"]) == 1
+
+
+def test_odm_gate_prioritized_after_name():
+    """Once the applicant's name is known, the next field front-loads the household gate."""
+    from app.ai.agent import _prioritized_next
+
+    missing = [
+        {"field_key": "applicant.middle_name"},
+        {"field_key": "applicant.suffix"},
+        {"field_key": "person2.adding_person2"},
+    ]
+    answers = {"applicant.first_name": "Tony", "applicant.last_name": "Stark"}
+    assert _prioritized_next("ODM_07216", answers, missing)["field_key"] == "person2.adding_person2"
+    # Before the name is known, it stays in schema order.
+    assert _prioritized_next("ODM_07216", {}, missing)["field_key"] == "applicant.middle_name"
+    # Non-ODM forms are untouched.
+    assert _prioritized_next("OTHER", answers, missing)["field_key"] == "applicant.middle_name"

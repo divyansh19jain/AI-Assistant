@@ -19,6 +19,8 @@ class FormSession(Base):
     patient_external_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="active")
     mock_mode: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Admin can archive a session to declutter the dashboard without deleting it.
+    archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

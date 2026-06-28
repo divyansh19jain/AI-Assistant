@@ -76,10 +76,10 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-10"
-      style={{ background: "linear-gradient(160deg,#f8faff 0%,#eef2ff 50%,#f5f3ff 100%)" }}>
+    <div className="min-h-[100dvh] flex flex-col items-center justify-start sm:justify-center px-4 py-8 sm:py-10"
+      style={{ background: "linear-gradient(160deg,#f8faff 0%,#eef2ff 50%,#f5f3ff 100%)", paddingTop: "max(2rem, env(safe-area-inset-top))", paddingBottom: "max(2rem, env(safe-area-inset-bottom))" }}>
       {/* Hero section */}
-      <div className="text-center mb-10 animate-fade-slide-up">
+      <div className="text-center mb-6 sm:mb-10 animate-fade-slide-up">
         {/* Large AI orb */}
         <div className="relative mx-auto mb-6 h-24 w-24">
           <div className="absolute inset-0 rounded-full ai-orb" />
@@ -123,7 +123,7 @@ export default function LandingPage() {
             <select
               value={selectedFormId}
               onChange={(e) => setSelectedFormId(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-ai-400 focus:border-transparent"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-ai-400 focus:border-transparent"
             >
               {forms.map((f) => (
                 <option key={f.form_id} value={f.form_id}>
@@ -170,7 +170,7 @@ export default function LandingPage() {
               type="checkbox"
               checked={consent}
               onChange={(e) => setConsent(e.target.checked)}
-              className="mt-0.5 h-4 w-4 rounded border-gray-300 text-ai-500 focus:ring-ai-400"
+              className="mt-0.5 h-5 w-5 rounded border-gray-300 text-ai-500 focus:ring-ai-400"
             />
             <span className="text-sm text-amber-900 leading-snug">
               <strong>I consent</strong> to searching the EMR database for my patient records to
@@ -188,7 +188,7 @@ export default function LandingPage() {
               value={firstName}
               onChange={(e) => setFirstName(e.target.value)}
               required
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ai-400 focus:border-transparent transition-shadow"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ai-400 focus:border-transparent transition-shadow"
               placeholder="Enter first name"
             />
           </div>
@@ -203,7 +203,7 @@ export default function LandingPage() {
               value={lastName}
               onChange={(e) => setLastName(e.target.value)}
               required
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ai-400 focus:border-transparent transition-shadow"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-ai-400 focus:border-transparent transition-shadow"
               placeholder="Enter last name"
             />
           </div>
@@ -218,7 +218,7 @@ export default function LandingPage() {
               value={dob}
               onChange={(e) => setDob(e.target.value)}
               required
-              className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-ai-400 focus:border-transparent transition-shadow"
+              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-ai-400 focus:border-transparent transition-shadow"
             />
           </div>
 

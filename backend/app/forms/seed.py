@@ -27,22 +27,24 @@ logger = logging.getLogger(__name__)
 
 
 def _build_prompt_json(pack) -> str | None:
-    """Assemble a pack's prompt assets (``prompts/``) into a JSON document, or None."""
-    prompts_dir = pack.prompts_dir
-    system_file = prompts_dir / "system.md"
-    overrides_file = prompts_dir / "field_overrides.json"
+    """Assemble a pack's field overrides into ``prompt_json`` (or None).
 
-    system = system_file.read_text(encoding="utf-8") if system_file.is_file() else None
+    The bundled system persona (``prompts/system.md``) is intentionally NOT baked into
+    the DB here: it stays authoritative in the pack file so prompt improvements ship on
+    redeploy without a manual DB edit (otherwise ``db_system or pack_system`` in
+    ``app.forms.prompts`` would pin an old seeded persona forever). Admin edits made in
+    the builder still write ``system`` into ``prompt_json`` and take precedence.
+    """
+    overrides_file = pack.prompts_dir / "field_overrides.json"
     overrides: dict = {}
     if overrides_file.is_file():
         try:
             overrides = json.loads(overrides_file.read_text(encoding="utf-8"))
         except json.JSONDecodeError:
             logger.warning("Pack %s has unparseable field_overrides.json; ignoring.", pack.form_id)
-
-    if system is None and not overrides:
+    if not overrides:
         return None
-    return json.dumps({"system": system, "field_overrides": overrides})
+    return json.dumps({"field_overrides": overrides})
 
 
 def _build_workflow_json(pack) -> str | None:
@@ -96,6 +98,7 @@ def seed_from_packs(db) -> int:
                     schema_json=json.dumps(pack.schema),
                     prompt_json=_build_prompt_json(pack),
                     voice_json=json.dumps(voice) if voice else None,
+                    workflow_json=_build_workflow_json(pack),
                 )
             )
             added += 1

@@ -65,12 +65,25 @@ def aggregate_income(sources: list[IncomeSource]) -> dict:
 
 
 def screen_income_sources(category: str, household_size: int, sources: list[IncomeSource]) -> dict:
-    """Aggregate the household's income and screen it against the 2026 ODM limit."""
+    """Aggregate the household's income and screen it against the 2026 ODM limit.
+
+    If any source couldn't be resolved (e.g. an hourly rate with no hours), the result is
+    flagged ``incomplete`` and ``screening_result`` becomes ``"incomplete"`` so the agent
+    asks for the missing details instead of presenting a confident screen of a partial total.
+    """
     agg = aggregate_income(sources)
-    screen = screen_magi_income(category, household_size, agg["monthly_total"])
-    return {
-        **screen,
+    result = {
+        **screen_magi_income(category, household_size, agg["monthly_total"]),
         "monthly_total": agg["monthly_total"],
         "resolved": agg["resolved"],
         "unresolved": agg["unresolved"],
     }
+    if agg["unresolved"]:
+        result["incomplete"] = True
+        result["screening_result"] = "incomplete"
+        result["plain_language"] = (
+            "I can't screen the income yet — I'm missing some details "
+            f"({', '.join(u.get('kind', 'income') for u in agg['unresolved'])}). "
+            "Let's fill those in first, then I'll check it against the guideline."
+        )
+    return result

@@ -90,9 +90,27 @@ def _build_form_context(schema: dict, answers: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def _next_missing(schema: dict, answers: dict[str, Any]) -> dict | None:
-    missing = get_missing_applicable_fields("", answers, schema)
-    return missing[0] if missing else None
+# ODM gates that prune whole sections — front-load them right after the name so the
+# interview is shaped early (who's applying, marital status) instead of asked at the end.
+_ODM_EARLY_GATES = ("person2.adding_person2", "person1.married", "person1.us_citizen_or_national")
+
+
+def _prioritized_next(form_id: str, answers: dict[str, Any], missing: list[dict]) -> dict | None:
+    """The next field to ask. For ODM, once the applicant's name is known (so we greet and
+    capture the name first), front-load the household/marital gates that prune whole
+    sections, so the assistant orchestrates instead of marching through schema order."""
+    if not missing:
+        return None
+    if form_id == "ODM_07216" and answers.get("applicant.first_name") and answers.get("applicant.last_name"):
+        by_key = {f["field_key"]: f for f in missing}
+        for key in _ODM_EARLY_GATES:
+            if key in by_key:
+                return by_key[key]
+    return missing[0]
+
+
+def _next_missing(form_id: str, schema: dict, answers: dict[str, Any]) -> dict | None:
+    return _prioritized_next(form_id, answers, get_missing_applicable_fields(form_id, answers, schema))
 
 
 def _next_field_payload(db, field: dict | None) -> dict | None:
@@ -681,7 +699,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     persona = _form_persona(session.form_id)
     if persona:
         system = f"{system}\n\n# Guidance specific to THIS form (follow it closely):\n{persona}"
-    next_field = _next_missing(schema, answers)
+    next_field = _next_missing(session.form_id, schema, answers)
     kb_context = _kb_context_for_turn(db, session.form_id, next_field, user_text)
     field_guidance = _next_field_guidance(session.form_id, next_field)
 
@@ -709,19 +727,13 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         messages.append({
             "role": "system",
             "content": (
-                "The session just started. Before the first question, give a brief, friendly "
-                "orientation in about 3-4 short sentences so they know what to expect:\n"
-                "1. Greet them warmly and say you'll do this together — they can talk or type.\n"
-                "2. In plain words, summarize what this form covers (use the CURRENT FORM STATE "
-                "sections) and that it usually takes around 10-15 minutes.\n"
-                "3. Say what's handy to have if they can: Social Security numbers, dates of "
-                "birth, and recent income or pay details — but they can estimate and fix things "
-                "later, and they may need a few documents (like an ID or pay stubs) when the "
-                "county follows up.\n"
-                "4. Reassure them it's free and private, they'll review everything before "
-                "anything is submitted, and you'll explain why you ask and clarify anything "
-                "confusing.\n"
-                "Then ask the FIRST thing that is still NEEDED. Keep it warm, short, and jargon-free."
+                "The session just started. Open warmly and naturally — do NOT read a long list. "
+                "In 2-3 short, friendly sentences: greet them and say you'll fill this out together "
+                "by voice or typing; that it takes about 10-15 minutes, it's free and private, and "
+                "they'll review everything before anything is submitted. Then, in the SAME message, "
+                "clearly ask the FIRST thing still needed — usually their first name — as a direct "
+                "question. End on that question so they know exactly what to answer. Keep it human "
+                "and brief, like a real person, not a script."
             ),
         })
 
@@ -830,7 +842,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     svc._set_collection_status(session, len(missing_applicable) == 0)
     db.commit()
 
-    nxt = missing_applicable[0] if missing_applicable else None
+    nxt = _prioritized_next(session.form_id, answers, missing_applicable)
     return {
         "assistant_message": assistant_text,
         "done": done,

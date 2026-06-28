@@ -61,13 +61,12 @@ def admin_login(body: LoginRequest) -> dict:
 def admin_dashboard(
     _admin: Annotated[str, Depends(_verify_token)],
     db: DBSession = Depends(get_db),
+    include_archived: bool = False,
 ) -> dict:
-    sessions = (
-        db.query(FormSession)
-        .order_by(FormSession.created_at.desc())
-        .limit(200)
-        .all()
-    )
+    q = db.query(FormSession)
+    if not include_archived:
+        q = q.filter(FormSession.archived.is_(False))
+    sessions = q.order_by(FormSession.created_at.desc()).limit(200).all()
 
     answer_counts: dict[str, int] = {}
     first_names: dict[str, str] = {}
@@ -106,12 +105,25 @@ def admin_dashboard(
         )
         pdf_sessions = {r.session_id for r in pdf_rows}
 
-    total = db.query(func.count(FormSession.id)).scalar() or 0
-    completed = db.query(func.count(FormSession.id)).filter(FormSession.status == "completed").scalar() or 0
-    active = db.query(func.count(FormSession.id)).filter(FormSession.status == "active").scalar() or 0
-    ready_for_review = (
-        db.query(func.count(FormSession.id)).filter(FormSession.status == "ready_for_review").scalar() or 0
+    # Stats are over NON-archived sessions so the numbers match the working list.
+    live = db.query(func.count(FormSession.id)).filter(FormSession.archived.is_(False))
+    total = live.scalar() or 0
+    completed = live.filter(FormSession.status == "completed").scalar() or 0
+    active = live.filter(FormSession.status == "active").scalar() or 0
+    ready_for_review = live.filter(FormSession.status == "ready_for_review").scalar() or 0
+    # Orphan = active but never answered a single question (abandoned, safe to archive).
+    answered_ids = db.query(FormAnswer.session_id).distinct()
+    orphan = (
+        db.query(func.count(FormSession.id))
+        .filter(
+            FormSession.archived.is_(False),
+            FormSession.status == "active",
+            ~FormSession.id.in_(answered_ids),
+        )
+        .scalar()
+        or 0
     )
+    archived = db.query(func.count(FormSession.id)).filter(FormSession.archived.is_(True)).scalar() or 0
 
     return {
         "stats": {
@@ -119,6 +131,8 @@ def admin_dashboard(
             "completed": completed,
             "active": active,
             "ready_for_review": ready_for_review,
+            "orphan": orphan,
+            "archived": archived,
         },
         "sessions": [
             {
@@ -128,6 +142,7 @@ def admin_dashboard(
                 "patient_external_id": s.patient_external_id,
                 "status": s.status,
                 "mock_mode": s.mock_mode,
+                "archived": s.archived,
                 "answer_count": answer_counts.get(s.id, 0),
                 "has_pdf": s.id in pdf_sessions,
                 "created_at": s.created_at.isoformat() if s.created_at else None,
@@ -137,3 +152,64 @@ def admin_dashboard(
             for s in sessions
         ],
     }
+
+
+def _get_session_or_404(db: DBSession, session_id: str) -> FormSession:
+    session = db.query(FormSession).filter(FormSession.id == session_id).first()
+    if session is None:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
+@router.post("/sessions/{session_id}/archive")
+def archive_session(session_id: str, _admin: Annotated[str, Depends(_verify_token)], db: DBSession = Depends(get_db)) -> dict:
+    session = _get_session_or_404(db, session_id)
+    session.archived = True
+    db.commit()
+    return {"id": session_id, "archived": True}
+
+
+@router.post("/sessions/{session_id}/unarchive")
+def unarchive_session(session_id: str, _admin: Annotated[str, Depends(_verify_token)], db: DBSession = Depends(get_db)) -> dict:
+    session = _get_session_or_404(db, session_id)
+    session.archived = False
+    db.commit()
+    return {"id": session_id, "archived": False}
+
+
+@router.post("/sessions/archive-orphans")
+def archive_orphans(_admin: Annotated[str, Depends(_verify_token)], db: DBSession = Depends(get_db)) -> dict:
+    """Archive every active session that has no answers yet (abandoned)."""
+    answered_ids = db.query(FormAnswer.session_id).distinct()
+    orphans = (
+        db.query(FormSession)
+        .filter(
+            FormSession.archived.is_(False),
+            FormSession.status == "active",
+            ~FormSession.id.in_(answered_ids),
+        )
+        .all()
+    )
+    for session in orphans:
+        session.archived = True
+    db.commit()
+    return {"archived_count": len(orphans)}
+
+
+@router.delete("/sessions/{session_id}")
+def delete_session(session_id: str, _admin: Annotated[str, Depends(_verify_token)], db: DBSession = Depends(get_db)) -> dict:
+    """Permanently delete a session and everything attached to it."""
+    from app.db.models import FormApproval, SessionMessage, WorkflowRun, WorkflowTaskRun
+
+    session = _get_session_or_404(db, session_id)
+    run_ids = [r.id for r in db.query(WorkflowRun.id).filter(WorkflowRun.session_id == session_id).all()]
+    if run_ids:
+        db.query(WorkflowTaskRun).filter(WorkflowTaskRun.workflow_run_id.in_(run_ids)).delete(synchronize_session=False)
+    db.query(WorkflowRun).filter(WorkflowRun.session_id == session_id).delete(synchronize_session=False)
+    db.query(FormApproval).filter(FormApproval.session_id == session_id).delete(synchronize_session=False)
+    db.query(SessionMessage).filter(SessionMessage.session_id == session_id).delete(synchronize_session=False)
+    db.query(GeneratedPdf).filter(GeneratedPdf.session_id == session_id).delete(synchronize_session=False)
+    db.query(FormAnswer).filter(FormAnswer.session_id == session_id).delete(synchronize_session=False)
+    db.delete(session)
+    db.commit()
+    return {"id": session_id, "deleted": True}

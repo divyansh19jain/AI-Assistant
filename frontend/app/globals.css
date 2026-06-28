@@ -13,7 +13,12 @@
   --surface-900: #0f172a;
 }
 
-html { scroll-behavior: smooth; }
+html {
+  scroll-behavior: smooth;
+  /* Stop iOS Safari from auto-inflating text on rotation (keeps tuned sizes stable). */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
 
 body {
   color: var(--foreground);
@@ -342,3 +347,49 @@ body {
 .eq-bar:nth-child(3) { animation-delay: .30s; }
 .eq-bar:nth-child(4) { animation-delay: .12s; }
 .eq-bar:nth-child(5) { animation-delay: .24s; }
+
+/* ─── Mobile / iPad foundation ──────────────────────────────────────────── */
+
+/* Full-height app shell that shrinks with the on-screen keyboard (dvh) and falls
+   back to svh, with safe-area aware bottom padding. Used by the assistant screen. */
+.app-shell {
+  height: 100svh;
+  height: 100dvh;
+}
+
+/* Cross-browser thin scrollbar (the -webkit rule is a no-op on iOS). */
+.chat-area {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.20) transparent;
+}
+
+/* Give chat bubbles the full row on small phones (the AI row already reserves the
+   orb gutter, so 88% there double-discounts the width) and a touch more legibility. */
+@media (max-width: 480px) {
+  .bubble-ai, .bubble-user, .bubble-warn {
+    max-width: 100%;
+    padding: 0.75rem 0.9rem;
+    font-size: 1rem;
+  }
+}
+
+/* Toasts carry error/instruction copy — keep them readable and the dismiss tappable. */
+@media (max-width: 640px) {
+  .toast { font-size: 0.9375rem; }
+}
+.toast-dismiss {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Respect Reduce Motion: stop the infinite decorative animations + smooth scroll. */
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .ai-orb, .pulse-ring, .wave-bar, .wave-viz-bar, .mic-live, .eq-bar,
+  .typing-dot, .anim-fade-up, .animate-fade-slide-up, .animate-float-in {
+    animation: none !important;
+  }
+}
