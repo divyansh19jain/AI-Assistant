@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { api } from "@/lib/api";
+import { api, type NextField } from "@/lib/api";
 import { useVoice } from "@/lib/useVoice";
 import type { SessionState, ReviewResponse, ReviewField } from "@/lib/types";
 
@@ -127,6 +127,7 @@ export default function AssistantPage() {
   const [voiceError, setVoiceError] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [nextKey, setNextKey]   = useState<string | null>(null);
+  const [nextField, setNextField] = useState<NextField | null>(null);
   const [loading, setLoading]   = useState(true);
 
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -225,6 +226,7 @@ export default function AssistantPage() {
       pushMsg("assistant", r.assistant_message);
       setProgress(r.state.total ? Math.round(((r.state.total - r.state.missing_count) / r.state.total) * 100) : 0);
       setNextKey(r.state.next_field_key);
+      setNextField(r.done ? null : (r.next_field ?? null));
       refreshReview();
       if (r.done) {
         doneRef.current = true;
@@ -275,6 +277,7 @@ export default function AssistantPage() {
             const r = await api.agent(sessionId, "__start__", "voice");
             pushMsg("assistant", r.assistant_message);
             setNextKey(r.state.next_field_key);
+            setNextField(r.next_field ?? null);
             refreshReview();
             speakReply(r.assistant_message, true);
           } catch {
@@ -397,6 +400,21 @@ export default function AssistantPage() {
                 <button onClick={() => sendToAgent("skip", "typed")} disabled={thinking || doneRef.current}
                   className="text-sm font-medium text-slate-400 hover:text-slate-600 disabled:opacity-40">Skip this question</button>
               </div>
+
+              {/* Tappable answer chips — fast touch entry on a phone/tablet when voice is
+                  unclear. Yes/No for booleans, options for selects, common values otherwise. */}
+              {nextField && nextField.suggestions.length > 0 && !doneRef.current && (
+                <div className="flex flex-wrap gap-2 mb-2.5">
+                  {nextField.suggestions.map((s) => (
+                    <button key={s} type="button" disabled={thinking}
+                      onClick={() => sendToAgent(s, "typed")}
+                      className="px-4 py-2.5 rounded-full border border-slate-200 bg-white text-[0.95rem] font-medium text-slate-700 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition-all disabled:opacity-40">
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <form onSubmit={(e) => { e.preventDefault(); sendToAgent(input, "typed"); }} className="flex items-center gap-2.5">
                 <div className="composer flex-1 flex items-center gap-1.5 rounded-2xl bg-slate-50 border border-slate-200 pl-4 pr-1.5 py-1.5">
                   <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} autoFocus

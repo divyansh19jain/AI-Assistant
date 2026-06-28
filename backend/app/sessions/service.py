@@ -331,7 +331,10 @@ def skip_field(db: DBSession, session_id: str, field_key: str) -> dict | None:
     }
 
 
-_SKIP_TOKENS = {"", "skip", "none", "n/a", "na", "no answer", "leave blank", "blank", "__skipped__"}
+_SKIP_TOKENS = {
+    "", "skip", "skipped", "skip it", "skip this", "none", "n/a", "na", "no answer",
+    "leave blank", "blank", "not applicable", "__skipped__",
+}
 
 
 def set_field(

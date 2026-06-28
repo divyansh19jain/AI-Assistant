@@ -83,13 +83,13 @@ def _display_value(value: Any) -> str | None:
     if value is None:
         return None
     text = str(value).strip()
-    if text in (SKIPPED, "", "null", "None"):
+    if text in (SKIPPED, "", "null", "None") or text.lower() == "skipped":
         return None
     return text
 
 
 def _is_skipped(value: Any) -> bool:
-    return isinstance(value, str) and value.strip() == SKIPPED
+    return isinstance(value, str) and value.strip().lower() in (SKIPPED.lower(), "skipped")
 
 
 def _truthy(value: Any) -> bool:
@@ -100,7 +100,7 @@ def _checkbox_value(value: Any) -> str | None:
     if value is None:
         return None
     text = str(value).strip().lower()
-    if text in (SKIPPED, "", "null", "none", "false", "no"):
+    if text in (SKIPPED, "", "null", "none", "false", "no", "skipped"):
         return None
     return "On" if _truthy(value) else None
 
@@ -342,7 +342,8 @@ def _generate_summary_pdf(session_id: str, answers: dict, form_id: str, schema: 
         y -= 14
         for label, value, sensitive in items:
             ensure_page()
-            display = "***" if sensitive else str(value)
+            shown = _display_value(value)
+            display = "—" if shown is None else ("***" if sensitive else shown)
             line = f"  {label}: {display}"
             if len(line) > 96:
                 line = line[:93] + "..."

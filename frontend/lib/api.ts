@@ -20,6 +20,14 @@ import type {
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 const TTS_TIMEOUT_MS = 15000;
 
+export interface NextField {
+  field_key: string;
+  label: string;
+  type: string;
+  options: string[];
+  suggestions: string[];
+}
+
 export interface AgentTurn {
   assistant_message: string;
   done: boolean;
@@ -31,6 +39,7 @@ export interface AgentTurn {
     total: number;
     next_field_key: string | null;
   };
+  next_field?: NextField | null;
   answers: Record<string, unknown>;
 }
 

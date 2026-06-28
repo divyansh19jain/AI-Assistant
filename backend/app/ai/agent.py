@@ -95,6 +95,23 @@ def _next_missing(schema: dict, answers: dict[str, Any]) -> dict | None:
     return missing[0] if missing else None
 
 
+def _next_field_payload(db, field: dict | None) -> dict | None:
+    """Metadata for the field being asked, so the UI can offer tappable answer chips
+    (Yes/No, select options, or common values) for fast touch entry on a phone/tablet."""
+    if not field:
+        return None
+    from app.ai.suggestions import suggestions_for_field
+
+    rule = field.get("validation_rule") or {}
+    return {
+        "field_key": field["field_key"],
+        "label": field.get("label", field["field_key"]),
+        "type": field.get("type", "text"),
+        "options": rule.get("allowed_values") or field.get("options") or [],
+        "suggestions": suggestions_for_field(db, field),
+    }
+
+
 def _topic_queries(user_text: str) -> list[str]:
     """Map a help request to static KB topics without embedding raw user text."""
     text = (user_text or "").lower()
@@ -601,12 +618,14 @@ def _rule_based_turn(db, session_id: str, user_text: str, input_mode: str) -> di
     done = bool(readiness["ready"])
     svc._set_collection_status(session, len(state["_missing_applicable"]) == 0)
     db.commit()
+    next_field = state["_missing_applicable"][0] if state["_missing_applicable"] else None
     state.pop("_missing_applicable"); state.pop("_missing_required")
     return {
         "assistant_message": assistant_text,
         "done": done,
         "go_to_review": done,
         "state": state,
+        "next_field": _next_field_payload(db, next_field),
         "answers": answers,
     }
 
@@ -823,5 +842,6 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
             "total": len(get_all_fields_from_schema(schema)),
             "next_field_key": nxt["field_key"] if nxt else None,
         },
+        "next_field": _next_field_payload(db, nxt),
         "answers": answers,
     }
