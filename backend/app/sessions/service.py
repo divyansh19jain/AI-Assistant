@@ -713,7 +713,57 @@ def _invalidate_stale_answers(db: DBSession, session: FormSession, schema: dict)
         db.commit()
         # 🔒 audit metadata only — the field keys, never the cleared values (PHI).
         logger.info("Correction-aware cleanup cleared %d now-inapplicable answer(s).", len(cleared))
+    _apply_pregnancy_skips(db, session, schema)
     return cleared
+
+
+def _apply_pregnancy_skips(db: DBSession, session: FormSession, schema: dict) -> None:
+    """Deterministically skip the pregnancy question for a male applicant — and re-open
+    it if their sex is later corrected. Only ever touches an auto-skipped (source=
+    "inference") row, never a real user/agent answer, so a correction is never lost.
+
+    ODM only. Skipping ``person{N}.pregnant`` also removes the follow-ups (due date,
+    babies expected, recently-pregnant) since those depend on ``pregnant`` being true.
+    """
+    if session.form_id != "ODM_07216":
+        return
+    # Every pregnancy-related field, grouped by person (covers "pregnant now", "last 3
+    # months", "last 12 months", due date, babies expected — any field key with "pregnan").
+    preg_by_person: dict[str, list[str]] = {}
+    for f in get_all_fields_from_schema(schema):
+        key = f["field_key"]
+        if "pregnan" not in key.lower() or f.get("required"):
+            continue  # never auto-skip a required field
+        for person in ("person1", "person2"):
+            if key.startswith(person + "."):
+                preg_by_person.setdefault(person, []).append(key)
+    if not preg_by_person:
+        return
+
+    rows = {
+        r.field_key: r
+        for r in db.query(FormAnswer).filter(FormAnswer.session_id == session.id).all()
+    }
+    changed = False
+    for person, preg_keys in preg_by_person.items():
+        sex_row = rows.get(f"{person}.sex")
+        is_male = sex_row is not None and str(_deserialize(sex_row.value_json) or "").strip().lower() == "male"
+        for key in preg_keys:
+            existing = rows.get(key)
+            if is_male:
+                if existing is None:
+                    db.add(FormAnswer(
+                        session_id=session.id, field_key=key,
+                        value_json=json.dumps("__skipped__"), raw_answer="skipped",
+                        source="inference", confidence=1.0,
+                    ))
+                    changed = True
+            elif existing is not None and existing.source == "inference":
+                # Sex is no longer male — re-open the question we auto-skipped.
+                db.delete(existing)
+                changed = True
+    if changed:
+        db.commit()
 
 
 def _upsert_carry_forward_answer(

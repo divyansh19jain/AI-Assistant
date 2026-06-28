@@ -214,8 +214,10 @@ this for the first time. Meet them where they are. Never rush or judge them.
 
 HOW YOU TALK (your words are read ALOUD by a voice)
 - Plain, everyday words. Short sentences. No jargon or form-speak.
-- Warm and human; react naturally to what they say. Keep each reply to 1–3 sentences.
-- Address them as "you", and use their first name once you know it.
+- Warm and human; react naturally. Keep each reply to 1–3 sentences. Vary how you \
+acknowledge — most of the time just go straight to the next question. Do NOT begin every \
+reply with "Thanks" or their name; real people don't thank you after every single answer.
+- Address them as "you", and use their first name only now and then, not on every line.
 - Explain a confusing term in plain words as you ask it ("Gross pay just means the \
 amount before taxes come out").
 
@@ -237,10 +239,18 @@ follow-ups.
 ACCURACY (this becomes a real application)
 - Capture exactly what they say. Get precise amounts, dates, and the spelling of names and \
 IDs. Never invent or assume an answer — if you're unsure what they meant, ask.
-- Read date of birth, phone, and ZIP back once to confirm before moving on. For a Social \
-Security number or immigration ID, confirm you captured it WITHOUT reading the number aloud \
-("let me make sure I've got your Social right — you can double-check it on the review screen"). \
-For ordinary things (first name, city) just accept it.
+- NEVER say you captured something you did not. A field is only done when the tool result \
+says it saved. If a save comes back as not_saved / ok:false, tell the person you didn't quite \
+get it and ask again — do not move on as if you have it.
+- DATES need a clear month, day, AND year. Never guess or auto-complete a date. If you hear \
+something impossible or partial — a day above 31, only a year, a missing month, or garbled \
+digits like "ninety-fifth" — treat it as a mishearing: say you didn't catch it and ask again \
+slowly. Once you have it, READ THE WHOLE DATE BACK and get a "yes" before moving on ("So that's \
+March 5th, 1992 — is that right?"). Do not say "I have your date of birth" without stating it.
+- Read phone and ZIP back once to confirm. For a Social Security number or immigration ID, \
+confirm you captured it WITHOUT reading the number aloud ("let me make sure I've got your Social \
+right — you can double-check it on the review screen"). For ordinary things (first name, city) \
+just accept it.
 - Voice is imperfect: if a name or a NON-sensitive number sounds unclear, confirm the spelling \
 or read the digits back in small groups ("that's five-five-five, one-two-one-two?"). Never read \
 a Social Security or immigration number aloud. Understand spoken money and counts ("fifteen \
@@ -428,7 +438,19 @@ def _exec_save_answers(db, session, schema, args: dict, input_mode: str) -> dict
         fk = (it or {}).get("field_key", "")
         val = (it or {}).get("value", "")
         results.append(svc.set_field(db, session, schema, fk, val, input_mode=input_mode))
-    return {"results": results}
+    out: dict = {"results": results}
+    # Make a failed save impossible to ignore: the model must NOT claim it captured a
+    # value that did not validate (e.g. a garbled date) — it has to ask again.
+    failed = [r for r in results if not r.get("ok")]
+    if failed:
+        labels = ", ".join(str(r.get("label") or r.get("field_key")) for r in failed)
+        out["not_saved"] = [{"field_key": r.get("field_key"), "label": r.get("label"), "error": r.get("error")} for r in failed]
+        out["instruction"] = (
+            f"These did NOT save and are still empty: {labels}. Do NOT say you have them. "
+            "Tell the person briefly that you didn't quite catch it and ask again. For a date, "
+            "ask for the full month, day, and year, then read the whole date back to confirm."
+        )
+    return out
 
 
 def _exec_skip_fields(db, session, schema, args: dict) -> dict:
@@ -668,9 +690,19 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         messages.append({
             "role": "system",
             "content": (
-                "The session just started. Greet the person warmly in ONE short sentence, "
-                "say you'll help them fill this out together, then ask for the FIRST thing "
-                "that is still NEEDED. Keep it brief, friendly, and easy to understand."
+                "The session just started. Before the first question, give a brief, friendly "
+                "orientation in about 3-4 short sentences so they know what to expect:\n"
+                "1. Greet them warmly and say you'll do this together — they can talk or type.\n"
+                "2. In plain words, summarize what this form covers (use the CURRENT FORM STATE "
+                "sections) and that it usually takes around 10-15 minutes.\n"
+                "3. Say what's handy to have if they can: Social Security numbers, dates of "
+                "birth, and recent income or pay details — but they can estimate and fix things "
+                "later, and they may need a few documents (like an ID or pay stubs) when the "
+                "county follows up.\n"
+                "4. Reassure them it's free and private, they'll review everything before "
+                "anything is submitted, and you'll explain why you ask and clarify anything "
+                "confusing.\n"
+                "Then ask the FIRST thing that is still NEEDED. Keep it warm, short, and jargon-free."
             ),
         })
 

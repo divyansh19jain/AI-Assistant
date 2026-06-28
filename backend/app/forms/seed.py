@@ -45,6 +45,30 @@ def _build_prompt_json(pack) -> str | None:
     return json.dumps({"system": system, "field_overrides": overrides})
 
 
+def _build_workflow_json(pack) -> str | None:
+    """Persist a pack's completion-workflow config (``workflow.yaml``) into the form's
+    ``workflow_json`` so bundled task config and ``approval`` (incl. ``require_signature``)
+    survive seeding. Returns None when the pack defines no custom workflow (defaults
+    apply via :func:`app.workflows.engine.get_workflow_def`).
+    """
+    cfg = pack.config if isinstance(pack.config, dict) else {}
+    wf = cfg.get("workflow") if isinstance(cfg.get("workflow"), dict) else {}
+    tasks = wf.get("tasks") if isinstance(wf.get("tasks"), list) else (
+        cfg.get("tasks") if isinstance(cfg.get("tasks"), list) else None
+    )
+    approval = wf.get("approval") if isinstance(wf.get("approval"), dict) else (
+        cfg.get("approval") if isinstance(cfg.get("approval"), dict) else None
+    )
+    if tasks is None and approval is None:
+        return None
+    from app.workflows.engine import _default_tasks
+
+    return json.dumps({
+        "tasks": tasks if tasks is not None else _default_tasks(pack.output_targets),
+        "approval": approval if approval is not None else {"required": True},
+    })
+
+
 def seed_from_packs(db) -> int:
     """Insert any bundled pack not already in the ``forms`` table. Returns count added.
 
