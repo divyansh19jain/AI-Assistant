@@ -100,10 +100,10 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <h2 className="text-3xl font-bold text-gray-900 mb-2">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-gray-900 mb-2">
           Hi, I&apos;m your AI Form Assistant
         </h2>
-        <p className="text-gray-500 text-base max-w-md mx-auto">
+        <p className="text-gray-500 text-base md:text-lg max-w-md md:max-w-lg mx-auto">
           I&apos;ll help you complete the selected form by finding your records and
           asking only the questions that still need answers.
         </p>
@@ -111,7 +111,7 @@ export default function LandingPage() {
 
       {/* Card */}
       <div
-        className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-gray-100 p-8 animate-fade-slide-up"
+        className="w-full max-w-md md:max-w-xl bg-white rounded-2xl shadow-xl border border-gray-100 p-6 sm:p-8 md:p-10 animate-fade-slide-up"
         style={{ animationDelay: "0.1s" }}
       >
         {/* Form picker — populated from the published catalog (GET /api/forms). */}
@@ -154,10 +154,10 @@ export default function LandingPage() {
               "Review, approve, and complete the form workflow",
             ].map((step, i) => (
               <div key={i} className="flex items-start gap-2">
-                <span className="mt-0.5 h-4 w-4 rounded-full bg-ai-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                <span className="mt-0.5 h-5 w-5 rounded-full bg-ai-500 text-white text-xs font-bold flex items-center justify-center shrink-0">
                   {i + 1}
                 </span>
-                <span className="text-xs text-ai-800">{step}</span>
+                <span className="text-sm text-ai-800">{step}</span>
               </div>
             ))}
           </div>
@@ -232,7 +232,7 @@ export default function LandingPage() {
           <button
             type="submit"
             disabled={loading || !consent}
-            className="w-full relative overflow-hidden rounded-xl py-3 text-sm font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full relative overflow-hidden rounded-xl py-3 md:py-3.5 text-sm md:text-base font-semibold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             style={{
               background:
                 "linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)",
@@ -253,7 +253,7 @@ export default function LandingPage() {
         <button
           onClick={handleManualContinue}
           disabled={loading}
-          className="w-full mt-3 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl py-2.5 text-sm font-medium transition-colors disabled:opacity-50"
+          className="w-full mt-3 border border-gray-200 text-gray-600 hover:bg-gray-50 rounded-xl py-3 md:py-3.5 text-sm md:text-base font-medium transition-colors disabled:opacity-50"
         >
           Continue without EMR lookup (manual mode)
         </button>
