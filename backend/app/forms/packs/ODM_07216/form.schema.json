@@ -188,7 +188,10 @@
           "validation_rule": {
             "max_length": 32
           },
-          "depends_on": null,
+          "depends_on": {
+            "field_key": "applicant.is_homeless",
+            "value": false
+          },
           "pdf_mapping": {
             "field_name": "applicant_apartment",
             "page": 1,

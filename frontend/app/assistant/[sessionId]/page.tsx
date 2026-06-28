@@ -11,6 +11,7 @@ interface Msg { id: string; role: "assistant" | "user"; text: string; }
 let _id = Date.now();
 const uid = () => String(++_id);
 const msgKey = (sid: string) => `agent_chat_${sid}`;
+const nfKey = (sid: string) => `agent_nextfield_${sid}`;
 
 /* ── Brand orb avatar ───────────────────────────────────────────────── */
 function Orb({ size = 36 }: { size?: number }) {
@@ -272,6 +273,11 @@ export default function AssistantPage() {
         setLoading(false);
         if (restored && restored.length) {
           setMessages(restored);
+          // Restore the field binding too, so the next answer still goes to the right field.
+          try {
+            const rawNf = sessionStorage.getItem(nfKey(sessionId));
+            if (rawNf) { const nf = JSON.parse(rawNf); nextFieldRef.current = nf; setNextField(nf); }
+          } catch { /* ignore */ }
           setTimeout(() => startListening(), 400);
         } else {
           // try/finally so a slow/failed greeting can never leave `thinking` stuck
@@ -307,6 +313,13 @@ export default function AssistantPage() {
   }, [sessionId, autoSpeak, refreshReview, pushMsg, speakReply, startListening]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, thinking]);
+  // Persist the current field binding so a reload keeps answers bound to the right field.
+  useEffect(() => {
+    try {
+      if (nextField) sessionStorage.setItem(nfKey(sessionId), JSON.stringify(nextField));
+      else sessionStorage.removeItem(nfKey(sessionId));
+    } catch { /* quota */ }
+  }, [nextField, sessionId]);
   useEffect(() => { if (mode === "idle") inputRef.current?.focus(); }, [mode]);
   useEffect(() => { if (!voiceError) return; const t = setTimeout(() => setVoiceError(null), 5000); return () => clearTimeout(t); }, [voiceError]);
 
