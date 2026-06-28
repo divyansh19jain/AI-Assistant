@@ -92,7 +92,12 @@ def _build_form_context(schema: dict, answers: dict[str, Any]) -> str:
 
 # ODM gates that prune whole sections — front-load them right after the name so the
 # interview is shaped early (who's applying, marital status) instead of asked at the end.
-_ODM_EARLY_GATES = ("person2.adding_person2", "person1.married", "person1.us_citizen_or_national")
+_ODM_EARLY_GATES = (
+    "applicant.is_homeless",  # gates the home address — ask before it
+    "person2.adding_person2",
+    "person1.married",
+    "person1.us_citizen_or_national",
+)
 
 
 def _prioritized_next(form_id: str, answers: dict[str, Any], missing: list[dict]) -> dict | None:
@@ -111,14 +116,6 @@ def _prioritized_next(form_id: str, answers: dict[str, Any], missing: list[dict]
 
 def _next_missing(form_id: str, schema: dict, answers: dict[str, Any]) -> dict | None:
     return _prioritized_next(form_id, answers, get_missing_applicable_fields(form_id, answers, schema))
-
-
-# Words too generic to identify which field a question is about.
-_QUESTION_STOPWORDS = {
-    "your", "you", "the", "what", "whats", "is", "are", "do", "does", "did", "have", "has",
-    "any", "name", "please", "tell", "this", "that", "for", "with", "and", "live", "living",
-    "currently", "now", "about", "would", "like", "want", "there", "their", "number",
-}
 
 
 def _coerce_yes_no(text: str, field_key: str) -> bool | None:
@@ -146,22 +143,6 @@ def _coerce_yes_no(text: str, field_key: str) -> bool | None:
     if t in yes_words or t.split()[0] in ("yes", "yeah", "yep", "yup", "sure"):
         return True
     return None
-
-
-def _field_for_question(form_id: str, schema: dict, answers: dict[str, Any], assistant_text: str, fallback: dict | None) -> dict | None:
-    """Pick the missing field the assistant's question is actually about, so the tappable
-    chips match what was asked. The LLM may ask in a different order than the schema, so
-    the deterministic next-missing field can disagree with the spoken question."""
-    text = (assistant_text or "").lower()
-    if not text:
-        return fallback
-    for field in get_missing_applicable_fields(form_id, answers, schema):
-        label_words = (field.get("label") or "").lower().split()
-        key_words = field["field_key"].split(".")[-1].replace("_", " ").split()
-        words = {w for w in (label_words + key_words) if len(w) >= 3 and w not in _QUESTION_STOPWORDS}
-        if any(w in text for w in words):
-            return field
-    return fallback
 
 
 def _next_field_payload(db, field: dict | None, answers: dict[str, Any] | None = None) -> dict | None:
@@ -705,7 +686,7 @@ def _rule_based_turn(db, session_id: str, user_text: str, input_mode: str) -> di
 
 # ──────────────────────────── main entry point ────────────────────────────
 
-def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice") -> dict | None:
+def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice", answered_field_key: str | None = None) -> dict | None:
     """Process one user turn through the conversational agent.
 
     Returns a dict {assistant_message, state, done} or None if the agent is
@@ -744,25 +725,30 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         db.commit()
 
     answers = svc._answers_map(db, session_id)
-    # Deterministic capture: if the person is answering a yes/no question we just asked,
-    # SAVE it ourselves so the model can never drop it and re-ask the same thing — the #1
-    # cause of frustrating loops. Targets the same field the chips reflect.
-    if not is_start:
-        last_assistant = (
-            db.query(SessionMessage)
-            .filter(SessionMessage.session_id == session_id, SessionMessage.role == "assistant")
-            .order_by(SessionMessage.id.desc())
-            .first()
-        )
-        asked = _field_for_question(
-            session.form_id, schema, answers,
-            last_assistant.content if last_assistant else "",
-            _prioritized_next(session.form_id, answers, get_missing_applicable_fields(session.form_id, answers, schema)),
-        )
-        if asked and asked.get("type") == "boolean" and asked["field_key"] not in answers:
-            decided = _coerce_yes_no(user_text, asked["field_key"])
-            if decided is not None:
-                svc.set_field(db, session, schema, asked["field_key"], "yes" if decided else "no", input_mode=input_mode)
+    # Deterministic capture by the EXPLICIT field the UI is answering (the question's field
+    # key is sent with the answer). This binds the chip/question to its field instead of
+    # guessing from text, so a yes/no or select answer can NEVER be dropped and re-asked —
+    # the #1 cause of frustrating loops. Text/date answers are left to the model's extractor.
+    if not is_start and answered_field_key:
+        fld = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), None)
+        if fld and answered_field_key not in answers:
+            ftype = fld.get("type", "text")
+            rule = fld.get("validation_rule") or {}
+            saved = False
+            if ftype == "boolean":
+                yn = _coerce_yes_no(user_text, answered_field_key)
+                if yn is not None:
+                    svc.set_field(db, session, schema, answered_field_key, "yes" if yn else "no", input_mode=input_mode)
+                    saved = True
+            elif ftype in ("select", "phone", "ssn", "date", "number") or (
+                ftype == "text" and (rule.get("pattern") or (rule.get("max_length") or 99) <= 4)
+            ):
+                # Clean single-value types (select, phone, ZIP/state, date, number): a direct
+                # validated save sticks; a combined or noisy utterance ("123 Main, Dublin, OH")
+                # fails validation and falls through to the model's extractor. Plain free-text
+                # (address/city/name) is always left to the model so it can split + clean it.
+                saved = bool(svc.set_field(db, session, schema, answered_field_key, user_text, input_mode=input_mode).get("ok"))
+            if saved:
                 answers = svc._answers_map(db, session_id)
 
     form_ctx = _build_form_context(schema, answers)
@@ -918,12 +904,10 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     svc._set_collection_status(session, len(missing_applicable) == 0)
     db.commit()
 
-    # Chips must match the question the assistant actually asked, not just the next
-    # schema-missing field (the LLM may ask in a different order).
-    nxt = _field_for_question(
-        session.form_id, schema, answers, assistant_text,
-        _prioritized_next(session.form_id, answers, missing_applicable),
-    )
+    # next_field = the field we GUIDE the agent to ask (deterministic, reliable). The UI
+    # shows its chips and sends its field_key back with the answer, so the binding never
+    # relies on brittle text matching.
+    nxt = _prioritized_next(session.form_id, answers, missing_applicable)
     return {
         "assistant_message": assistant_text,
         "done": done,

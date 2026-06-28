@@ -44,6 +44,18 @@ def test_pregnancy_auto_skipped_for_male_and_reopened_on_correction(db):
     assert "person1.recently_pregnant" not in answers
 
 
+def test_home_address_kept_when_gate_not_yet_answered(db):
+    """A home address saved before 'are you homeless?' must NOT be deleted (its gate is
+    merely unanswered, not conflicting) — otherwise it gets re-asked."""
+    sid, session, schema = _new_odm_session(db)
+    svc.set_field(db, session, schema, "applicant.home_address", "123 Main St")
+    # is_homeless unanswered -> home_address is technically inapplicable, but kept.
+    assert svc._answers_map(db, sid).get("applicant.home_address") == "123 Main St"
+    # Confirm not homeless -> still kept (now genuinely applicable).
+    svc.set_field(db, session, schema, "applicant.is_homeless", "no")
+    assert svc._answers_map(db, sid).get("applicant.home_address") == "123 Main St"
+
+
 def test_mailing_same_gates_off_dependent_fields(db):
     """Saying mailing is 'same' as home must skip the mailing address so the dependent
     mailing fields (city/state/zip/county/apt) are not asked one by one."""

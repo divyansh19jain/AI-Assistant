@@ -97,18 +97,6 @@ def test_odm_gate_prioritized_after_name():
     assert _prioritized_next("OTHER", answers, missing)["field_key"] == "applicant.middle_name"
 
 
-def test_chips_align_with_the_question_asked():
-    """The chip field follows the spoken question, not just the next schema-missing field."""
-    from app.ai.agent import _field_for_question
-    from app.forms.service import load_form_schema
-
-    schema = load_form_schema("ODM_07216")
-    fallback = {"field_key": "applicant.is_homeless"}
-    assert _field_for_question("ODM_07216", schema, {}, "What city do you live in?", fallback)["field_key"] == "applicant.city"
-    # A phone question resolves to the phone field (which yields NO chips — never suggest a number).
-    assert _field_for_question("ODM_07216", schema, {}, "What's your phone number?", fallback)["field_key"] == "applicant.phone"
-
-
 def test_coerce_yes_no_captures_natural_answers():
     """The deterministic yes/no capture is what stops the agent from looping on a gate."""
     from app.ai.agent import _coerce_yes_no

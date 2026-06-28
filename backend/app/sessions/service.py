@@ -716,14 +716,24 @@ def _invalidate_stale_answers(db: DBSession, session: FormSession, schema: dict)
     """
     fields = get_all_fields_from_schema(schema)
     known_keys = {f["field_key"] for f in fields}
+    by_key = {f["field_key"]: f for f in fields}
     answers = _answers_map(db, session.id)
     applicable_keys = {f["field_key"] for f in fields if is_field_applicable(f, answers)}
 
     cleared: list[str] = []
     for row in db.query(FormAnswer).filter(FormAnswer.session_id == session.id).all():
-        if row.field_key in known_keys and row.field_key not in applicable_keys:
-            db.delete(row)
-            cleared.append(row.field_key)
+        fk = row.field_key
+        if fk not in known_keys or fk in applicable_keys:
+            continue
+        # Only clear on a REAL conflict: the gating field is answered and its condition no
+        # longer holds. If the gate isn't answered yet (e.g. a home address saved before
+        # "are you homeless?"), keep the value — it may become applicable, don't re-ask it.
+        dep = (by_key.get(fk) or {}).get("depends_on")
+        gate_key = dep.get("field_key") if isinstance(dep, dict) else None
+        if gate_key and gate_key not in answers:
+            continue
+        db.delete(row)
+        cleared.append(fk)
     if cleared:
         db.commit()
         # 🔒 audit metadata only — the field keys, never the cleared values (PHI).

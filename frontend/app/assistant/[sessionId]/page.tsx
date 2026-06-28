@@ -132,6 +132,9 @@ export default function AssistantPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef  = useRef<HTMLInputElement>(null);
+  // The field currently being asked — sent with the answer so the backend binds it to the
+  // right field deterministically (no text-guessing). Ref avoids stale closures in voice.
+  const nextFieldRef = useRef<NextField | null>(null);
   const started   = useRef(false);
   const sendRef   = useRef<(t: string, mode: string) => void>(() => {});
   const doneRef   = useRef(false);
@@ -222,11 +225,13 @@ export default function AssistantPage() {
     thinkingRef.current = true;
     setThinking(true);
     try {
-      const r = await api.agent(sessionId, clean, inputMode);
+      const r = await api.agent(sessionId, clean, inputMode, nextFieldRef.current?.field_key ?? null);
       pushMsg("assistant", r.assistant_message);
       setProgress(r.state.total ? Math.round(((r.state.total - r.state.missing_count) / r.state.total) * 100) : 0);
       setNextKey(r.state.next_field_key);
-      setNextField(r.done ? null : (r.next_field ?? null));
+      const nf = r.done ? null : (r.next_field ?? null);
+      nextFieldRef.current = nf;
+      setNextField(nf);
       refreshReview();
       if (r.done) {
         doneRef.current = true;
@@ -277,6 +282,7 @@ export default function AssistantPage() {
             const r = await api.agent(sessionId, "__start__", "voice");
             pushMsg("assistant", r.assistant_message);
             setNextKey(r.state.next_field_key);
+            nextFieldRef.current = r.next_field ?? null;
             setNextField(r.next_field ?? null);
             refreshReview();
             speakReply(r.assistant_message, true);

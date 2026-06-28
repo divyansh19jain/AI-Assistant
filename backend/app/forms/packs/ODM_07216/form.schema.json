@@ -127,6 +127,24 @@
           }
         },
         {
+          "field_key": "applicant.is_homeless",
+          "label": "Is Homeless",
+          "section": "step1_applicant",
+          "type": "boolean",
+          "required": true,
+          "sensitive": false,
+          "emr_source_candidates": [],
+          "question_text": "Are you currently experiencing homelessness?",
+          "validation_rule": {},
+          "depends_on": null,
+          "pdf_mapping": {
+            "field_name": "applicant_is_homeless",
+            "page": 1,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
           "field_key": "applicant.home_address",
           "label": "Home Address (Street)",
           "section": "step1_applicant",
@@ -149,24 +167,6 @@
           },
           "pdf_mapping": {
             "field_name": "applicant_home_address",
-            "page": 1,
-            "x": 0,
-            "y": 0
-          }
-        },
-        {
-          "field_key": "applicant.is_homeless",
-          "label": "Is Homeless",
-          "section": "step1_applicant",
-          "type": "boolean",
-          "required": true,
-          "sensitive": false,
-          "emr_source_candidates": [],
-          "question_text": "Are you currently experiencing homelessness?",
-          "validation_rule": {},
-          "depends_on": null,
-          "pdf_mapping": {
-            "field_name": "applicant_is_homeless",
             "page": 1,
             "x": 0,
             "y": 0

@@ -19,6 +19,9 @@ class AgentTurnRequest(BaseModel):
     """One turn of the conversational agent: the person's utterance (typed or transcribed)."""
     message: str = ""
     input_mode: str = "voice"
+    # The field the question was about (from the previous turn's next_field), so a yes/no
+    # or select answer is bound to its field deterministically instead of guessed from text.
+    field_key: str | None = None
 
 
 class HouseholdMemberIn(BaseModel):
@@ -127,7 +130,7 @@ def agent_turn(
     if not state:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    result = run_agent_turn(db, session_id, request.message, input_mode=request.input_mode)
+    result = run_agent_turn(db, session_id, request.message, input_mode=request.input_mode, answered_field_key=request.field_key)
     if result is None:
         raise HTTPException(
             status_code=503,

@@ -128,10 +128,11 @@ export const api = {
 
   // Conversational agent turn: send what the person said (typed or transcribed),
   // get the assistant's spoken reply + updated form state.
-  agent: (sessionId: string, message: string, inputMode: string = "voice"): Promise<AgentTurn> =>
+  agent: (sessionId: string, message: string, inputMode: string = "voice", fieldKey?: string | null): Promise<AgentTurn> =>
     request(`/api/session/${sessionId}/agent`, {
       method: "POST",
-      body: JSON.stringify({ message, input_mode: inputMode }),
+      // field_key binds the answer to the question's field so a yes/no can't be lost.
+      body: JSON.stringify({ message, input_mode: inputMode, field_key: fieldKey ?? null }),
       // Never spin forever on a stuck turn — surface an error instead.
       signal: AbortSignal.timeout(45000),
     }),
