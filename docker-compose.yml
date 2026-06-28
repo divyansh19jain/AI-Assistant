@@ -59,6 +59,7 @@ services:
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-admin1234}
       ADMIN_JWT_SECRET: ${ADMIN_JWT_SECRET:-change-me-in-production}
+      CLINICAL_RESULTS_API_KEYS: ${CLINICAL_RESULTS_API_KEYS:-}
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
     volumes:
       - pdf_data:/app/app/pdf/generated_pdfs

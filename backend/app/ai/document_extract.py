@@ -48,6 +48,14 @@ def _candidate_fields(schema: dict, answers: dict) -> list[dict]:
             continue
         val = answers.get(f["field_key"])
         if val not in (None, "", "__skipped__"):
+            try:
+                validate_answer(f, val)
+                continue
+            except ValidationError:
+                # A stale invalid row should not block OCR from suggesting a
+                # replacement for that same field.
+                pass
+        if val == "__skipped__":
             continue
         out.append(f)
     return out

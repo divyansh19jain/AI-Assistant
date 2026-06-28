@@ -393,3 +393,54 @@ body {
     animation: none !important;
   }
 }
+
+/* Admin UI foundation. The builder is used on desktops and iPads, so these
+   selectors lift small legacy controls to touch-safe dimensions without changing
+   the underlying form/admin APIs. */
+.admin-screen {
+  min-height: 100dvh;
+  background:
+    linear-gradient(180deg, rgba(248,250,252,0.98), rgba(241,245,249,0.98));
+  color: #0f172a;
+}
+
+.admin-screen input:not([type="checkbox"]),
+.admin-screen select,
+.admin-screen textarea {
+  border-color: #cbd5e1;
+  border-radius: 0.5rem;
+  color: #0f172a;
+  font-size: 0.9375rem;
+}
+
+.admin-screen input:not([type="checkbox"]),
+.admin-screen select {
+  min-height: 2.75rem;
+}
+
+.admin-screen textarea {
+  line-height: 1.5;
+}
+
+.admin-screen input[type="checkbox"] {
+  min-width: 1.125rem;
+  min-height: 1.125rem;
+}
+
+.admin-screen button,
+.admin-screen a {
+  touch-action: manipulation;
+}
+
+.admin-screen button {
+  min-height: 2.75rem;
+}
+
+.admin-screen table th {
+  color: #475569;
+  letter-spacing: 0;
+}
+
+.admin-screen table td {
+  vertical-align: middle;
+}

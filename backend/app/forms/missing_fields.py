@@ -3,6 +3,7 @@
 from typing import Any
 
 from app.forms.service import get_all_fields, get_all_fields_from_schema
+from app.forms.validation import ValidationError, validate_answer
 
 
 SKIPPED = "__skipped__"
@@ -17,17 +18,58 @@ def _has_meaningful_value(value: Any) -> bool:
     return True
 
 
-def _field_answered(field_key: str, answers: dict[str, Any]) -> bool:
-    """A field is answered when it has a stored value or the explicit skip sentinel."""
+def _field_answered(field: dict, answers: dict[str, Any]) -> bool:
+    """A field is answered when it has a stored value that still validates.
+
+    This is deliberately stricter than a raw "key exists" check. If a past bug or
+    schema change left junk in the DB (for example the assistant's own question
+    saved as a first name), the interview should re-ask that field instead of
+    silently treating the invalid value as complete.
+    """
+    field_key = field["field_key"]
     if field_key not in answers:
         return False
     value = answers[field_key]
     if value == SKIPPED:
         return True
-    return _has_meaningful_value(value)
+    if not _has_meaningful_value(value):
+        return False
+    try:
+        validate_answer(field, value)
+    except ValidationError:
+        return False
+    return True
 
 
-def _dependency_satisfied(field: dict, answers: dict[str, Any]) -> bool:
+_INVALID_DEPENDENCY_VALUE = object()
+
+
+def _normalized_dependency_value(
+    dep_key: str,
+    dep_answer: Any,
+    fields_by_key: dict[str, dict] | None = None,
+) -> Any:
+    """Return the dependency value after schema validation, or a sentinel if invalid.
+
+    Dependencies are branch gates. If a stale/buggy value no longer validates, it
+    must not activate child questions just because a row exists in the database.
+    """
+    if not fields_by_key:
+        return dep_answer
+    dep_field = fields_by_key.get(dep_key)
+    if not dep_field:
+        return dep_answer
+    try:
+        return validate_answer(dep_field, dep_answer)
+    except ValidationError:
+        return _INVALID_DEPENDENCY_VALUE
+
+
+def _dependency_satisfied(
+    field: dict,
+    answers: dict[str, Any],
+    fields_by_key: dict[str, dict] | None = None,
+) -> bool:
     """Check whether a field's dependency condition is met."""
     dep = field.get("depends_on")
     if dep is None:
@@ -39,6 +81,9 @@ def _dependency_satisfied(field: dict, answers: dict[str, Any]) -> bool:
 
     dep_answer = answers.get(dep_key)
     if not _has_meaningful_value(dep_answer):
+        return False
+    dep_answer = _normalized_dependency_value(dep_key, dep_answer, fields_by_key)
+    if dep_answer is _INVALID_DEPENDENCY_VALUE:
         return False
 
     if "value" in dep:
@@ -64,7 +109,7 @@ def is_field_applicable(
     If Person 2 is later corrected to "no", every descendant must be inactive even
     when stale child answers are still present in the database.
     """
-    if not _dependency_satisfied(field, answers):
+    if not _dependency_satisfied(field, answers, fields_by_key):
         return False
 
     dep = field.get("depends_on")
@@ -133,7 +178,7 @@ def get_missing_applicable_fields(
     for field in fields:
         if not is_field_applicable(field, answers, fields_by_key):
             continue
-        if _field_answered(field["field_key"], answers):
+        if _field_answered(field, answers):
             continue
         missing.append(field)
     return missing
@@ -159,7 +204,7 @@ def get_missing_required_fields(
             continue
         if not is_field_applicable(field, answers, fields_by_key):
             continue
-        if _field_answered(field["field_key"], answers):
+        if _field_answered(field, answers):
             continue
         missing.append(field)
 
@@ -190,6 +235,6 @@ def get_optional_missing_fields(
             continue
         if not is_field_applicable(field, answers, fields_by_key):
             continue
-        if not _field_answered(field["field_key"], answers):
+        if not _field_answered(field, answers):
             missing.append(field)
     return missing

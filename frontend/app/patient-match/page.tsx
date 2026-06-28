@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api } from "@/lib/api";
+import { CLINICAL_BATTERY_FORM_ID, selectedToolGateAnswers } from "@/lib/clinical";
 import type { MaskedPatient, PatientSearchResponse } from "@/lib/types";
 
 export default function PatientMatchPage() {
@@ -35,7 +36,12 @@ export default function PatientMatchPage() {
       // Use the form chosen on the landing page (carried via sessionStorage); fall back
       // to the backend default if absent.
       const formId = (typeof window !== "undefined" && sessionStorage.getItem("selectedFormId")) || undefined;
-      const session = await api.createSession({ patient_id: selected, form_id: formId });
+      const selectedTools = JSON.parse(sessionStorage.getItem("selectedClinicalTools") || "[]") as string[];
+      const session = await api.createSession({
+        patient_id: selected,
+        form_id: formId,
+        initial_answers: formId === CLINICAL_BATTERY_FORM_ID ? selectedToolGateAnswers(selectedTools) : undefined,
+      });
       router.push(`/assistant/${session.session_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start session.");
@@ -48,7 +54,12 @@ export default function PatientMatchPage() {
     setLoading(true);
     try {
       const formId = (typeof window !== "undefined" && sessionStorage.getItem("selectedFormId")) || undefined;
-      const session = await api.createSession({ manual_mode: true, form_id: formId });
+      const selectedTools = JSON.parse(sessionStorage.getItem("selectedClinicalTools") || "[]") as string[];
+      const session = await api.createSession({
+        manual_mode: true,
+        form_id: formId,
+        initial_answers: formId === CLINICAL_BATTERY_FORM_ID ? selectedToolGateAnswers(selectedTools) : undefined,
+      });
       router.push(`/assistant/${session.session_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start session.");

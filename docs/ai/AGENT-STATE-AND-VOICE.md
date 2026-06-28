@@ -111,6 +111,18 @@ If a direct save fails validation, the LLM still gets the turn and can split a
 combined utterance, clarify, or save multiple volunteered facts. This preserves
 smart behavior while keeping one-field answers reliable.
 
+## Valid Answer Contract
+
+Every layer must treat an answer as complete only when the row is present,
+currently applicable, and still validates against the session schema snapshot.
+Do not use raw `len(answers)` or key-existence checks for progress, case notes,
+review status, OCR candidate filtering, or EMR/export payloads.
+
+This protects old sessions and schema edits. For example, if an older assistant
+saved its own prompt text (`what is your first name`) as a first-name value, the
+current runtime must re-ask first name, show the review/sidebar field as needing
+correction, and exclude that value from clinical API exports.
+
 ## Help And Explanation Contract
 
 Questions like "what is WIC?", "what does that mean?", or "can you explain?" are

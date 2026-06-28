@@ -307,29 +307,29 @@ export default function FormEditorPage() {
     }
   }
 
-  if (loading) return <div className="min-h-screen bg-gray-50 p-8 text-sm text-gray-400">Loading...</div>;
-  if (!form || !schema) return <div className="min-h-screen bg-gray-50 p-8 text-sm text-red-600">{error ?? "Not found."}</div>;
+  if (loading) return <div className="admin-screen min-h-screen p-8 text-sm text-slate-500">Loading...</div>;
+  if (!form || !schema) return <div className="admin-screen min-h-screen p-8 text-sm text-red-600">{error ?? "Not found."}</div>;
 
   const isPublished = form.status === "published";
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8">
-      <div className="max-w-3xl mx-auto">
+    <div className="admin-screen min-h-screen px-4 py-6 sm:px-6 lg:py-8">
+      <div className="mx-auto max-w-6xl">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="mb-6 flex flex-col gap-4 rounded-lg border border-slate-200 bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <Link href="/admin/forms" className="text-sm text-indigo-600 hover:underline">
+            <Link href="/admin/forms" className="inline-flex min-h-10 items-center text-sm font-semibold text-slate-600 hover:text-slate-950">
               Back to forms
             </Link>
-            <h1 className="text-2xl font-bold text-gray-900 mt-1">{form.title}</h1>
-            <p className="text-xs text-gray-400">
+            <h1 className="mt-1 text-2xl font-semibold text-slate-950">{form.title}</h1>
+            <p className="text-xs text-slate-500">
               {form.form_id} |{" "}
               <span className={isPublished ? "text-green-600" : "text-amber-600"}>{form.status}</span>
             </p>
           </div>
           <button
             onClick={togglePublish}
-            className={`rounded-lg px-4 py-2 text-sm font-semibold text-white ${
+            className={`rounded-lg px-4 text-sm font-semibold text-white ${
               isPublished ? "bg-amber-500 hover:bg-amber-400" : "bg-green-600 hover:bg-green-500"
             }`}
           >
@@ -337,22 +337,22 @@ export default function FormEditorPage() {
           </button>
         </div>
 
-        {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 text-sm mb-4">{error}</div>}
-        {notice && <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-2.5 text-sm mb-4">{notice}</div>}
+        {error && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>}
+        {notice && <div className="mb-4 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">{notice}</div>}
 
         {/* Metadata */}
-        <section className="bg-white border border-gray-200 rounded-2xl p-5 mb-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Details</h2>
+        <section className="mb-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-700">Details</h2>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <label className="sm:col-span-2 block">
               <span className="block text-xs font-semibold text-gray-500 mb-1">Title</span>
               <input value={title} onChange={(e) => setTitle(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                className="w-full border border-slate-300 px-3 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200" />
             </label>
             <label className="block">
               <span className="block text-xs font-semibold text-gray-500 mb-1">Version</span>
               <input value={version} onChange={(e) => setVersion(e.target.value)}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                className="w-full border border-slate-300 px-3 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200" />
             </label>
           </div>
           <div className="mt-3">
@@ -372,13 +372,13 @@ export default function FormEditorPage() {
             </div>
           </div>
           <button onClick={saveMeta} disabled={saving}
-            className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
+            className="mt-4 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
             {saving ? "Saving..." : "Save details"}
           </button>
         </section>
 
         {/* Schema editor */}
-        <section className="bg-white border border-gray-200 rounded-2xl p-5">
+        <section className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Fields</h2>
             <label className="flex items-center gap-2 text-xs text-gray-500">
@@ -392,47 +392,47 @@ export default function FormEditorPage() {
               value={rawText}
               onChange={(e) => setRawText(e.target.value)}
               spellCheck={false}
-              className="w-full h-[28rem] font-mono text-xs border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="h-[28rem] w-full rounded-lg border border-slate-300 p-3 font-mono text-xs outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
             />
           ) : (
             <div className="space-y-5">
               {schema.sections.map((sec, si) => (
-                <div key={si} className="border border-gray-150 rounded-xl p-4 bg-gray-50/50">
-                  <div className="flex items-center gap-2 mb-3">
+                <div key={si} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center">
                     <input
                       value={sec.section_title}
                       onChange={(e) => patchSection(si, { section_title: e.target.value })}
-                      className="flex-1 font-semibold text-sm bg-transparent border-b border-gray-200 focus:outline-none focus:border-indigo-400 py-1"
+                      className="flex-1 border border-slate-300 bg-white px-3 font-semibold outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
                     />
-                    <button onClick={() => removeSection(si)} className="text-xs text-red-500 hover:underline">remove section</button>
+                    <button onClick={() => removeSection(si)} className="rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-600 hover:bg-red-50">remove section</button>
                   </div>
 
                   <div className="space-y-2">
                     {sec.fields.map((fld, fi) => (
-                      <div key={fi} className="bg-white border border-gray-200 rounded-lg p-3">
+                      <div key={fi} className="rounded-lg border border-slate-200 bg-white p-3">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <label className="block">
                             <span className="block text-[10px] font-semibold text-gray-400 uppercase">Field key</span>
                             <input value={fld.field_key} onChange={(e) => patchField(si, fi, { field_key: e.target.value })}
-                              className="w-full font-mono text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                              className="w-full border border-slate-300 px-2 font-mono text-xs outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200" />
                           </label>
                           <label className="block">
                             <span className="block text-[10px] font-semibold text-gray-400 uppercase">Label</span>
                             <input value={fld.label} onChange={(e) => patchField(si, fi, { label: e.target.value })}
-                              className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                              className="w-full border border-slate-300 px-2 text-sm outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200" />
                           </label>
                         </div>
                         <label className="block mt-2">
                           <span className="block text-[10px] font-semibold text-gray-400 uppercase">Question text</span>
                           <input value={fld.question_text ?? ""} onChange={(e) => patchField(si, fi, { question_text: e.target.value })}
                             placeholder="What is...?"
-                            className="w-full text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400" />
+                            className="w-full border border-slate-300 px-2 text-sm outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200" />
                         </label>
                         <div className="flex flex-wrap items-center gap-3 mt-2">
                           <label className="flex items-center gap-1 text-xs text-gray-600">
                             type
                             <select value={fld.type} onChange={(e) => patchField(si, fi, { type: e.target.value })}
-                              className="text-xs border border-gray-200 rounded px-1.5 py-1">
+                              className="rounded-lg border border-slate-300 px-2 text-sm">
                               {FIELD_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                             </select>
                           </label>
@@ -444,17 +444,17 @@ export default function FormEditorPage() {
                             <input type="checkbox" checked={!!fld.sensitive} onChange={(e) => patchField(si, fi, { sensitive: e.target.checked })} />
                             sensitive (PHI)
                           </label>
-                          <button onClick={() => removeField(si, fi)} className="ml-auto text-xs text-red-500 hover:underline">remove</button>
+                          <button onClick={() => removeField(si, fi)} className="ml-auto rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-600 hover:bg-red-50">remove</button>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <button onClick={() => addField(si)} className="mt-3 text-xs px-2.5 py-1 rounded-md border border-indigo-200 text-indigo-600 hover:bg-indigo-50">
+                  <button onClick={() => addField(si)} className="mt-3 rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-white">
                     + Add field
                   </button>
                 </div>
               ))}
-              <button onClick={addSection} className="text-xs px-3 py-1.5 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100">
+              <button onClick={addSection} className="rounded-lg border border-slate-300 px-4 text-xs font-semibold text-slate-700 hover:bg-slate-100">
                 + Add section
               </button>
             </div>
@@ -462,7 +462,7 @@ export default function FormEditorPage() {
 
           <div className="mt-5 flex items-center gap-3">
             <button onClick={saveSchema} disabled={saving}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
+              className="rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
               {saving ? "Saving..." : "Save schema"}
             </button>
             <span className="text-xs text-gray-400">
@@ -472,8 +472,8 @@ export default function FormEditorPage() {
         </section>
 
         {/* Prompts & voice */}
-        <section className="bg-white border border-gray-200 rounded-2xl p-5 mt-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Prompts &amp; Voice</h2>
+        <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-700">Prompts &amp; Voice</h2>
 
           <label className="block mb-4">
             <span className="block text-xs font-semibold text-gray-500 mb-1">AI persona (system prompt)</span>
@@ -482,7 +482,7 @@ export default function FormEditorPage() {
               onChange={(e) => setPersona(e.target.value)}
               rows={4}
               placeholder="You are a warm, patient assistant helping complete this form..."
-              className="w-full text-sm border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-full rounded-lg border border-slate-300 p-3 text-sm outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
             />
             <span className="text-xs text-gray-400">Sets the assistant&apos;s tone. Structural voice/format rules are always kept.</span>
           </label>
@@ -491,12 +491,12 @@ export default function FormEditorPage() {
             <label className="block">
               <span className="block text-xs font-semibold text-gray-500 mb-1">Voice ID (ElevenLabs)</span>
               <input value={voiceId} onChange={(e) => setVoiceId(e.target.value)} placeholder="(global default)"
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                className="w-full border border-slate-300 px-3 text-sm outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200" />
             </label>
             <label className="block">
               <span className="block text-xs font-semibold text-gray-500 mb-1">Speech vocabulary hints</span>
               <input value={sttVocab} onChange={(e) => setSttVocab(e.target.value)} placeholder="Medicaid, applicant, household..."
-                className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+                className="w-full border border-slate-300 px-3 text-sm outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200" />
             </label>
           </div>
 
@@ -514,7 +514,7 @@ export default function FormEditorPage() {
                     value={overrides[fld.field_key] ?? ""}
                     onChange={(e) => setOverrides((p) => ({ ...p, [fld.field_key]: e.target.value }))}
                     placeholder={fld.question_text ?? fld.label}
-                    className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                    className="min-w-0 flex-1 border border-slate-300 px-2 text-sm outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
                   />
                 </div>
               ))}
@@ -522,14 +522,14 @@ export default function FormEditorPage() {
           </div>
 
           <button onClick={savePrompts} disabled={saving}
-            className="mt-4 rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
+            className="mt-4 rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
             {saving ? "Saving..." : "Save prompts & voice"}
           </button>
         </section>
 
         {/* Knowledgebase */}
-        <section className="bg-white border border-gray-200 rounded-2xl p-5 mt-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-1 uppercase tracking-wide">Knowledgebase</h2>
+        <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-700">Knowledgebase</h2>
           <p className="text-xs text-gray-400 mb-3">
             PHI-free guidance the assistant retrieves to help users (e.g. &quot;what counts as income?&quot;). No patient data.
           </p>
@@ -539,10 +539,10 @@ export default function FormEditorPage() {
               <p className="text-xs text-gray-400">No documents yet.</p>
             ) : (
               kbDocs.map((d) => (
-                <div key={d.id} className="flex items-center gap-2 text-sm border border-gray-150 rounded-lg px-3 py-2">
+                <div key={d.id} className="flex flex-col gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm sm:flex-row sm:items-center">
                   <span className="flex-1 truncate">{d.title}</span>
                   <span className="text-xs text-gray-400">{d.chunk_count} chunks | {d.status}</span>
-                  <button onClick={() => delKb(d.id)} className="text-xs text-red-500 hover:underline">delete</button>
+                  <button onClick={() => delKb(d.id)} className="rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-600 hover:bg-red-50">delete</button>
                 </div>
               ))
             )}
@@ -550,23 +550,23 @@ export default function FormEditorPage() {
 
           <div className="space-y-2">
             <input value={kbTitle} onChange={(e) => setKbTitle(e.target.value)} placeholder="Document title"
-              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              className="w-full border border-slate-300 px-3 text-sm outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200" />
             <textarea value={kbText} onChange={(e) => setKbText(e.target.value)} rows={4} placeholder="Paste PHI-free guidance text..."
-              className="w-full text-sm border border-gray-200 rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-indigo-400" />
+              className="w-full rounded-lg border border-slate-300 p-3 text-sm outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200" />
             <button onClick={addKb} disabled={saving || !kbTitle.trim() || !kbText.trim()}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
+              className="rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
               {saving ? "Adding..." : "+ Add & embed"}
             </button>
           </div>
         </section>
 
         {/* Skills */}
-        <section className="bg-white border border-gray-200 rounded-2xl p-5 mt-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-1 uppercase tracking-wide">Skills</h2>
+        <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-700">Skills</h2>
           <p className="text-xs text-gray-400 mb-3">Reusable AI capabilities this form&apos;s assistant can use (toggles save instantly).</p>
           <div className="space-y-2">
             {skillCatalog.map((s) => (
-              <label key={s.key} className="flex items-start gap-2.5 text-sm border border-gray-150 rounded-lg px-3 py-2 cursor-pointer hover:bg-gray-50">
+              <label key={s.key} className="flex min-h-14 cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 px-3 py-2 text-sm hover:bg-slate-50">
                 <input type="checkbox" checked={attachedSkills.includes(s.key)} onChange={() => toggleSkill(s.key)} className="mt-0.5" />
                 <span>
                   <span className="font-medium text-gray-800">{s.name}</span>
@@ -579,31 +579,31 @@ export default function FormEditorPage() {
         </section>
 
         {/* Completion workflow */}
-        <section className="bg-white border border-gray-200 rounded-2xl p-5 mt-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-1 uppercase tracking-wide">Completion Workflow</h2>
+        <section className="mt-6 rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-700">Completion Workflow</h2>
           <p className="text-xs text-gray-400 mb-3">Ordered steps that run after the user reviews &amp; approves their answers.</p>
           <div className="space-y-2 mb-3">
             {wfTasks.map((t, i) => (
-              <div key={i} className="border border-gray-200 rounded-lg p-3">
+              <div key={i} className="rounded-lg border border-slate-200 p-3">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-400 w-5">{i + 1}.</span>
                   <select
                     value={t.type}
                     onChange={(e) => setWfTasks((p) => p.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))}
-                    className="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1.5"
+                    className="flex-1 rounded-lg border border-slate-300 px-2 text-sm"
                   >
                     {WORKFLOW_TASK_TYPES.map((tt) => (
                       <option key={tt} value={tt}>{tt}</option>
                     ))}
                   </select>
-                  <button onClick={() => setWfTasks((p) => p.filter((_, j) => j !== i))} className="text-xs text-red-500 hover:underline">remove</button>
+                  <button onClick={() => setWfTasks((p) => p.filter((_, j) => j !== i))} className="rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-600 hover:bg-red-50">remove</button>
                 </div>
                 <textarea
                   value={t.configText}
                   onChange={(e) => setWfTasks((p) => p.map((x, j) => (j === i ? { ...x, configText: e.target.value } : x)))}
                   rows={t.type === "web_submit" ? 6 : 2}
                   spellCheck={false}
-                  className="mt-2 w-full font-mono text-xs border border-gray-200 rounded-lg p-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                  className="mt-2 w-full rounded-lg border border-slate-300 p-2 font-mono text-xs outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
                   placeholder={t.type === "web_submit" ? '{\n  "recipe": {\n    "portal_url": "https://example.test/apply",\n    "field_selectors": {}\n  }\n}' : "{}"}
                 />
               </div>
@@ -611,11 +611,11 @@ export default function FormEditorPage() {
           </div>
           <div className="flex items-center gap-3">
             <button onClick={() => setWfTasks((p) => [...p, { type: "generate_pdf", configText: "{}" }])}
-              className="text-xs px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 hover:bg-gray-100">
+              className="rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100">
               + Add step
             </button>
             <button onClick={saveWorkflow} disabled={saving}
-              className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50">
+              className="rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50">
               {saving ? "Saving..." : "Save workflow"}
             </button>
           </div>

@@ -15,12 +15,14 @@ from app.forms.service import (
 from app.forms import cache as form_cache
 from app.forms.mapper import prefill_from_emr
 from app.forms.missing_fields import (
+    SKIPPED,
     get_missing_applicable_fields,
     get_missing_required_fields,
     is_field_applicable,
 )
 from app.forms.questions import get_current_question_context
 from app.forms.readiness import build_session_readiness
+from app.forms.validation import ValidationError, validate_answer
 from app.ai.langgraph_flow import run_answer_step
 from app.patients.service import get_patient_by_id
 
@@ -32,6 +34,7 @@ def create_session(
     form_id: str,
     patient_id: str | None,
     manual_mode: bool,
+    initial_answers: dict[str, Any] | None = None,
 ) -> dict:
     session_id = str(uuid.uuid4())
     prefilled: dict[str, Any] = {}
@@ -68,6 +71,24 @@ def create_session(
         db.add(answer)
 
     db.commit()
+
+    # Form launchers may collect high-level choices before the interview starts.
+    # Keep this generic and schema-validated so clinical batteries can gate their
+    # selected instruments without adding special-case session tables or ODM logic.
+    if initial_answers:
+        for field_key, value in initial_answers.items():
+            result = set_field(
+                db,
+                session,
+                schema,
+                str(field_key),
+                value,
+                input_mode="typed",
+                confidence=1.0,
+            )
+            if not result.get("ok"):
+                logger.info("Ignoring invalid initial answer for %s on %s.", field_key, form_id)
+
     _apply_answer_carry_forward(db, session, schema)
 
     # Auto-fill city/state/county from any ZIP fields that came in via EMR prefill.
@@ -89,7 +110,7 @@ def create_session(
         "status": "active",
         "mock_mode": mock_mode,
         "prefilled_count": len(prefilled),
-        "answered_count": len(answers_map),
+        "answered_count": _valid_answer_count(schema, answers_map),
         "missing_count": len(missing),
         "total_required": _count_required(form_id, schema),
         "next_question": next_q,
@@ -142,7 +163,7 @@ def get_session_state(db: DBSession, session_id: str) -> dict | None:
         "status": session.status,
         "mock_mode": session.mock_mode,
         "prefilled_count": len([a for a in answers if a.source == "emr"]),
-        "answered_count": len(answers_map),
+        "answered_count": _valid_answer_count(schema, answers_map),
         "missing_count": len(missing),
         "total_required": _count_required(session.form_id, schema),
         "next_question": next_q,
@@ -500,7 +521,6 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
     fields_by_key = {f["field_key"]: f for f in all_fields}
     section_titles = {s["section_key"]: s["section_title"] for s in schema["sections"]}
 
-    SKIPPED = "__skipped__"
     sections: dict[str, list] = {}
     for field in all_fields:
         # Conditional branches that are inactive for the current answers should not
@@ -513,6 +533,7 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
             sections[sec] = []
         raw_value = answers_map.get(field["field_key"])
         is_skipped = raw_value == SKIPPED
+        validation_error = _answer_validation_error(field, raw_value) if not is_skipped else None
         sections[sec].append({
             "field_key": field["field_key"],
             "label": field["label"],
@@ -525,11 +546,18 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
             "is_sensitive": field.get("sensitive", False),
             "is_required": field.get("required", False),
             "confidence": confidence_map.get(field["field_key"]),
+            # The sidebar/review page must not show a green check for a stale row
+            # that no longer validates. The deterministic readiness gate uses this
+            # same rule, so UI status and completion blockers stay aligned.
+            "is_valid": validation_error is None,
+            "validation_error": validation_error,
         })
 
     missing_required = get_missing_required_fields(session.form_id, answers_map, schema)
     missing_applicable = get_missing_applicable_fields(session.form_id, answers_map, schema)
     readiness = build_session_readiness(session.form_id, schema, answers)
+    from app.clinical.scoring import score_clinical_battery
+
     return {
         "session_id": session_id,
         "form_id": session.form_id,
@@ -539,6 +567,7 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
         "missing_applicable": [f["field_key"] for f in missing_applicable],
         "is_complete": readiness["ready"],
         "readiness": readiness,
+        "scores": score_clinical_battery(session.form_id, answers_map),
     }
 
 
@@ -647,6 +676,49 @@ def _answers_map(db: DBSession, session_id: str) -> dict[str, Any]:
         a.field_key: _deserialize(a.value_json)
         for a in db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()
     }
+
+
+def _answer_value_present(value: Any) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str) and value.strip() in ("", SKIPPED, "null", "None"):
+        return False
+    return True
+
+
+def _answer_validation_error(field: dict, value: Any) -> str | None:
+    if value == SKIPPED or not _answer_value_present(value):
+        return None
+    try:
+        validate_answer(field, value)
+    except ValidationError as exc:
+        return str(exc)
+    return None
+
+
+def _valid_answer_count(schema: dict, answers_map: dict[str, Any]) -> int:
+    """Count applicable stored answers that still validate against the schema snapshot.
+
+    This is intentionally stricter than ``len(answers_map)``. Old sessions can carry
+    rows written by older logic or by admin schema changes; those rows should not
+    advance progress, mark a section complete, or suppress the next question.
+    """
+    fields = get_all_fields_from_schema(schema)
+    fields_by_key = {f["field_key"]: f for f in fields}
+    count = 0
+    for field in fields:
+        key = field["field_key"]
+        value = answers_map.get(key)
+        if key not in answers_map or value == SKIPPED:
+            continue
+        if not is_field_applicable(field, answers_map, fields_by_key):
+            continue
+        if not _answer_value_present(value):
+            continue
+        if _answer_validation_error(field, value) is not None:
+            continue
+        count += 1
+    return count
 
 
 def _deserialize(value_json: str | None) -> Any:

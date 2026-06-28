@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Any
 
 
@@ -6,6 +6,9 @@ class CreateSessionRequest(BaseModel):
     patient_id: str | None = None
     form_id: str = "ODM_07216"
     manual_mode: bool = False
+    # Optional startup answers for form-level gates chosen before the interview.
+    # Used by the clinical battery picker to activate only the selected tools.
+    initial_answers: dict[str, Any] | None = None
 
 
 class AnswerRequest(BaseModel):
@@ -107,6 +110,7 @@ class ReviewResponse(BaseModel):
     missing_applicable: list[str]
     is_complete: bool
     readiness: ReadinessReport
+    scores: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class GeneratePdfResponse(BaseModel):

@@ -36,6 +36,7 @@ from app.forms.missing_fields import (
     get_missing_required_fields,
     is_field_applicable,
 )
+from app.forms.validation import ValidationError, validate_answer
 from app.sessions import service as svc
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,10 @@ def _field_status(field: dict, answers: dict[str, Any]) -> tuple[str, Any]:
         return "skipped", None
     if val is None or (isinstance(val, str) and val.strip() == ""):
         return "missing", None
+    try:
+        validate_answer(field, val)
+    except ValidationError:
+        return "invalid", None
     return "filled", val
 
 
@@ -760,6 +765,13 @@ def _prep_checklist(form_id: str, schema: dict) -> str:
             "information, and recent medical bills, pregnancy, or care details if "
             "those apply."
         )
+    if form_id == "BH_SELF_REPORT_BATTERY":
+        return (
+            "You will not need documents for most of these self-report tools. It "
+            "helps to be somewhere private and ready to answer symptom, safety, "
+            "substance-use, and daily-functioning questions using the closest "
+            "answer choice on screen or by voice."
+        )
 
     field_keys = " ".join(f.get("field_key", "").lower() for f in get_all_fields_from_schema(schema))
     items: list[str] = ["names and birth dates for people on the form"]
@@ -830,7 +842,7 @@ def _turn_state(form_id: str, answers: dict, schema: dict) -> dict:
     missing_required = get_missing_required_fields(form_id, answers, schema)
     nxt = missing_applicable[0] if missing_applicable else None
     return {
-        "answered_count": len([k for k, v in answers.items() if v not in (None, "")]),
+        "answered_count": svc._valid_answer_count(schema, answers),
         "missing_count": len(missing_applicable),
         "missing_required_count": len(missing_required),
         "total": len(get_all_fields_from_schema(schema)),
@@ -862,7 +874,7 @@ def _help_turn_response(db, session, schema: dict, field: dict, user_text: str, 
         "done": done,
         "go_to_review": False,
         "state": {
-            "answered_count": len([k for k, v in answers.items() if v not in (None, "")]),
+            "answered_count": svc._valid_answer_count(schema, answers),
             "missing_count": len(missing_applicable),
             "missing_required_count": len(missing_required),
             "total": len(get_all_fields_from_schema(schema)),
@@ -1241,7 +1253,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         "done": done,
         "go_to_review": go_review,
         "state": {
-            "answered_count": len([k for k, v in answers.items() if v not in (None, "")]),
+            "answered_count": svc._valid_answer_count(schema, answers),
             "missing_count": len(missing_applicable),
             "missing_required_count": len(missing_required),
             "total": len(get_all_fields_from_schema(schema)),

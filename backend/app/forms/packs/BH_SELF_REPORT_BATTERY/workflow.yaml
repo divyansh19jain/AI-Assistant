@@ -1,0 +1,21 @@
+title: Behavioral Health Self-Report Clinical Tools
+version: 1.0.0
+output_targets:
+  - pdf
+
+voice:
+  persona: "Calm clinical self-report assistant"
+  stt_vocabulary: "PHQ-9, GAD-7, C-SSRS, AUDIT-C, TAPS, DAST-10, PCL-5, MDQ, WHODAS, DLA-20"
+
+knowledgebase:
+  enabled: true
+  dir: knowledgebase
+
+workflow:
+  approval:
+    required: true
+    require_signature: false
+  tasks:
+    - type: generate_pdf
+      config:
+        mode: summary

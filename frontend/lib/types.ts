@@ -86,6 +86,8 @@ export interface ReviewField {
   is_sensitive: boolean;
   is_required: boolean;
   confidence?: number | null;
+  is_valid?: boolean;
+  validation_error?: string | null;
 }
 
 export interface ReadinessIssue {
@@ -141,6 +143,7 @@ export interface ReviewResponse {
   missing_applicable: string[];
   is_complete: boolean;
   readiness: ReadinessReport;
+  scores?: Array<Record<string, unknown>>;
 }
 
 export interface GeneratePdfResponse {

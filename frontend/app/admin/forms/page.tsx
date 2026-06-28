@@ -98,20 +98,20 @@ export default function FormsBuilderPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 px-4 py-8">
-      <div className="max-w-4xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+    <div className="admin-screen min-h-screen px-4 py-6 sm:px-6 lg:py-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Form Builder</h1>
-            <p className="text-sm text-gray-500">Create and manage the forms patients can complete.</p>
+            <h1 className="text-2xl font-semibold text-slate-950">Form Builder</h1>
+            <p className="text-sm text-slate-500">Create and manage forms, prompts, knowledgebase, skills, and workflows.</p>
           </div>
-          <Link href="/admin/dashboard" className="text-sm text-indigo-600 hover:underline">
+          <Link href="/admin/dashboard" className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-100">
             ← Dashboard
           </Link>
         </div>
 
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2.5 text-sm mb-4">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
@@ -119,7 +119,7 @@ export default function FormsBuilderPage() {
         {/* Create new form */}
         <form
           onSubmit={handleCreate}
-          className="bg-white border border-gray-200 rounded-2xl p-4 mb-6 flex flex-wrap items-end gap-3"
+          className="mb-6 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm"
         >
           <div className="flex-1 min-w-[8rem]">
             <label className="block text-xs font-semibold text-gray-600 mb-1 uppercase tracking-wide">
@@ -129,7 +129,7 @@ export default function FormsBuilderPage() {
               value={newId}
               onChange={(e) => setNewId(e.target.value)}
               placeholder="MY_FORM"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-full border border-slate-300 px-3 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
             />
           </div>
           <div className="flex-[2] min-w-[12rem]">
@@ -140,25 +140,26 @@ export default function FormsBuilderPage() {
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               placeholder="My New Form"
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              className="w-full border border-slate-300 px-3 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
             />
           </div>
           <button
             type="submit"
             disabled={creating || !newId.trim() || !newTitle.trim()}
-            className="rounded-lg px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50"
+            className="rounded-lg bg-slate-900 px-4 text-sm font-semibold text-white hover:bg-slate-800 disabled:opacity-50"
           >
             {creating ? "Creating…" : "+ New Form"}
           </button>
         </form>
 
         {/* Forms table */}
-        <div className="bg-white border border-gray-200 rounded-2xl overflow-hidden">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           {loading ? (
             <div className="p-8 text-center text-sm text-gray-400">Loading…</div>
           ) : forms.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-400">No forms yet. Create one above.</div>
           ) : (
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 text-gray-500 text-xs uppercase tracking-wide">
                 <tr>
@@ -183,19 +184,19 @@ export default function FormsBuilderPage() {
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/admin/forms/${f.form_id}`}
-                          className="text-xs px-2.5 py-1 rounded-md border border-gray-200 text-gray-600 hover:bg-gray-100"
+                          className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 px-3 text-xs font-semibold text-slate-600 hover:bg-slate-100"
                         >
                           Edit
                         </Link>
                         <button
                           onClick={() => togglePublish(f)}
-                          className="text-xs px-2.5 py-1 rounded-md border border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                          className="rounded-lg border border-slate-300 px-3 text-xs font-semibold text-slate-700 hover:bg-slate-100"
                         >
                           {f.status === "published" ? "Unpublish" : "Publish"}
                         </button>
                         <button
                           onClick={() => remove(f)}
-                          className="text-xs px-2.5 py-1 rounded-md border border-red-200 text-red-600 hover:bg-red-50"
+                          className="rounded-lg border border-red-200 px-3 text-xs font-semibold text-red-600 hover:bg-red-50"
                         >
                           Delete
                         </button>
@@ -205,6 +206,7 @@ export default function FormsBuilderPage() {
                 ))}
               </tbody>
             </table>
+            </div>
           )}
         </div>
       </div>

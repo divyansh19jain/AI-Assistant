@@ -8,6 +8,7 @@ from app.forms.missing_fields import (
     get_missing_applicable_fields,
     get_missing_required_fields,
     _dependency_satisfied,
+    is_field_applicable,
 )
 from app.forms.validation import validate_answer, ValidationError
 from app.forms.service import get_all_fields
@@ -152,6 +153,8 @@ def test_validate_date_formats():
     field = {"type": "date", "required": True, "validation_rule": {"format": "date"}}
     assert validate_answer(field, "01/15/1990") == "1990-01-15"
     assert validate_answer(field, "1990-01-15") == "1990-01-15"
+    assert validate_answer(field, "0101 1992") == "1992-01-01"
+    assert validate_answer(field, "1 1 1992") == "1992-01-01"
 
 
 def test_validate_phone():
@@ -173,6 +176,89 @@ def test_validate_state_name_and_spoken_date():
 
     date_field = {"type": "date", "required": True, "validation_rule": {"format": "date"}}
     assert validate_answer(date_field, "January 5th 1980") == "1980-01-05"
+
+
+def test_validate_text_rejects_questions_and_ui_commands():
+    field = {
+        "field_key": "client.first_name",
+        "label": "First Name",
+        "type": "text",
+        "required": True,
+        "validation_rule": {},
+    }
+    with pytest.raises(ValidationError):
+        validate_answer(field, "what is your first name")
+    with pytest.raises(ValidationError):
+        validate_answer(field, "send")
+
+
+def test_missing_fields_treat_invalid_stored_text_as_missing():
+    schema = {
+        "sections": [
+            {
+                "section_key": "client",
+                "section_title": "Client",
+                "fields": [
+                    {
+                        "field_key": "client.first_name",
+                        "label": "First Name",
+                        "section": "client",
+                        "type": "text",
+                        "required": True,
+                    }
+                ],
+            }
+        ]
+    }
+
+    missing = get_missing_applicable_fields(
+        "ANY",
+        {"client.first_name": "what is your first name"},
+        schema,
+    )
+
+    assert [field["field_key"] for field in missing] == ["client.first_name"]
+
+
+def test_invalid_dependency_gate_does_not_activate_present_child():
+    """A dependency row must validate before it can open a child branch."""
+    gate = {
+        "field_key": "gate.name",
+        "label": "Gate Name",
+        "section": "main",
+        "type": "text",
+        "validation_rule": {"min_length": 2},
+    }
+    child = {
+        "field_key": "child.detail",
+        "label": "Child Detail",
+        "section": "main",
+        "type": "text",
+        "depends_on": {"field_key": "gate.name", "condition": "present"},
+    }
+    answers = {"gate.name": "x"}
+
+    assert not is_field_applicable(child, answers, {"gate.name": gate, "child.detail": child})
+
+
+def test_dependency_gate_normalizes_before_value_match():
+    """Raw legacy values like "yes" should satisfy boolean gates after validation."""
+    gate = {
+        "field_key": "selected.phq9",
+        "label": "PHQ-9 selected",
+        "section": "selected",
+        "type": "boolean",
+    }
+    child = {
+        "field_key": "phq9.q1",
+        "label": "PHQ-9 question",
+        "section": "phq9",
+        "type": "select",
+        "depends_on": {"field_key": "selected.phq9", "value": True},
+    }
+    answers = {"selected.phq9": "yes"}
+
+    assert is_field_applicable(child, answers, {"selected.phq9": gate, "phq9.q1": child})
 
 
 def test_validate_zip_pattern():

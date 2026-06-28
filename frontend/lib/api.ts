@@ -120,6 +120,7 @@ export const api = {
     patient_id?: string | null;
     form_id?: string;
     manual_mode?: boolean;
+    initial_answers?: Record<string, unknown>;
   }): Promise<SessionState> =>
     request("/api/session/create", { method: "POST", body: JSON.stringify(body) }),
 

@@ -150,56 +150,58 @@ export default function AdminDashboardPage() {
   });
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="admin-screen min-h-screen">
       {/* Top bar */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
+      <header className="border-b border-slate-200 bg-white px-4 py-4 shadow-sm sm:px-6">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="h-8 w-8 rounded-lg bg-indigo-600 flex items-center justify-center">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-900">
             <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round"
                 d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
             </svg>
           </div>
           <div>
-            <h1 className="text-sm font-bold text-gray-900">Admin Dashboard</h1>
-            <p className="text-xs text-gray-400">AI Form Assistant</p>
+            <h1 className="text-lg font-semibold text-slate-950">Admin Dashboard</h1>
+            <p className="text-sm text-slate-500">Monitor sessions and manage completion output.</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
           <Link
             href="/admin/forms"
-            className="text-xs font-medium text-indigo-600 hover:text-indigo-800 border border-indigo-200 rounded-lg px-3 py-1.5 hover:bg-indigo-50 transition-colors"
+            className="inline-flex min-h-11 items-center rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100"
           >
             Form Builder
           </Link>
           <button
             onClick={load}
             disabled={loading}
-            className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-3 py-1.5 hover:bg-gray-50 transition-colors disabled:opacity-50"
+            className="rounded-lg border border-slate-300 px-4 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50"
           >
             {loading ? "Refreshing…" : "Refresh"}
           </button>
           <button
             onClick={handleLogout}
-            className="text-xs text-red-500 hover:text-red-700 border border-red-200 rounded-lg px-3 py-1.5 hover:bg-red-50 transition-colors"
+            className="rounded-lg border border-red-200 px-4 text-sm font-semibold text-red-600 transition-colors hover:bg-red-50"
           >
             Sign out
           </button>
         </div>
+        </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8 space-y-6">
+      <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 sm:px-6 lg:py-8">
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             {[
               { label: "Applications", value: stats.total, color: "text-gray-900" },
               { label: "In progress", value: stats.active, color: "text-blue-600" },
               { label: "Ready / Completed", value: stats.ready_for_review + stats.completed, color: "text-green-600" },
               { label: "Abandoned (0 answers)", value: stats.orphan, color: "text-gray-500" },
             ].map((s) => (
-              <div key={s.label} className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm">
-                <p className="text-xs text-gray-400 uppercase tracking-wider font-medium mb-1">{s.label}</p>
+              <div key={s.label} className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{s.label}</p>
                 <p className={`text-3xl font-bold ${s.color}`}>{s.value}</p>
               </div>
             ))}
@@ -207,18 +209,18 @@ export default function AdminDashboardPage() {
         )}
 
         {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-1 bg-white border border-gray-200 rounded-xl p-1 flex-wrap">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 shadow-sm">
             {(["all", "active", "ready_for_review", "completed", "orphan", "archived"] as const).map((f) => {
               const count = f === "orphan" ? stats?.orphan : f === "archived" ? stats?.archived : undefined;
               return (
                 <button
                   key={f}
                   onClick={() => setFilter(f)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors capitalize ${
+                  className={`rounded-lg px-3 text-sm font-semibold capitalize transition-colors ${
                     filter === f
-                      ? "bg-indigo-600 text-white"
-                      : "text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                      ? "bg-slate-900 text-white"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
                   }`}
                 >
                   {f === "ready_for_review" ? "ready" : f}{count ? ` (${count})` : ""}
@@ -230,7 +232,7 @@ export default function AdminDashboardPage() {
             <button
               onClick={archiveOrphans}
               disabled={!!busy}
-              className="text-xs font-medium text-amber-700 border border-amber-200 bg-amber-50 rounded-lg px-3 py-1.5 hover:bg-amber-100 transition-colors disabled:opacity-50"
+              className="rounded-lg border border-amber-200 bg-amber-50 px-4 text-sm font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-50"
             >
               Archive {stats?.orphan} abandoned
             </button>
@@ -240,19 +242,19 @@ export default function AdminDashboardPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by session ID, patient ID, or form…"
-            className="flex-1 min-w-[240px] border border-gray-200 rounded-xl px-4 py-2 text-sm text-gray-700 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent bg-white"
+            className="min-w-[240px] flex-1 rounded-lg border border-slate-300 bg-white px-4 text-sm text-slate-700 placeholder-slate-400 outline-none focus:border-slate-900 focus:ring-2 focus:ring-slate-200"
           />
         </div>
 
         {/* Error */}
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
 
         {/* Table */}
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
           {loading && !sessions.length ? (
             <div className="p-12 text-center text-sm text-gray-400">Loading sessions…</div>
           ) : visible.length === 0 ? (

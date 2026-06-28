@@ -13,6 +13,20 @@ const SOURCE_LABELS: Record<string, { label: string; color: string; dot: string 
   missing: { label: "Missing",  color: "bg-red-100 text-red-600",           dot: "bg-red-500" },
 };
 
+function scoreMetric(score: Record<string, unknown>, key: string): string {
+  const value = score[key];
+  if (typeof value === "number" && Number.isFinite(value)) return String(value);
+  if (typeof value === "string" && value.trim()) return value;
+  return "-";
+}
+
+function itemMetric(score: Record<string, unknown>): string | null {
+  const answered = scoreMetric(score, "answered_items");
+  const total = scoreMetric(score, "total_items");
+  if (answered === "-" || total === "-") return null;
+  return `${answered}/${total} items`;
+}
+
 /* ─── Edit Modal ─────────────────────────────────────────────────────── */
 interface EditModalProps {
   field: ReviewField;
@@ -440,6 +454,45 @@ export default function ReviewPage() {
             </div>
           </div>
         </div>
+
+        {Array.isArray(review.scores) && review.scores.length > 0 && (
+          <div className="rounded-xl border border-teal-200 bg-teal-50 px-5 py-4 text-sm text-teal-950 animate-float-in">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <p className="font-semibold">Clinical Screening Scores</p>
+                <p className="mt-1 text-xs text-teal-800">
+                  Scores are calculated from saved answers and included in the summary PDF and clinical results API.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-teal-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-teal-700">
+                {review.scores.length} tools
+              </span>
+            </div>
+            <div className="space-y-2">
+              {review.scores.map((score, index) => (
+                <div key={`${String(score.tool_key ?? index)}`} className="rounded-lg border border-teal-100 bg-white px-3 py-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-slate-900">{String(score.title ?? "Assessment")}</p>
+                      <p className="mt-1 text-xs text-slate-600">{String(score.interpretation ?? "")}</p>
+                    </div>
+                    <div className="min-w-[7rem] text-right">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Score</p>
+                      <p className="text-base font-bold text-slate-900">
+                        {scoreMetric(score, "total_score")}
+                        <span className="text-xs font-medium text-slate-500"> / {scoreMetric(score, "max_score")}</span>
+                      </p>
+                      {itemMetric(score) && (
+                        <p className="mt-0.5 text-xs font-medium text-slate-600">{itemMetric(score)}</p>
+                      )}
+                      <p className="text-[10px] uppercase tracking-wide text-slate-500">{String(score.status ?? "")}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {sections.map(([sectionKey, fields]) => {
           if (fields.length === 0) return null;

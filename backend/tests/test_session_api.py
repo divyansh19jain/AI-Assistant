@@ -1,5 +1,7 @@
 """Tests for session creation, answer saving, and review."""
 
+import json
+
 import pytest
 
 
@@ -60,6 +62,64 @@ def test_save_answer(client):
     data = answer_resp.json()
     assert data["success"] is True
     assert data["extracted_value"] == "Alice"
+
+
+def test_answer_endpoint_rejects_repeated_question_as_text_value(client):
+    create_resp = client.post("/api/session/create", json={
+        "form_id": "BH_SELF_REPORT_BATTERY",
+        "manual_mode": True,
+    })
+    session_id = create_resp.json()["session_id"]
+
+    answer_resp = client.post(f"/api/session/{session_id}/answer", json={
+        "field_key": "client.first_name",
+        "raw_answer": "what is your first name",
+        "input_mode": "typed",
+    })
+
+    assert answer_resp.status_code == 200
+    data = answer_resp.json()
+    assert data["success"] is False
+    assert data["needs_clarification"] is True
+    assert "not an answer" in data["error"].lower()
+
+    state = client.get(f"/api/session/{session_id}").json()
+    assert "client.first_name" not in state["answers"]
+    assert state["next_question"]["field_key"] == "client.first_name"
+
+
+def test_session_state_and_review_do_not_count_legacy_invalid_text(client, db):
+    from app.db.models import FormAnswer
+
+    create_resp = client.post("/api/session/create", json={
+        "form_id": "BH_SELF_REPORT_BATTERY",
+        "manual_mode": True,
+    })
+    session_id = create_resp.json()["session_id"]
+
+    # Simulate a row written by an older buggy assistant version. The current
+    # runtime must treat it as needing correction, not as completed client data.
+    db.add(FormAnswer(
+        session_id=session_id,
+        field_key="client.first_name",
+        value_json=json.dumps("what is your first name"),
+        raw_answer="what is your first name",
+        source="voice",
+        confidence=1.0,
+    ))
+    db.commit()
+
+    state = client.get(f"/api/session/{session_id}").json()
+    assert state["answered_count"] == 0
+    assert state["next_question"]["field_key"] == "client.first_name"
+
+    review = client.get(f"/api/session/{session_id}/review").json()
+    first_name = next(f for f in review["sections"]["client"] if f["field_key"] == "client.first_name")
+    assert first_name["is_valid"] is False
+    assert "not an answer" in first_name["validation_error"].lower()
+    assert review["readiness"]["summary"]["answered_fields"] == 0
+    assert review["readiness"]["summary"]["invalid_fields"] == 1
+    assert "client.first_name" in review["missing_applicable"]
 
 
 def test_odm_does_not_reask_person1_name_after_applicant_name(client):

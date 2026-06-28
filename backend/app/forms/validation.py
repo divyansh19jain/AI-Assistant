@@ -39,6 +39,11 @@ def validate_answer(field: dict, value: Any) -> Any:
 
     # Text / email / select
     value = str(value).strip() if value is not None else ""
+    if field_type in {"text", "textarea", "email", "select"} and _looks_like_non_answer_text(value):
+        label = field.get("label", "this field")
+        raise ValidationError(
+            f"That sounds like an instruction or question, not an answer for {label}. Please give the actual value."
+        )
 
     # Medicaid PDF fields often store state as a two-letter code, but callers are
     # humans using voice. Accept "Ohio" and normalize to "OH" instead of asking
@@ -167,6 +172,24 @@ def _parse_boolean(value: Any) -> bool:
 def _parse_date(value: Any) -> str:
     """Normalize to YYYY-MM-DD."""
     s = _clean_date_text(str(value).strip())
+    compact = re.sub(r"\D", "", s)
+    if len(compact) in {6, 7, 8}:
+        # Voice/STT often turns "01/01/1992" into "0101 1992". In this US form
+        # context, prefer MMDDYYYY unless the value clearly starts with a year.
+        compact_candidates = [compact]
+        if len(compact) == 6:
+            # "1 1 1992" may arrive as "111992"; try M-D-YYYY with zero padding.
+            compact_candidates.extend([f"0{compact[0]}0{compact[1:]}", f"0{compact}"])
+        elif len(compact) == 7:
+            compact_candidates.extend([f"0{compact}", f"{compact[:2]}0{compact[2:]}"])
+        for candidate in compact_candidates:
+            compact_formats = ["%Y%m%d"] if candidate[:4].startswith(("19", "20")) else ["%m%d%Y", "%Y%m%d"]
+            for fmt in compact_formats:
+                try:
+                    dt = datetime.strptime(candidate, fmt)
+                    return dt.strftime("%Y-%m-%d")
+                except ValueError:
+                    continue
     formats = [
         "%Y-%m-%d",
         "%m/%d/%Y",
@@ -194,6 +217,36 @@ def _clean_date_text(value: str) -> str:
     s = re.sub(r"\bof\b", " ", s, flags=re.IGNORECASE)
     s = re.sub(r"\s+", " ", s)
     return s
+
+
+_NON_ANSWER_EXACT = {
+    "send", "submit", "stop", "start", "next", "back", "cancel", "go",
+    "voice", "mute", "unmute", "voice on", "voice off", "start listening",
+    "stop listening", "skip this question", "tap the mic", "type your answer",
+}
+
+
+def _looks_like_non_answer_text(value: str) -> bool:
+    """Detect non-answer utterances before they are saved as text answers.
+
+    The voice assistant receives UI-bound answers, so a repeated prompt like
+    "what is your first name" or a recognised button label like "send" can
+    otherwise validate as free text. Rejecting them here keeps both the LLM and
+    deterministic paths from storing UI/assistant text as a user's data.
+    """
+    s = re.sub(r"\s+", " ", value.strip().lower()).strip(" .!?")
+    if not s:
+        return False
+    if s in _NON_ANSWER_EXACT:
+        return True
+    question_starts = (
+        "what is ", "what's ", "whats ", "why ", "how ", "when ", "where ",
+        "who ", "can you ", "could you ", "do i ", "should i ", "explain ",
+        "help me ",
+    )
+    if s.startswith(question_starts):
+        return True
+    return value.strip().endswith("?") and len(s.split()) >= 3
 
 
 def _parse_phone(value: Any) -> str:

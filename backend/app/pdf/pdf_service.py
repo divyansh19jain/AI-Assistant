@@ -359,6 +359,31 @@ def _generate_summary_pdf(session_id: str, answers: dict, form_id: str, schema: 
             y -= 13
         y -= 5
 
+    try:
+        from app.clinical.scoring import score_clinical_battery
+
+        clinical_scores = score_clinical_battery(form_id, answers)
+    except Exception:
+        clinical_scores = []
+    if clinical_scores:
+        ensure_page()
+        page.insert_text(fitz.Point(margin, y), "Clinical Screening Scores", fontsize=11, color=(0, 0, 0.5))
+        y -= 14
+        for score in clinical_scores:
+            ensure_page()
+            items = ""
+            if score.get("answered_items") is not None and score.get("total_items") is not None:
+                items = f"; items {score.get('answered_items')}/{score.get('total_items')}"
+            line = (
+                f"  {score['title']}: score {score.get('total_score')}/{score.get('max_score')}{items} - "
+                f"{score.get('interpretation', '')}"
+            )
+            if len(line) > 96:
+                line = line[:93] + "..."
+            page.insert_text(fitz.Point(margin, y), line, fontsize=9.5, color=(0, 0, 0))
+            y -= 13
+        y -= 5
+
     ensure_page()
     page.draw_line(fitz.Point(margin, 55), fitz.Point(612 - margin, 55), color=(0.6, 0.6, 0.6), width=0.3)
     page.insert_text(

@@ -66,7 +66,9 @@ function InfoPanel({ review, currentKey }: { review: ReviewResponse | null; curr
   return (
     <div className="flex flex-col h-full overflow-y-auto chat-area">
       {Object.entries(review.sections).map(([sectionKey, fields]) => {
-        const filled = fields.filter((f) => f.value !== null && f.value !== undefined && f.source !== "skipped").length;
+        const filled = fields.filter((f) =>
+          f.value !== null && f.value !== undefined && f.source !== "skipped" && f.is_valid !== false
+        ).length;
         return (
           <div key={sectionKey} className="mb-1">
             <div className="sticky top-0 z-10 px-4 py-2.5 flex items-center justify-between bg-slate-50/95 backdrop-blur border-b border-slate-200">
@@ -76,10 +78,11 @@ function InfoPanel({ review, currentKey }: { review: ReviewResponse | null; curr
             <div className="divide-y divide-slate-100">
               {fields.map((field: ReviewField) => {
                 const isSkipped = field.source === "skipped";
-                const isMissing = field.value === null || field.value === undefined;
+                const isInvalid = field.is_valid === false;
+                const isMissing = field.value === null || field.value === undefined || isInvalid;
                 const isCurrent = field.field_key === currentKey;
                 const display = field.is_sensitive && !isMissing && !isSkipped ? "••••••"
-                  : isSkipped ? "Skipped" : isMissing ? "—" : String(field.value);
+                  : isInvalid ? "Needs correction" : isSkipped ? "Skipped" : isMissing ? "—" : String(field.value);
                 return (
                   <div key={field.field_key} className="px-4 py-2.5 transition-colors"
                     style={{ background: isCurrent ? "#eff6ff" : "transparent", borderLeft: isCurrent ? "3px solid #2563eb" : "3px solid transparent" }}>
@@ -88,6 +91,7 @@ function InfoPanel({ review, currentKey }: { review: ReviewResponse | null; curr
                         {field.label}{!field.is_required && <span className="ml-1 text-[11px] text-slate-400">(optional)</span>}
                       </span>
                       {isCurrent ? <Badge tone="blue">Now</Badge>
+                        : isInvalid ? <Badge tone="amber">Fix</Badge>
                         : !isMissing && !isSkipped ? <Badge tone="green">✓</Badge>
                         : isSkipped ? <Badge tone="slate">Skipped</Badge>
                         : field.is_required ? <Badge tone="amber">Needed</Badge> : null}
@@ -188,6 +192,10 @@ export default function AssistantPage() {
   const isProcessing = voiceStatus === "processing";
   const mode: "idle" | "listening" | "speaking" | "thinking" =
     isListening ? "listening" : isSpeaking ? "speaking" : (thinking || isProcessing) ? "thinking" : "idle";
+  const touchChoiceColumns =
+    nextField && nextField.suggestions.length <= 2
+      ? "grid-cols-2"
+      : "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4";
 
   const pushMsg = useCallback((role: "assistant" | "user", text: string) => {
     setMessages((prev) => {
@@ -368,18 +376,18 @@ export default function AssistantPage() {
             <span className="ml-1 text-[11px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-full">DEMO</span>
           )}
           <div className="ml-auto flex items-center gap-2 sm:gap-4">
-            <div className="flex items-center gap-2.5 w-20 sm:w-56">
+            <div className="hidden items-center gap-2.5 sm:flex sm:w-56">
               <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
                 <div className="h-full rounded-full transition-all duration-700" style={{ width: `${progress}%`, background: "linear-gradient(90deg,#3b82f6,#2563eb)" }} />
               </div>
               <span className="text-sm font-semibold text-slate-500 tabular-nums w-9 text-right">{progress}%</span>
             </div>
             <button onClick={() => router.push(`/review/${sessionId}`)}
-              className="md:hidden h-11 px-3 inline-flex items-center rounded-full text-sm font-medium border border-slate-200 text-slate-600 hover:bg-slate-50">
+              className="lg:hidden min-h-12 px-4 inline-flex items-center rounded-lg text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">
               Review
             </button>
             <button onClick={() => setAutoSpeak((v) => { if (v) { stopSpeaking(); stopListening(); } return !v; })}
-              className={`flex items-center gap-2 px-3 sm:px-3.5 h-11 rounded-full text-sm font-medium border transition-colors ${autoSpeak ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100" : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"}`}>
+              className={`flex min-h-12 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors sm:px-3.5 ${autoSpeak ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100" : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"}`}>
               <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 {autoSpeak
                   ? <path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
@@ -395,8 +403,8 @@ export default function AssistantPage() {
       <div className="flex-1 flex min-h-0">
         {/* Conversation */}
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex-1 overflow-y-auto chat-area px-4 sm:px-5 py-6">
-            <div className="max-w-3xl mx-auto space-y-4">
+          <div className="flex-1 overflow-y-auto chat-area px-4 sm:px-5 py-5 sm:py-6">
+            <div className="max-w-4xl mx-auto space-y-4">
               {messages.map((m) => m.role === "assistant" ? (
                 <div key={m.id} className="flex items-end gap-2.5 anim-fade-up">
                   <Orb size={32} />
@@ -412,8 +420,8 @@ export default function AssistantPage() {
 
           {/* Toast */}
           {voiceError && (
-            <div className="shrink-0 px-5">
-              <div className="max-w-3xl mx-auto"><div className="toast toast-error mb-2">
+            <div className="shrink-0 px-4 sm:px-5">
+              <div className="max-w-4xl mx-auto"><div className="toast toast-error mb-2">
                 <svg width="16" height="16" className="shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" /></svg>
                 <span className="flex-1">{voiceError}</span>
                 <button onClick={() => setVoiceError(null)} className="toast-dismiss"><svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg></button>
@@ -423,24 +431,24 @@ export default function AssistantPage() {
 
           {/* Composer */}
           <div className="shrink-0 bg-white border-t border-slate-200 px-4 sm:px-5 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-            <div className="max-w-3xl mx-auto">
+            <div className="max-w-4xl mx-auto">
               <div className="flex items-center justify-between mb-2.5">
                 <StatusPill mode={mode} />
                 <button onClick={() => sendToAgent("skip", "typed")} disabled={thinking || doneRef.current}
-                  className="min-h-[44px] -my-1 px-2 inline-flex items-center text-sm font-medium text-slate-500 hover:text-slate-700 disabled:opacity-40">Skip this question</button>
+                  className="inline-flex min-h-12 items-center rounded-lg px-3 text-sm font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-700 disabled:opacity-40">Skip this question</button>
               </div>
 
               {/* Tappable answer chips — fast touch entry on a phone/tablet when voice is
                   unclear. Yes/No for booleans, options for selects, common values otherwise.
                   Centered + finger-sized for visibility. */}
               {nextField && nextField.suggestions.length > 0 && !doneRef.current && (
-                <div className="mb-3">
-                  <p className="text-center text-xs text-slate-400 mb-2">Tap an answer, or type / speak it</p>
-                  <div className="flex flex-wrap justify-center gap-2.5">
+                <div className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="mb-2 text-sm font-semibold text-slate-600">Tap an answer, or type / speak it</p>
+                  <div className={`grid ${touchChoiceColumns} gap-2.5`}>
                     {nextField.suggestions.map((s) => (
                       <button key={s} type="button" disabled={thinking}
                         onClick={() => sendToAgent(s, "typed")}
-                        className="min-h-[48px] inline-flex items-center px-5 py-3 rounded-full border-2 border-slate-200 bg-white text-base font-semibold text-slate-700 shadow-sm hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition-all disabled:opacity-40">
+                        className="inline-flex min-h-14 items-center justify-center rounded-lg border-2 border-slate-200 bg-white px-3 py-3 text-center text-base font-semibold leading-snug text-slate-700 shadow-sm transition-all hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 active:scale-[0.98] disabled:opacity-40">
                         {s}
                       </button>
                     ))}
@@ -449,16 +457,16 @@ export default function AssistantPage() {
               )}
 
               <form onSubmit={(e) => { e.preventDefault(); sendToAgent(input, "typed"); }} className="flex items-center gap-2.5">
-                <div className="composer flex-1 flex items-center gap-1.5 rounded-2xl bg-slate-50 border border-slate-200 pl-4 pr-1.5 py-1.5">
+                <div className="composer flex min-h-14 flex-1 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 pl-4 pr-1.5 py-1.5">
                   <input ref={inputRef} value={input} onChange={(e) => setInput(e.target.value)} autoFocus
                     placeholder={isListening ? "Listening — speak your answer…" : "Type your answer, or tap the mic to speak"}
-                    className="flex-1 bg-transparent outline-none text-[1.0625rem] text-slate-800 placeholder-slate-400 py-1.5" />
+                    className="min-w-0 flex-1 bg-transparent py-2 text-[1.0625rem] text-slate-800 outline-none placeholder-slate-400" />
                   {/* Tapping while Mia is speaking interrupts her and starts listening
                       (barge-in) — toggleMic calls stopSpeaking() before startListening(). */}
                   {voiceSupported && (
                     <button type="button" onClick={toggleMic} disabled={isProcessing || thinking}
                       title={isListening ? "Stop listening" : isSpeaking ? "Tap to interrupt" : "Speak your answer"}
-                      className={`shrink-0 flex items-center justify-center w-11 h-11 rounded-xl transition-all ${isListening ? "bg-red-500 text-white mic-live" : isSpeaking ? "text-blue-600 bg-blue-50 hover:bg-blue-100" : (isProcessing || thinking) ? "text-slate-300 cursor-not-allowed" : "text-slate-500 hover:text-blue-600 hover:bg-blue-50"}`}>
+                      className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-lg transition-all ${isListening ? "bg-red-500 text-white mic-live" : isSpeaking ? "text-blue-600 bg-blue-50 hover:bg-blue-100" : (isProcessing || thinking) ? "text-slate-300 cursor-not-allowed" : "text-slate-500 hover:text-blue-600 hover:bg-blue-50"}`}>
                       {isListening
                         ? <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2.5" /></svg>
                         : <svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" /></svg>}
@@ -466,7 +474,7 @@ export default function AssistantPage() {
                   )}
                 </div>
                 <button type="submit" disabled={thinking || !input.trim()}
-                  className="shrink-0 h-12 px-6 rounded-2xl text-base font-semibold text-white transition-all disabled:opacity-40"
+                  className="min-h-14 shrink-0 rounded-lg px-6 text-base font-semibold text-white transition-all disabled:opacity-40"
                   style={{ background: thinking || !input.trim() ? "#94a3b8" : "linear-gradient(135deg,#2563eb,#1e40af)" }}>
                   Send
                 </button>
@@ -476,7 +484,7 @@ export default function AssistantPage() {
         </div>
 
         {/* Info sidebar — shown from iPad portrait (md) up; phones use the header Review link. */}
-        <aside className="hidden md:flex flex-col w-72 md:w-80 xl:w-96 shrink-0 bg-slate-50 border-l border-slate-200">
+        <aside className="hidden lg:flex flex-col w-80 xl:w-96 shrink-0 bg-slate-50 border-l border-slate-200">
           <div className="shrink-0 px-4 h-12 flex items-center justify-between border-b border-slate-200 bg-white">
             <span className="text-sm font-bold text-slate-700">Your information</span>
             <button onClick={() => router.push(`/review/${sessionId}`)}

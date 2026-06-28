@@ -255,6 +255,73 @@ def test_agent_help_request_explains_current_field_without_saving(client, db, mo
     assert db.query(FormAnswer).filter(FormAnswer.session_id == session_id).count() == 0
 
 
+def test_agent_explicit_field_binding_rejects_repeated_question_as_answer(client, db, monkeypatch):
+    """The direct field binding path must not save echoed assistant/UI text as data."""
+    from app.ai.agent import run_agent_turn
+    from app.core.config import get_settings
+    from app.db.models import FormAnswer
+
+    schema = {
+        "form_id": "AGENT_BAD_TEXT",
+        "form_title": "Bad Text Guard",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "Client",
+                "fields": [
+                    {
+                        "field_key": "client.first_name",
+                        "label": "First Name",
+                        "section": "s",
+                        "type": "text",
+                        "required": True,
+                        "question_text": "What is your first name?",
+                    }
+                ],
+            }
+        ],
+    }
+    token = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "AGENT_BAD_TEXT", "title": "Bad Text Guard"})
+    client.put("/api/admin/forms/AGENT_BAD_TEXT/schema", headers=headers, json={"schema": schema})
+    client.post("/api/admin/forms/AGENT_BAD_TEXT/publish", headers=headers)
+    session_id = client.post(
+        "/api/session/create",
+        json={"form_id": "AGENT_BAD_TEXT", "manual_mode": True},
+    ).json()["session_id"]
+
+    class FakeCompletions:
+        def create(self, **_kwargs):
+            message = SimpleNamespace(content="Please tell me your first name.", tool_calls=[])
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    class FakeOpenAI:
+        def __init__(self, **_kwargs):
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
+    monkeypatch.setattr("app.ai.help_intent.classify_intent", lambda _field, _raw: "answer")
+    get_settings.cache_clear()
+    try:
+        result = run_agent_turn(
+            db,
+            session_id,
+            "what is your first name",
+            input_mode="voice",
+            answered_field_key="client.first_name",
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert result is not None
+    assert result["state"]["next_field_key"] == "client.first_name"
+    assert result["next_field"]["field_key"] == "client.first_name"
+    assert db.query(FormAnswer).filter(FormAnswer.session_id == session_id).count() == 0
+
+
 def test_agent_start_fallback_introduces_form_and_checklist(client, db, monkeypatch):
     """If the LLM fails on startup, the deterministic opening still orients the user."""
     from app.ai.agent import run_agent_turn

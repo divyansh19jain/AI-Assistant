@@ -54,6 +54,7 @@ def create_session(
             form_id=request.form_id,
             patient_id=request.patient_id,
             manual_mode=request.manual_mode,
+            initial_answers=request.initial_answers,
         )
     except UnknownFormError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc

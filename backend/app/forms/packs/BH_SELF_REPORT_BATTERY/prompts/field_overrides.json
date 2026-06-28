@@ -1,0 +1,73 @@
+{
+  "//": "Per-field guidance for the behavioral health self-report battery. Static form-level wording only.",
+  "overrides": {
+    "client.first_name": {
+      "question": "Before we begin the assessments, what is your first name?",
+      "help": "This identifies whose self-report assessment summary is being completed."
+    },
+    "client.last_name": {
+      "question": "What is your last name?",
+      "help": "This helps match the assessment summary to the correct client record."
+    },
+    "client.dob": {
+      "question": "What is your date of birth?",
+      "help": "The date of birth helps the EMR match this self-report assessment to the correct client."
+    },
+    "selected.dsm5_level1": {
+      "question": "Do you want to include the broad DSM-5-TR Level 1 symptom screen?",
+      "help": "This is a broad self-report screen across mood, anxiety, sleep, memory, substance use, and related symptom areas."
+    },
+    "selected.phq9": {
+      "question": "Do you want to include the PHQ-9 depression screen?",
+      "help": "PHQ-9 is a short self-report screen about depression symptoms over the last two weeks."
+    },
+    "selected.gad7": {
+      "question": "Do you want to include the GAD-7 anxiety screen?",
+      "help": "GAD-7 asks about common anxiety symptoms over the last two weeks."
+    },
+    "selected.cssrs": {
+      "question": "Do you want to include the C-SSRS self-report suicide safety screener?",
+      "help": "This asks direct safety questions about thoughts of death, suicide, planning, intent, or past behavior."
+    },
+    "selected.auditc": {
+      "question": "Do you want to include the AUDIT-C alcohol screen?",
+      "help": "AUDIT-C is a brief self-report alcohol screen about drinking frequency and amount."
+    },
+    "selected.taps": {
+      "question": "Do you want to include the TAPS tobacco, alcohol, prescription medication, and substance-use screen?",
+      "help": "TAPS screens for tobacco, alcohol, prescription medication misuse, and other substance use."
+    },
+    "selected.dast10": {
+      "question": "Do you want to include the DAST-10 drug-use screen?",
+      "help": "DAST-10 asks yes/no questions about drug-use related problems."
+    },
+    "selected.pcl5": {
+      "question": "Do you want to include the PCL-5 PTSD symptom screen?",
+      "help": "PCL-5 asks about PTSD-related symptoms connected to a stressful or traumatic experience."
+    },
+    "selected.mdq": {
+      "question": "Do you want to include the Mood Disorder Questionnaire?",
+      "help": "The MDQ screens for patterns of unusually elevated or irritable mood, increased energy, and related problems."
+    },
+    "selected.whodas12": {
+      "question": "Do you want to include the WHODAS 2.0 functioning screen?",
+      "help": "WHODAS asks how much difficulty the client has had with daily functioning over the last 30 days."
+    },
+    "selected.dla20": {
+      "question": "Do you want to include the DLA-20 self-report functioning screen?",
+      "help": "This self-report functioning screen asks about practical daily living areas such as housing, safety, self-care, relationships, and routines."
+    },
+    "phq9.q9": {
+      "help": "This asks about thoughts of death or self-harm. Answer the closest frequency. The result is flagged for safety review if any level is endorsed."
+    },
+    "dsm5.q11": {
+      "help": "This asks whether thoughts of hurting yourself have bothered you recently. Answer the closest amount. The result is flagged for safety review if any level is endorsed."
+    },
+    "cssrs.wish_dead": {
+      "help": "This is a direct safety question. A yes answer does not mean you did something wrong; it helps make sure the right support follows."
+    },
+    "mdq.impairment": {
+      "help": "This asks how much the mood or energy changes affected life, relationships, work, school, or responsibilities."
+    }
+  }
+}

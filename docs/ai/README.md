@@ -22,9 +22,11 @@ here so there is one source of truth.
 6. [AGENT-STATE-AND-VOICE.md](./AGENT-STATE-AND-VOICE.md) - field binding,
    dependency cleanup, read-back confirmation, and voice-agent state contracts.
 7. [FORM-PACK-AUTHORING.md](./FORM-PACK-AUTHORING.md) - how to add future forms.
-8. [TESTING.md](./TESTING.md) - how to test; the green-bar gate.
-9. [WORKFLOWS.md](./WORKFLOWS.md) - step-by-step recipes for common tasks.
-10. [IMPROVEMENT-BACKLOG.md](./IMPROVEMENT-BACKLOG.md) - prioritized,
+8. [CLINICAL-FORMS.md](./CLINICAL-FORMS.md) - behavioral health self-report
+   battery, scoring, iPad selection, and EMR results API.
+9. [TESTING.md](./TESTING.md) - how to test; the green-bar gate.
+10. [WORKFLOWS.md](./WORKFLOWS.md) - step-by-step recipes for common tasks.
+11. [IMPROVEMENT-BACKLOG.md](./IMPROVEMENT-BACKLOG.md) - prioritized,
     agent-ready work found during deep review.
 
 ## How the tool configs map to these docs

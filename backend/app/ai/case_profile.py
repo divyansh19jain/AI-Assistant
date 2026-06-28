@@ -33,10 +33,12 @@ def build_case_profile(form_id: str, schema: dict, answer_rows: Iterable[Any]) -
     fields = get_all_fields_from_schema(schema)
     by_key = {f["field_key"]: f for f in fields}
     applicable = [f for f in fields if is_field_applicable(f, answers, by_key)]
+    invalid = {i["field_key"] for i in readiness.get("invalid_fields", [])}
 
     answered = [
         f["field_key"] for f in applicable
         if _has_value(answers.get(f["field_key"])) and answers.get(f["field_key"]) != SKIPPED
+        and f["field_key"] not in invalid
     ]
     skipped = [i["field_key"] for i in readiness["skipped_fields"]]
     inferred = [k for k in answered if sources.get(k) in _INFERRED_SOURCES]

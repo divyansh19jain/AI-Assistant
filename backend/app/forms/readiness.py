@@ -79,8 +79,8 @@ def build_session_readiness(
     ]
 
     answered_keys = {
-        k for k, v in answers.items()
-        if k in applicable_keys and _has_value(v) and v != SKIPPED
+        f["field_key"] for f in applicable
+        if _has_valid_answer(f, answers)
     }
     skipped_keys = {k for k, v in answers.items() if k in applicable_keys and v == SKIPPED}
     status = "ready" if not blockers else "needs_attention"
@@ -172,6 +172,23 @@ def _invalid_answer_issues(fields: list[dict], answers: dict[str, Any]) -> list[
                 "correct",
             ))
     return issues
+
+
+def _has_valid_answer(field: dict, answers: dict[str, Any]) -> bool:
+    """Return True only when a stored applicable value still validates.
+
+    The readiness summary feeds progress and review UI. Counting an invalid row as
+    answered is how old bad values can appear complete while the assistant re-asks
+    the same field, so the summary follows the same validation contract as blockers.
+    """
+    key = field["field_key"]
+    if key not in answers or answers[key] == SKIPPED or not _has_value(answers[key]):
+        return False
+    try:
+        validate_answer(field, answers[key])
+    except ValidationError:
+        return False
+    return True
 
 
 def _low_confidence_issues(
