@@ -90,28 +90,14 @@ def _build_form_context(schema: dict, answers: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-# ODM gates that prune whole sections — front-load them right after the name so the
-# interview is shaped early (who's applying, marital status) instead of asked at the end.
-_ODM_EARLY_GATES = (
-    "applicant.is_homeless",  # gates the home address — ask before it
-    "person2.adding_person2",
-    "person1.married",
-    "person1.us_citizen_or_national",
-)
-
-
 def _prioritized_next(form_id: str, answers: dict[str, Any], missing: list[dict]) -> dict | None:
-    """The next field to ask. For ODM, once the applicant's name is known (so we greet and
-    capture the name first), front-load the household/marital gates that prune whole
-    sections, so the assistant orchestrates instead of marching through schema order."""
-    if not missing:
-        return None
-    if form_id == "ODM_07216" and answers.get("applicant.first_name") and answers.get("applicant.last_name"):
-        by_key = {f["field_key"]: f for f in missing}
-        for key in _ODM_EARLY_GATES:
-            if key in by_key:
-                return by_key[key]
-    return missing[0]
+    """The single next field to ask — strictly the next missing field in schema order.
+
+    The agent is told (in NEXT FIELD GUIDANCE) to ask EXACTLY this field, so the question,
+    the tappable chips, and the answer binding are always the same field. We deliberately
+    do NOT let the model pick the order — that's what made the chips disagree with the
+    question (Yes/No under 'ZIP code?', county under 'date of birth?')."""
+    return missing[0] if missing else None
 
 
 def _next_missing(form_id: str, schema: dict, answers: dict[str, Any]) -> dict | None:
@@ -241,12 +227,16 @@ def _next_field_guidance(form_id: str, field: dict | None) -> str:
     question = override.get("question") or field.get("question_text") or field.get("label", field["field_key"])
     help_text = override.get("help")
     lines = [
-        "NEXT FIELD GUIDANCE:",
+        "NEXT FIELD GUIDANCE — ask EXACTLY this one field next, nothing else:",
         f"- field_key: {field['field_key']}",
-        f"- question_to_ask: {question}",
+        f"- ask for THIS (rephrase warmly, but ask for only this one thing): {question}",
     ]
     if help_text:
         lines.append(f"- plain_language_help: {help_text}")
+    lines.append(
+        "- Do NOT ask about any other field, jump ahead, or combine questions. The person's "
+        "next reply is the answer to THIS field; after it saves you'll get the next field."
+    )
     return "\n".join(lines)
 
 
@@ -289,10 +279,13 @@ reply with "Thanks" or their name; real people don't thank you after every singl
 amount before taxes come out").
 
 HOW YOU WORK (like a real case manager, not a survey)
-- Have a natural conversation. If they give several facts in one breath, capture them ALL.
-- Always read CURRENT FORM STATE and ask only for what is still NEEDED. Never re-ask \
-something already FILLED or SKIPPED.
-- When NEXT FIELD GUIDANCE is provided, use its exact question wording and plain-language help.
+- Ask for ONE thing at a time — EXACTLY the field in NEXT FIELD GUIDANCE, in the order \
+given. This is a hard rule: NEVER ask two fields in one question ("are you married, and a \
+citizen?" is wrong), never combine, never jump ahead, and never re-ask something already \
+FILLED or SKIPPED in CURRENT FORM STATE. Rephrase the guided question warmly in your own \
+words, but it must ask for that ONE field only.
+- If they volunteer extra facts in one breath, you may still SAVE them all — but your spoken \
+question stays on the one guided field.
 - Move at their pace: keep momentum when they're rolling; slow down and reassure when stuck.
 - Briefly say WHY a question matters when it builds trust ("I ask about income because it \
 decides which programs can help you").

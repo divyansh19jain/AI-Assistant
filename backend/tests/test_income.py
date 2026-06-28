@@ -80,21 +80,14 @@ def test_screen_income_sources_flags_incomplete_when_unresolved():
     assert len(result["unresolved"]) == 1
 
 
-def test_odm_gate_prioritized_after_name():
-    """Once the applicant's name is known, the next field front-loads the household gate."""
+def test_prioritized_next_is_strict_schema_order():
+    """The next field is strictly the first missing one — no reordering, so chips/guidance
+    and the spoken question can't diverge."""
     from app.ai.agent import _prioritized_next
 
-    missing = [
-        {"field_key": "applicant.middle_name"},
-        {"field_key": "applicant.suffix"},
-        {"field_key": "person2.adding_person2"},
-    ]
-    answers = {"applicant.first_name": "Tony", "applicant.last_name": "Stark"}
-    assert _prioritized_next("ODM_07216", answers, missing)["field_key"] == "person2.adding_person2"
-    # Before the name is known, it stays in schema order.
-    assert _prioritized_next("ODM_07216", {}, missing)["field_key"] == "applicant.middle_name"
-    # Non-ODM forms are untouched.
-    assert _prioritized_next("OTHER", answers, missing)["field_key"] == "applicant.middle_name"
+    missing = [{"field_key": "applicant.zip"}, {"field_key": "person2.adding_person2"}]
+    assert _prioritized_next("ODM_07216", {}, missing)["field_key"] == "applicant.zip"
+    assert _prioritized_next("ODM_07216", {}, []) is None
 
 
 def test_coerce_yes_no_captures_natural_answers():
