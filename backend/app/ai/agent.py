@@ -722,6 +722,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     # key is sent with the answer). This binds the chip/question to its field instead of
     # guessing from text, so a yes/no or select answer can NEVER be dropped and re-asked —
     # the #1 cause of frustrating loops. Text/date answers are left to the model's extractor.
+    captured = False
     if not is_start and answered_field_key:
         fld = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), None)
         if fld and answered_field_key not in answers:
@@ -741,6 +742,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                 # fails validation and falls through to the model's extractor. Plain free-text
                 # (address/city/name) is always left to the model so it can split + clean it.
                 saved = bool(svc.set_field(db, session, schema, answered_field_key, user_text, input_mode=input_mode).get("ok"))
+            captured = saved
             if saved:
                 answers = svc._answers_map(db, session_id)
 
@@ -875,8 +877,19 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                 "content": "UPDATED FORM STATE after your tool calls:\n" + _build_form_context(schema, answers),
             })
     except Exception:
-        logger.warning("Agent turn failed; returning a safe fallback message.", exc_info=True)
-        assistant_text = "Sorry, I had a little trouble there. Could you say that again?"
+        # The model is unavailable (e.g. OpenAI 429 / out of quota, timeout, outage). Degrade
+        # gracefully to the deterministic per-field flow instead of erroring — the form still
+        # gets filled, one field at a time, with the chips/binding intact.
+        logger.warning("Agent LLM unavailable; degrading to the deterministic per-field flow.", exc_info=True)
+        # Don't lose the answer: if the explicit-field capture above didn't already save it,
+        # save it now via set_field (which never calls the model).
+        if not is_start and answered_field_key and not captured:
+            try:
+                svc.set_field(db, session, schema, answered_field_key, user_text, input_mode=input_mode)
+                answers = svc._answers_map(db, session_id)
+            except Exception:
+                logger.warning("Fallback save failed for %s.", answered_field_key, exc_info=True)
+        assistant_text = ""  # filled below by the deterministic next-question helper
 
     if not assistant_text:
         assistant_text = _next_action_reply(schema, svc._answers_map(db, session_id), session.form_id)
