@@ -32,7 +32,7 @@ def build_case_profile(form_id: str, schema: dict, answer_rows: Iterable[Any]) -
 
     fields = get_all_fields_from_schema(schema)
     by_key = {f["field_key"]: f for f in fields}
-    applicable = [f for f in fields if is_field_applicable(f, answers)]
+    applicable = [f for f in fields if is_field_applicable(f, answers, by_key)]
 
     answered = [
         f["field_key"] for f in applicable

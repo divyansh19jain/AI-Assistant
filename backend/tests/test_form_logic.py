@@ -3,7 +3,12 @@
 import pytest
 from app.emr.schemas import EMRPatient, EMRAddress
 from app.forms.mapper import prefill_from_emr
-from app.forms.missing_fields import get_missing_applicable_fields, get_missing_required_fields, _dependency_satisfied
+from app.forms.missing_fields import (
+    get_applicable_answers,
+    get_missing_applicable_fields,
+    get_missing_required_fields,
+    _dependency_satisfied,
+)
 from app.forms.validation import validate_answer, ValidationError
 from app.forms.service import get_all_fields
 
@@ -102,6 +107,31 @@ def test_dependency_immigration_skipped_for_citizen():
     all_fields = get_all_fields("ODM_07216")
     imm_doc = next(f for f in all_fields if f["field_key"] == "person1.immigration_document_type")
     assert not _dependency_satisfied(imm_doc, answers)
+
+
+def test_chained_dependencies_hide_stale_descendant_answers():
+    """A stale grandchild must not look active just because its direct parent has a value."""
+    answers = {
+        "person2.adding_person2": False,
+        "person2.tax_file_next_year": True,
+        "person2.file_jointly_with_spouse": True,
+        "person2.spouse_name": "Old spouse",
+    }
+
+    applicable = get_applicable_answers(
+        {
+            "sections": [
+                {
+                    "section_key": "s",
+                    "section_title": "S",
+                    "fields": get_all_fields("ODM_07216"),
+                }
+            ]
+        },
+        answers,
+    )
+
+    assert sorted(k for k in applicable if k.startswith("person2.")) == ["person2.adding_person2"]
 
 
 def test_validate_boolean_yes():

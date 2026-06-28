@@ -351,6 +351,7 @@ def set_field(
     field_key: str,
     value: Any,
     input_mode: str = "voice",
+    confidence: float = 1.0,
 ) -> dict:
     """Validate and persist a single field value the agent already extracted.
 
@@ -399,12 +400,12 @@ def set_field(
         existing.value_json = json.dumps(store_value)
         existing.raw_answer = raw_answer
         existing.source = source
-        existing.confidence = 1.0
+        existing.confidence = confidence
     else:
         db.add(FormAnswer(
             session_id=session.id, field_key=field_key,
             value_json=json.dumps(store_value), raw_answer=raw_answer,
-            source=source, confidence=1.0,
+            source=source, confidence=confidence,
         ))
     db.commit()
     carry_forward_msg = _apply_answer_carry_forward(db, session, schema)
@@ -492,6 +493,7 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
     confidence_map = {a.field_key: float(a.confidence or 0.0) for a in answers}
 
     all_fields = get_all_fields_from_schema(schema)
+    fields_by_key = {f["field_key"]: f for f in all_fields}
     section_titles = {s["section_key"]: s["section_title"] for s in schema["sections"]}
 
     SKIPPED = "__skipped__"
@@ -500,7 +502,7 @@ def get_review_data(db: DBSession, session_id: str) -> dict | None:
         # Conditional branches that are inactive for the current answers should not
         # appear as review-time gaps. Approval uses the same applicability rule, so
         # future forms with dependencies keep the UI and API aligned.
-        if not is_field_applicable(field, answers_map):
+        if not is_field_applicable(field, answers_map, fields_by_key):
             continue
         sec = field["section"]
         if sec not in sections:
@@ -718,7 +720,7 @@ def _invalidate_stale_answers(db: DBSession, session: FormSession, schema: dict)
     known_keys = {f["field_key"] for f in fields}
     by_key = {f["field_key"]: f for f in fields}
     answers = _answers_map(db, session.id)
-    applicable_keys = {f["field_key"] for f in fields if is_field_applicable(f, answers)}
+    applicable_keys = {f["field_key"] for f in fields if is_field_applicable(f, answers, by_key)}
 
     cleared: list[str] = []
     for row in db.query(FormAnswer).filter(FormAnswer.session_id == session.id).all():
@@ -728,10 +730,13 @@ def _invalidate_stale_answers(db: DBSession, session: FormSession, schema: dict)
         # Only clear on a REAL conflict: the gating field is answered and its condition no
         # longer holds. If the gate isn't answered yet (e.g. a home address saved before
         # "are you homeless?"), keep the value — it may become applicable, don't re-ask it.
+        # If an unanswered gate is itself inactive, this row is an orphan descendant.
         dep = (by_key.get(fk) or {}).get("depends_on")
         gate_key = dep.get("field_key") if isinstance(dep, dict) else None
         if gate_key and gate_key not in answers:
-            continue
+            gate_field = by_key.get(gate_key)
+            if gate_field is None or is_field_applicable(gate_field, answers, by_key):
+                continue
         db.delete(row)
         cleared.append(fk)
     if cleared:

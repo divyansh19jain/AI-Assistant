@@ -94,3 +94,93 @@ def test_agent_tool_only_turn_rejects_early_review_and_asks_next_question(client
 
     review = client.get(f"/api/session/{session_id}/review").json()
     assert review["missing_applicable"] == ["s.middle"]
+
+
+def test_voice_date_capture_requires_readback_confirmation(client, db, monkeypatch):
+    """Voice-captured dates are saved but stay blocked until the user confirms them."""
+    from app.ai.agent import run_agent_turn
+    from app.core.config import get_settings
+    from app.db.models import FormAnswer
+
+    schema = {
+        "form_id": "AGENT_READBACK",
+        "form_title": "Agent Readback",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "Applicant",
+                "fields": [
+                    {
+                        "field_key": "person1.dob",
+                        "label": "Date of Birth",
+                        "section": "s",
+                        "type": "date",
+                        "required": True,
+                        "sensitive": True,
+                        "question_text": "What is your date of birth?",
+                        "validation_rule": {"format": "date"},
+                    }
+                ],
+            }
+        ],
+    }
+    token = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()["token"]
+    headers = {"Authorization": f"Bearer {token}"}
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "AGENT_READBACK", "title": "Agent Readback"})
+    client.put("/api/admin/forms/AGENT_READBACK/schema", headers=headers, json={"schema": schema})
+    client.post("/api/admin/forms/AGENT_READBACK/publish", headers=headers)
+    session_id = client.post(
+        "/api/session/create",
+        json={"form_id": "AGENT_READBACK", "manual_mode": True},
+    ).json()["session_id"]
+
+    class FakeCompletions:
+        def create(self, **_kwargs):
+            message = SimpleNamespace(content="Thanks, I have that.", tool_calls=[])
+            return SimpleNamespace(choices=[SimpleNamespace(message=message)])
+
+    class FakeOpenAI:
+        def __init__(self, **_kwargs):
+            self.chat = SimpleNamespace(completions=FakeCompletions())
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr("openai.OpenAI", FakeOpenAI)
+    get_settings.cache_clear()
+    try:
+        result = run_agent_turn(
+            db,
+            session_id,
+            "January 5th 1980",
+            input_mode="voice",
+            answered_field_key="person1.dob",
+        )
+    finally:
+        get_settings.cache_clear()
+
+    row = db.query(FormAnswer).filter(
+        FormAnswer.session_id == session_id,
+        FormAnswer.field_key == "person1.dob",
+    ).one()
+    assert row.value_json == '"1980-01-05"'
+    assert row.confidence < 0.75
+    assert result["done"] is False
+    assert result["state"]["next_field_key"] == "person1.dob"
+    assert result["next_field"]["type"] == "confirmation"
+    assert "is that right" in result["assistant_message"].lower()
+
+    get_settings.cache_clear()
+    try:
+        confirmed = run_agent_turn(
+            db,
+            session_id,
+            "yes",
+            input_mode="voice",
+            answered_field_key="person1.dob",
+        )
+    finally:
+        get_settings.cache_clear()
+
+    db.refresh(row)
+    assert row.confidence == 1.0
+    assert confirmed["state"]["next_field_key"] is None

@@ -51,7 +51,7 @@ def build_session_readiness(
 
     fields = get_all_fields_from_schema(schema)
     fields_by_key = {f["field_key"]: f for f in fields}
-    applicable = [f for f in fields if is_field_applicable(f, answers)]
+    applicable = [f for f in fields if is_field_applicable(f, answers, fields_by_key)]
     applicable_keys = {f["field_key"] for f in applicable}
 
     missing_applicable = get_missing_applicable_fields(form_id, answers, schema)

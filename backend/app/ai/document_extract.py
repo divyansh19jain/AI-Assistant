@@ -39,10 +39,12 @@ def _candidate_fields(schema: dict, answers: dict) -> list[dict]:
     from app.forms.missing_fields import is_field_applicable
 
     out: list[dict] = []
-    for f in get_all_fields_from_schema(schema):
+    fields = get_all_fields_from_schema(schema)
+    fields_by_key = {f["field_key"]: f for f in fields}
+    for f in fields:
         if f.get("type", "text") not in _OCR_FIELD_TYPES:
             continue
-        if not is_field_applicable(f, answers):
+        if not is_field_applicable(f, answers, fields_by_key):
             continue
         val = answers.get(f["field_key"])
         if val not in (None, "", "__skipped__"):

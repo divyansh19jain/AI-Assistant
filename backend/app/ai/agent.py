@@ -43,6 +43,11 @@ logger = logging.getLogger(__name__)
 SKIPPED = "__skipped__"
 _MAX_TOOL_ROUNDS = 6           # safety cap on tool-call/▸model ping-pong per turn
 _HISTORY_TURNS = 24            # how many prior user/assistant messages to replay
+_DIRECT_SKIP_WORDS = {
+    "skip", "skipped", "skip it", "skip this", "none", "n/a", "na",
+    "no answer", "leave blank", "blank", "not applicable",
+}
+_READBACK_CONFIDENCE = 0.5
 
 
 # ───────────────────────── form state → model context ─────────────────────────
@@ -65,8 +70,10 @@ def _build_form_context(schema: dict, answers: dict[str, Any]) -> str:
     section_titles = {s["section_key"]: s.get("section_title", s["section_key"]) for s in schema.get("sections", [])}
     lines: list[str] = []
     current_section = None
-    for field in get_all_fields_from_schema(schema):
-        if not is_field_applicable(field, answers):
+    fields = get_all_fields_from_schema(schema)
+    fields_by_key = {f["field_key"]: f for f in fields}
+    for field in fields:
+        if not is_field_applicable(field, answers, fields_by_key):
             continue
         sec = field.get("section")
         if sec != current_section:
@@ -131,6 +138,101 @@ def _coerce_yes_no(text: str, field_key: str) -> bool | None:
     return None
 
 
+def _needs_agent_readback(field: dict, input_mode: str) -> bool:
+    """Voice-captured dates, phones, and ZIPs must be confirmed before approval."""
+    if input_mode != "voice":
+        return False
+    key = field.get("field_key", "").lower()
+    ftype = field.get("type", "text")
+    rule = field.get("validation_rule") or {}
+    return (
+        ftype in {"date", "phone"}
+        or key.endswith(".zip")
+        or key.endswith("_zip")
+        or rule.get("pattern") == r"^\d{5}(-\d{4})?$"
+    )
+
+
+def _agent_save_confidence(field: dict, input_mode: str) -> float:
+    """Mark required read-back values low-confidence until the user says they are right."""
+    return _READBACK_CONFIDENCE if _needs_agent_readback(field, input_mode) else 1.0
+
+
+def _format_readback_value(field: dict, value: Any) -> str:
+    """Human-friendly rendering for the value the assistant reads back."""
+    text = str(value)
+    if field.get("type") == "date":
+        try:
+            from datetime import datetime
+
+            return datetime.strptime(text, "%Y-%m-%d").strftime("%B %-d, %Y")
+        except Exception:
+            try:
+                from datetime import datetime
+
+                return datetime.strptime(text, "%Y-%m-%d").strftime("%B %#d, %Y")
+            except Exception:
+                return text
+    if field.get("type") == "phone":
+        digits = "".join(ch for ch in text if ch.isdigit())
+        if len(digits) == 10:
+            return f"{digits[:3]}-{digits[3:6]}-{digits[6:]}"
+    return text
+
+
+def _readback_prompt(field: dict, value: Any) -> str:
+    """Deterministic confirmation prompt used when a read-back field blocks readiness."""
+    label = field.get("label", field["field_key"])
+    rendered = _format_readback_value(field, value)
+    if field.get("type") == "date":
+        return f"I heard {rendered} for {label}. Is that right?"
+    return f"I heard {rendered} for {label}. Is that right?"
+
+
+def _first_low_confidence_field(db, session_id: str, schema: dict) -> tuple[dict, Any] | None:
+    """Return the first applicable answer that still needs read-back confirmation."""
+    answers = svc._answers_map(db, session_id)
+    rows = {r.field_key: r for r in db.query(FormAnswer).filter(FormAnswer.session_id == session_id).all()}
+    fields = get_all_fields_from_schema(schema)
+    fields_by_key = {f["field_key"]: f for f in fields}
+    for field in fields:
+        key = field["field_key"]
+        row = rows.get(key)
+        if not row or float(row.confidence or 0.0) >= 0.75:
+            continue
+        if not is_field_applicable(field, answers, fields_by_key):
+            continue
+        value = answers.get(key)
+        if value in (None, "", SKIPPED):
+            continue
+        return field, value
+    return None
+
+
+def _handle_low_confidence_confirmation(db, session, schema: dict, field_key: str, text: str) -> bool:
+    """Apply a yes/no reply to a pending read-back field before the model sees it.
+
+    Yes promotes the stored value to high confidence. No deletes it so the same field is
+    asked again. This keeps confirmation state deterministic and survives page reloads.
+    """
+    row = db.query(FormAnswer).filter(
+        FormAnswer.session_id == session.id,
+        FormAnswer.field_key == field_key,
+    ).first()
+    if not row or float(row.confidence or 0.0) >= 0.75:
+        return False
+    yn = _coerce_yes_no(text, field_key)
+    if yn is True:
+        row.confidence = 1.0
+        db.commit()
+        return True
+    if yn is False:
+        db.delete(row)
+        db.commit()
+        return True
+    return False
+
+
 def _next_field_payload(db, field: dict | None, answers: dict[str, Any] | None = None) -> dict | None:
     """Metadata for the field being asked, so the UI can offer tappable answer chips
     (Yes/No, select options, or ZIP-aware city values) for fast touch entry."""
@@ -145,6 +247,19 @@ def _next_field_payload(db, field: dict | None, answers: dict[str, Any] | None =
         "type": field.get("type", "text"),
         "options": rule.get("allowed_values") or field.get("options") or [],
         "suggestions": suggestions_for_field(db, field, answers or {}),
+    }
+
+
+def _confirmation_field_payload(field: dict | None) -> dict | None:
+    """UI metadata for a read-back confirmation on an already-saved field."""
+    if not field:
+        return None
+    return {
+        "field_key": field["field_key"],
+        "label": field.get("label", field["field_key"]),
+        "type": "confirmation",
+        "options": ["Yes", "No"],
+        "suggestions": ["Yes", "No"],
     }
 
 
@@ -518,10 +633,16 @@ def _tools(form_id: str | None = None) -> list[dict]:
 def _exec_save_answers(db, session, schema, args: dict, input_mode: str) -> dict:
     items = args.get("items") or []
     results = []
+    fields_by_key = {f["field_key"]: f for f in get_all_fields_from_schema(schema)}
     for it in items:
         fk = (it or {}).get("field_key", "")
         val = (it or {}).get("value", "")
-        results.append(svc.set_field(db, session, schema, fk, val, input_mode=input_mode))
+        field = fields_by_key.get(fk) or {}
+        results.append(svc.set_field(
+            db, session, schema, fk, val,
+            input_mode=input_mode,
+            confidence=_agent_save_confidence(field, input_mode),
+        ))
     out: dict = {"results": results}
     # Make a failed save impossible to ignore: the model must NOT claim it captured a
     # value that did not validate (e.g. a garbled date) — it has to ask again.
@@ -745,9 +866,18 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     captured = False
     if not is_start and answered_field_key:
         fld = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), None)
-        if fld and answered_field_key not in answers:
+        if fld and answered_field_key in answers:
+            captured = _handle_low_confidence_confirmation(db, session, schema, answered_field_key, user_text)
+            if captured:
+                answers = svc._answers_map(db, session_id)
+        if not captured and fld and answered_field_key not in answers:
             ftype = fld.get("type", "text")
-            if ftype == "boolean":
+            raw = (user_text or "").strip().lower()
+            if raw in _DIRECT_SKIP_WORDS:
+                # The Skip button and spoken "skip" must persist without waiting for the
+                # LLM to infer skip_fields, otherwise optional questions can loop.
+                captured = bool(svc.set_field(db, session, schema, answered_field_key, user_text, input_mode=input_mode).get("ok"))
+            elif ftype == "boolean":
                 yn = _coerce_yes_no(user_text, answered_field_key)
                 if yn is not None:
                     svc.set_field(db, session, schema, answered_field_key, "yes" if yn else "no", input_mode=input_mode)
@@ -758,7 +888,11 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                 # One field is asked at a time, so the utterance is a single value; set_field
                 # validates it — a noisy/combined utterance that fails validation falls through
                 # to the model's extractor (which can split it).
-                captured = bool(svc.set_field(db, session, schema, answered_field_key, user_text, input_mode=input_mode).get("ok"))
+                captured = bool(svc.set_field(
+                    db, session, schema, answered_field_key, user_text,
+                    input_mode=input_mode,
+                    confidence=_agent_save_confidence(fld, input_mode),
+                ).get("ok"))
             if captured:
                 answers = svc._answers_map(db, session_id)
 
@@ -908,7 +1042,12 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         # save it now via set_field (which never calls the model).
         if not is_start and answered_field_key and not captured:
             try:
-                svc.set_field(db, session, schema, answered_field_key, user_text, input_mode=input_mode)
+                fld = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), {})
+                svc.set_field(
+                    db, session, schema, answered_field_key, user_text,
+                    input_mode=input_mode,
+                    confidence=_agent_save_confidence(fld, input_mode),
+                )
                 answers = svc._answers_map(db, session_id)
             except Exception:
                 logger.warning("Fallback save failed for %s.", answered_field_key, exc_info=True)
@@ -937,8 +1076,27 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     # the human order; we trust its declaration so the chips and the answer binding always
     # match the question. Fall back to the next missing field only if it didn't declare (or
     # declared one that's already answered).
+    confirm_next = _first_low_confidence_field(db, session_id, schema)
     missing_by_key = {f["field_key"]: f for f in missing_applicable}
-    nxt = missing_by_key.get(declared_field_key) or _prioritized_next(session.form_id, answers, missing_applicable)
+    if confirm_next:
+        confirm_field, confirm_value = confirm_next
+        # Confirmation is a readiness blocker, so keep both the spoken prompt and UI
+        # binding on that same field until the person says yes or corrects it.
+        assistant_text = _readback_prompt(confirm_field, confirm_value)
+        last_msg = (
+            db.query(SessionMessage)
+            .filter(SessionMessage.session_id == session_id, SessionMessage.role == "assistant")
+            .order_by(SessionMessage.id.desc())
+            .first()
+        )
+        if last_msg:
+            last_msg.content = assistant_text
+            db.commit()
+        nxt = confirm_field
+        next_payload = _confirmation_field_payload(confirm_field)
+    else:
+        nxt = missing_by_key.get(declared_field_key) or _prioritized_next(session.form_id, answers, missing_applicable)
+        next_payload = _next_field_payload(db, nxt, answers)
     return {
         "assistant_message": assistant_text,
         "done": done,
@@ -950,6 +1108,6 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
             "total": len(get_all_fields_from_schema(schema)),
             "next_field_key": nxt["field_key"] if nxt else None,
         },
-        "next_field": _next_field_payload(db, nxt, answers),
+        "next_field": next_payload,
         "answers": answers,
     }

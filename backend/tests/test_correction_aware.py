@@ -89,3 +89,34 @@ def test_unrelated_answers_are_not_cleared_on_correction(db):
     answers = svc._answers_map(db, sid)
     assert answers.get("applicant.first_name") == "Tony"
     assert answers.get("applicant.home_address") == "123 Main St"
+
+
+def test_person2_gate_clears_multilevel_tax_descendants(db):
+    """Turning off Person 2 must clear every child branch, not just direct children."""
+    sid, session, schema = _new_odm_session(db)
+
+    svc.set_field(db, session, schema, "person2.adding_person2", "yes")
+    svc.set_field(db, session, schema, "person2.tax_file_next_year", "yes")
+    svc.set_field(db, session, schema, "person2.file_jointly_with_spouse", "yes")
+    svc.set_field(db, session, schema, "person2.spouse_name", "Old Spouse")
+    assert "person2.spouse_name" in svc._answers_map(db, sid)
+
+    svc.set_field(db, session, schema, "person2.adding_person2", "no")
+    answers = svc._answers_map(db, sid)
+
+    assert answers["person2.adding_person2"] is False
+    assert "person2.tax_file_next_year" not in answers
+    assert "person2.file_jointly_with_spouse" not in answers
+    assert "person2.spouse_name" not in answers
+
+
+def test_orphan_grandchild_clears_when_missing_gate_is_inactive(db):
+    """A missing direct gate preserves prefilled values only if that gate is still active."""
+    sid, session, schema = _new_odm_session(db)
+
+    svc.set_field(db, session, schema, "income.has_employment", "not_employed")
+    svc.set_field(db, session, schema, "income.emp3_employer", "Old employer")
+
+    answers = svc._answers_map(db, sid)
+    assert answers["income.has_employment"] == "not_employed"
+    assert "income.emp3_employer" not in answers

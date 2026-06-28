@@ -50,9 +50,41 @@ def _dependency_satisfied(field: dict, answers: dict[str, Any]) -> bool:
     return True
 
 
-def is_field_applicable(field: dict, answers: dict[str, Any]) -> bool:
-    """Public helper for review/output views that must hide inactive branches."""
-    return _dependency_satisfied(field, answers)
+def is_field_applicable(
+    field: dict,
+    answers: dict[str, Any],
+    fields_by_key: dict[str, dict] | None = None,
+    _seen: set[str] | None = None,
+) -> bool:
+    """Return whether a field belongs to the active branch for ``answers``.
+
+    A direct dependency is not enough for chained form branches. For example,
+    ``person2.spouse_name`` depends on ``person2.file_jointly_with_spouse``, which
+    itself depends on ``person2.tax_file_next_year`` and ``person2.adding_person2``.
+    If Person 2 is later corrected to "no", every descendant must be inactive even
+    when stale child answers are still present in the database.
+    """
+    if not _dependency_satisfied(field, answers):
+        return False
+
+    dep = field.get("depends_on")
+    dep_key = dep.get("field_key") if isinstance(dep, dict) else None
+    if not dep_key or not fields_by_key:
+        return True
+
+    field_key = field.get("field_key", "")
+    seen = set(_seen or set())
+    if field_key:
+        seen.add(field_key)
+    if dep_key in seen:
+        # Invalid cyclic schemas should not make both sides look applicable forever.
+        return False
+
+    parent = fields_by_key.get(dep_key)
+    if not parent:
+        # Unknown external gate; the direct dependency check above is all we can apply.
+        return True
+    return is_field_applicable(parent, answers, fields_by_key, seen)
 
 
 def get_applicable_answers(
@@ -68,9 +100,11 @@ def get_applicable_answers(
     dependency was changed in a way that makes that child field inactive.
     """
     out: dict[str, Any] = {}
-    for field in get_all_fields_from_schema(schema):
+    fields = get_all_fields_from_schema(schema)
+    fields_by_key = {f["field_key"]: f for f in fields}
+    for field in fields:
         key = field["field_key"]
-        if key not in answers or not is_field_applicable(field, answers):
+        if key not in answers or not is_field_applicable(field, answers, fields_by_key):
             continue
         if answers[key] == SKIPPED and not include_skipped:
             continue
@@ -94,8 +128,10 @@ def get_missing_applicable_fields(
     answered or explicitly skipped before review/approval.
     """
     missing = []
-    for field in _fields_for(form_id, schema):
-        if not _dependency_satisfied(field, answers):
+    fields = _fields_for(form_id, schema)
+    fields_by_key = {f["field_key"]: f for f in fields}
+    for field in fields:
+        if not is_field_applicable(field, answers, fields_by_key):
             continue
         if _field_answered(field["field_key"], answers):
             continue
@@ -116,10 +152,12 @@ def get_missing_required_fields(
     """
     missing = []
 
-    for field in _fields_for(form_id, schema):
+    fields = _fields_for(form_id, schema)
+    fields_by_key = {f["field_key"]: f for f in fields}
+    for field in fields:
         if not field.get("required", False):
             continue
-        if not _dependency_satisfied(field, answers):
+        if not is_field_applicable(field, answers, fields_by_key):
             continue
         if _field_answered(field["field_key"], answers):
             continue
@@ -145,10 +183,12 @@ def get_optional_missing_fields(
 ) -> list[dict]:
     """Return optional fields that are not yet answered and whose deps are met."""
     missing = []
-    for field in _fields_for(form_id, schema):
+    fields = _fields_for(form_id, schema)
+    fields_by_key = {f["field_key"]: f for f in fields}
+    for field in fields:
         if field.get("required", False):
             continue
-        if not _dependency_satisfied(field, answers):
+        if not is_field_applicable(field, answers, fields_by_key):
             continue
         if not _field_answered(field["field_key"], answers):
             missing.append(field)

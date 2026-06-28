@@ -276,7 +276,12 @@ export default function AssistantPage() {
           // Restore the field binding too, so the next answer still goes to the right field.
           try {
             const rawNf = sessionStorage.getItem(nfKey(sessionId));
-            if (rawNf) { const nf = JSON.parse(rawNf); nextFieldRef.current = nf; setNextField(nf); }
+            if (rawNf) {
+              const nf = JSON.parse(rawNf);
+              nextFieldRef.current = nf;
+              setNextField(nf);
+              setNextKey(nf?.field_key ?? null);
+            }
           } catch { /* ignore */ }
           setTimeout(() => startListening(), 400);
         } else {
