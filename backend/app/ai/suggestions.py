@@ -28,8 +28,9 @@ _COMMON_BY_SUFFIX: dict[str, list[str]] = {
 }
 
 
-def suggestions_for_field(db, field: dict) -> list[str]:
+def suggestions_for_field(db, field: dict, answers: dict | None = None) -> list[str]:
     """Tappable answer suggestions for one field (may be empty)."""
+    answers = answers or {}
     ftype = field.get("type", "text")
     rule = field.get("validation_rule") or {}
     if ftype == "boolean":
@@ -40,15 +41,80 @@ def suggestions_for_field(db, field: dict) -> list[str]:
     # Only a small allowlist of safe, repeating text fields get history-based hints.
     if field.get("sensitive") or ftype != "text":
         return []
-    suffix = field["field_key"].split(".")[-1]
+    key = field["field_key"]
+    suffix = key.split(".")[-1]
+    if suffix == "city":
+        return _city_suggestions(db, key, answers)  # ZIP-aware
     common = _COMMON_BY_SUFFIX.get(suffix)
     if not common:
         return []
     merged: list[str] = []
-    for value in _frequent_values(db, field["field_key"]) + common:  # history first
+    for value in _frequent_values(db, key) + common:  # history first
         if value not in merged:
             merged.append(value)
     return merged[:6]
+
+
+def _city_suggestions(db, city_field_key: str, answers: dict) -> list[str]:
+    """Cities for the applicant's ZIP — what others in this ZIP entered (history) plus the
+    canonical city for that ZIP — so on a phone they tap instead of typing."""
+    zip_field_key = city_field_key[:-4] + "zip"  # applicant.city -> applicant.zip
+    zip_code = str(answers.get(zip_field_key) or answers.get("applicant.zip") or "").strip()
+    out: list[str] = []
+    if zip_code:
+        try:
+            from app.services.zipcode import lookup_zip
+
+            info = lookup_zip(zip_code)
+            if info and info.get("city"):
+                out.append(info["city"])  # canonical city for this ZIP
+        except Exception:
+            pass
+        for city in _cities_for_zip(db, zip_code):  # what past applicants in this ZIP entered
+            if city not in out:
+                out.append(city)
+    for city in _COMMON_BY_SUFFIX["city"]:  # common Ohio cities as a fallback
+        if city not in out:
+            out.append(city)
+    return out[:6]
+
+
+def _cities_for_zip(db, zip_code: str) -> list[str]:
+    """Cities entered by past applications that share this ZIP (most common first).
+
+    City for a ZIP is public geography (not PHI), so no frequency threshold is applied.
+    """
+    try:
+        from sqlalchemy import func
+
+        from app.db.models import FormAnswer
+
+        zip_json = json.dumps(zip_code)
+        session_ids = [
+            r[0] for r in db.query(FormAnswer.session_id)
+            .filter(FormAnswer.field_key == "applicant.zip", FormAnswer.value_json == zip_json)
+            .all()
+        ]
+        if not session_ids:
+            return []
+        rows = (
+            db.query(FormAnswer.value_json, func.count())
+            .filter(FormAnswer.field_key == "applicant.city", FormAnswer.session_id.in_(session_ids))
+            .group_by(FormAnswer.value_json)
+            .all()
+        )
+    except Exception:
+        return []
+    scored: list[tuple[str, int]] = []
+    for value_json, count in rows:
+        try:
+            value = json.loads(value_json) if value_json else None
+        except Exception:
+            value = value_json
+        if isinstance(value, str) and value not in ("__skipped__", "", "null"):
+            scored.append((value, int(count)))
+    scored.sort(key=lambda pair: -pair[1])
+    return [value for value, _ in scored[:5]]
 
 
 def _frequent_values(db, field_key: str) -> list[str]:

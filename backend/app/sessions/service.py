@@ -336,6 +336,13 @@ _SKIP_TOKENS = {
     "leave blank", "blank", "not applicable", "__skipped__",
 }
 
+# "My mailing address is the same as home" — there is no separate mailing address. Handled
+# in set_field so the dependent mailing fields gate off instead of being asked one by one.
+_MAILING_SAME_TOKENS = {
+    "same", "same as home", "same as above", "same as my home", "same address",
+    "same as where i live", "no different", "it's the same", "its the same", "same as home address",
+}
+
 
 def set_field(
     db: DBSession,
@@ -363,6 +370,11 @@ def set_field(
     required = field.get("required", False)
     raw_str = str(value).strip() if value is not None else ""
     is_skip = raw_str.lower() in _SKIP_TOKENS
+    # "Same as home" for a mailing address means there is NO separate mailing address —
+    # treat it as a skip so the dependent mailing fields (apt/city/state/ZIP/county) gate
+    # off and the assistant stops asking them one at a time.
+    if field_key.endswith(".mailing_address") and raw_str.lower() in _MAILING_SAME_TOKENS:
+        is_skip = True
 
     if is_skip:
         if required:

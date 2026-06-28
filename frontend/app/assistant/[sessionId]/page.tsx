@@ -406,16 +406,20 @@ export default function AssistantPage() {
               </div>
 
               {/* Tappable answer chips — fast touch entry on a phone/tablet when voice is
-                  unclear. Yes/No for booleans, options for selects, common values otherwise. */}
+                  unclear. Yes/No for booleans, options for selects, common values otherwise.
+                  Centered + finger-sized for visibility. */}
               {nextField && nextField.suggestions.length > 0 && !doneRef.current && (
-                <div className="flex flex-wrap gap-2 mb-2.5">
-                  {nextField.suggestions.map((s) => (
-                    <button key={s} type="button" disabled={thinking}
-                      onClick={() => sendToAgent(s, "typed")}
-                      className="min-h-[44px] inline-flex items-center px-4 py-2.5 rounded-full border border-slate-200 bg-white text-[0.95rem] font-medium text-slate-700 hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition-all disabled:opacity-40">
-                      {s}
-                    </button>
-                  ))}
+                <div className="mb-3">
+                  <p className="text-center text-xs text-slate-400 mb-2">Tap an answer, or type / speak it</p>
+                  <div className="flex flex-wrap justify-center gap-2.5">
+                    {nextField.suggestions.map((s) => (
+                      <button key={s} type="button" disabled={thinking}
+                        onClick={() => sendToAgent(s, "typed")}
+                        className="min-h-[48px] inline-flex items-center px-5 py-3 rounded-full border-2 border-slate-200 bg-white text-base font-semibold text-slate-700 shadow-sm hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 active:scale-95 transition-all disabled:opacity-40">
+                        {s}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 

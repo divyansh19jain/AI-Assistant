@@ -113,9 +113,60 @@ def _next_missing(form_id: str, schema: dict, answers: dict[str, Any]) -> dict |
     return _prioritized_next(form_id, answers, get_missing_applicable_fields(form_id, answers, schema))
 
 
-def _next_field_payload(db, field: dict | None) -> dict | None:
+# Words too generic to identify which field a question is about.
+_QUESTION_STOPWORDS = {
+    "your", "you", "the", "what", "whats", "is", "are", "do", "does", "did", "have", "has",
+    "any", "name", "please", "tell", "this", "that", "for", "with", "and", "live", "living",
+    "currently", "now", "about", "would", "like", "want", "there", "their", "number",
+}
+
+
+def _coerce_yes_no(text: str, field_key: str) -> bool | None:
+    """Map a free-text reply to True/False for a yes/no field, or None if unclear.
+    Handles the indirect phrasings the agent uses (e.g. 'just me' for the add-a-person gate)."""
+    t = (text or "").strip().lower().strip(".!?")
+    if not t:
+        return None
+    if field_key.endswith("adding_person2"):
+        if any(w in t for w in ("just me", "only me", "myself", "just for me", "for myself",
+                                "no one else", "by myself", "just mine", "only myself", "nobody else")):
+            return False
+        if any(w in t for w in ("spouse", "wife", "husband", "partner", "kid", "child", "children",
+                                "son", "daughter", "family", "others", "other people", "another person", "add")):
+            return True
+    if "email" in field_key:  # "do you want emails, or mail only?"
+        if "mail only" in t or t in ("mail", "just mail", "by mail", "paper", "mail please"):
+            return False
+        if "email" in t or "e-mail" in t or "emails" in t:
+            return True
+    no_words = {"no", "nope", "nah", "n", "negative", "i don't", "i do not", "none"}
+    yes_words = {"yes", "yeah", "yep", "yup", "sure", "correct", "right", "y", "i do", "we do", "ok", "okay"}
+    if t in no_words or t.split()[0] in ("no", "nope", "nah"):
+        return False
+    if t in yes_words or t.split()[0] in ("yes", "yeah", "yep", "yup", "sure"):
+        return True
+    return None
+
+
+def _field_for_question(form_id: str, schema: dict, answers: dict[str, Any], assistant_text: str, fallback: dict | None) -> dict | None:
+    """Pick the missing field the assistant's question is actually about, so the tappable
+    chips match what was asked. The LLM may ask in a different order than the schema, so
+    the deterministic next-missing field can disagree with the spoken question."""
+    text = (assistant_text or "").lower()
+    if not text:
+        return fallback
+    for field in get_missing_applicable_fields(form_id, answers, schema):
+        label_words = (field.get("label") or "").lower().split()
+        key_words = field["field_key"].split(".")[-1].replace("_", " ").split()
+        words = {w for w in (label_words + key_words) if len(w) >= 3 and w not in _QUESTION_STOPWORDS}
+        if any(w in text for w in words):
+            return field
+    return fallback
+
+
+def _next_field_payload(db, field: dict | None, answers: dict[str, Any] | None = None) -> dict | None:
     """Metadata for the field being asked, so the UI can offer tappable answer chips
-    (Yes/No, select options, or common values) for fast touch entry on a phone/tablet."""
+    (Yes/No, select options, or ZIP-aware city values) for fast touch entry."""
     if not field:
         return None
     from app.ai.suggestions import suggestions_for_field
@@ -126,7 +177,7 @@ def _next_field_payload(db, field: dict | None) -> dict | None:
         "label": field.get("label", field["field_key"]),
         "type": field.get("type", "text"),
         "options": rule.get("allowed_values") or field.get("options") or [],
-        "suggestions": suggestions_for_field(db, field),
+        "suggestions": suggestions_for_field(db, field, answers or {}),
     }
 
 
@@ -274,6 +325,10 @@ follow-ups.
 ACCURACY (this becomes a real application)
 - Capture exactly what they say. Get precise amounts, dates, and the spelling of names and \
 IDs. Never invent or assume an answer — if you're unsure what they meant, ask.
+- If an answer doesn't clearly fit the question (it sounds garbled, off-topic, or like a \
+mishearing), ask a short clarifying question RIGHT AWAY and STAY on that same question — do \
+not skip ahead to a different one and circle back later. Echo the choices back if it helps \
+("Did you mean email, or mail only?").
 - NEVER say you captured something you did not. A field is only done when the tool result \
 says it saved. If a save comes back as not_saved / ok:false, tell the person you didn't quite \
 get it and ask again — do not move on as if you have it.
@@ -643,7 +698,7 @@ def _rule_based_turn(db, session_id: str, user_text: str, input_mode: str) -> di
         "done": done,
         "go_to_review": done,
         "state": state,
-        "next_field": _next_field_payload(db, next_field),
+        "next_field": _next_field_payload(db, next_field, answers),
         "answers": answers,
     }
 
@@ -689,6 +744,27 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         db.commit()
 
     answers = svc._answers_map(db, session_id)
+    # Deterministic capture: if the person is answering a yes/no question we just asked,
+    # SAVE it ourselves so the model can never drop it and re-ask the same thing — the #1
+    # cause of frustrating loops. Targets the same field the chips reflect.
+    if not is_start:
+        last_assistant = (
+            db.query(SessionMessage)
+            .filter(SessionMessage.session_id == session_id, SessionMessage.role == "assistant")
+            .order_by(SessionMessage.id.desc())
+            .first()
+        )
+        asked = _field_for_question(
+            session.form_id, schema, answers,
+            last_assistant.content if last_assistant else "",
+            _prioritized_next(session.form_id, answers, get_missing_applicable_fields(session.form_id, answers, schema)),
+        )
+        if asked and asked.get("type") == "boolean" and asked["field_key"] not in answers:
+            decided = _coerce_yes_no(user_text, asked["field_key"])
+            if decided is not None:
+                svc.set_field(db, session, schema, asked["field_key"], "yes" if decided else "no", input_mode=input_mode)
+                answers = svc._answers_map(db, session_id)
+
     form_ctx = _build_form_context(schema, answers)
     # Case-manager working memory: what's known (never re-ask), auto-filled, heard with
     # low confidence (read back), looks off (double-check), and still needed.
@@ -842,7 +918,12 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     svc._set_collection_status(session, len(missing_applicable) == 0)
     db.commit()
 
-    nxt = _prioritized_next(session.form_id, answers, missing_applicable)
+    # Chips must match the question the assistant actually asked, not just the next
+    # schema-missing field (the LLM may ask in a different order).
+    nxt = _field_for_question(
+        session.form_id, schema, answers, assistant_text,
+        _prioritized_next(session.form_id, answers, missing_applicable),
+    )
     return {
         "assistant_message": assistant_text,
         "done": done,
@@ -854,6 +935,6 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
             "total": len(get_all_fields_from_schema(schema)),
             "next_field_key": nxt["field_key"] if nxt else None,
         },
-        "next_field": _next_field_payload(db, nxt),
+        "next_field": _next_field_payload(db, nxt, answers),
         "answers": answers,
     }

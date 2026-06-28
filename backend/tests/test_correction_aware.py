@@ -44,6 +44,20 @@ def test_pregnancy_auto_skipped_for_male_and_reopened_on_correction(db):
     assert "person1.recently_pregnant" not in answers
 
 
+def test_mailing_same_gates_off_dependent_fields(db):
+    """Saying mailing is 'same' as home must skip the mailing address so the dependent
+    mailing fields (city/state/zip/county/apt) are not asked one by one."""
+    from app.forms.missing_fields import get_missing_applicable_fields
+
+    sid, session, schema = _new_odm_session(db)
+    svc.set_field(db, session, schema, "applicant.mailing_address", "same")
+    answers = svc._answers_map(db, sid)
+    assert answers["applicant.mailing_address"] == "__skipped__"
+    missing = {f["field_key"] for f in get_missing_applicable_fields("ODM_07216", answers, schema)}
+    assert "applicant.mailing_city" not in missing
+    assert "applicant.mailing_zip" not in missing
+
+
 def test_pregnancy_not_skipped_for_female(db):
     sid, session, schema = _new_odm_session(db)
     svc.set_field(db, session, schema, "person1.sex", "Female")
