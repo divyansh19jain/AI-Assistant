@@ -227,16 +227,13 @@ def _next_field_guidance(form_id: str, field: dict | None) -> str:
     question = override.get("question") or field.get("question_text") or field.get("label", field["field_key"])
     help_text = override.get("help")
     lines = [
-        "NEXT FIELD GUIDANCE — ask EXACTLY this one field next, nothing else:",
-        f"- field_key: {field['field_key']}",
-        f"- ask for THIS (rephrase warmly, but ask for only this one thing): {question}",
+        "NEXT FIELD GUIDANCE (a suggestion for what's likely next — you may pick a more natural field):",
+        f"- suggested field_key: {field['field_key']}",
+        f"- if you ask it, good wording is: {question}",
     ]
     if help_text:
         lines.append(f"- plain_language_help: {help_text}")
-    lines.append(
-        "- Do NOT ask about any other field, jump ahead, or combine questions. The person's "
-        "next reply is the answer to THIS field; after it saves you'll get the next field."
-    )
+    lines.append("- Whatever field you choose, call the `ask` tool with its field_key before you ask it.")
     return "\n".join(lines)
 
 
@@ -279,13 +276,18 @@ reply with "Thanks" or their name; real people don't thank you after every singl
 amount before taxes come out").
 
 HOW YOU WORK (like a real case manager, not a survey)
-- Ask for ONE thing at a time — EXACTLY the field in NEXT FIELD GUIDANCE, in the order \
-given. This is a hard rule: NEVER ask two fields in one question ("are you married, and a \
-citizen?" is wrong), never combine, never jump ahead, and never re-ask something already \
-FILLED or SKIPPED in CURRENT FORM STATE. Rephrase the guided question warmly in your own \
-words, but it must ask for that ONE field only.
-- If they volunteer extra facts in one breath, you may still SAVE them all — but your spoken \
-question stays on the one guided field.
+- YOU choose the next question, in the order a sharp human case worker would: get the big \
+picture first (who's applying — just them, or a spouse/kids?), then their key details, then \
+income and coverage. Don't march down the form in raw order, and don't pester for trivial \
+optional fields (middle name, suffix) unless it flows naturally — offer to skip them.
+- Ask ONE thing at a time. BEFORE each question, CALL the `ask` tool with that field's \
+field_key. This is required every turn (except when you call go_to_review) so the app shows \
+the right answer buttons and saves the reply to the correct field. Then ask that one thing in \
+warm, plain words. NEVER ask two fields in one breath ("are you married, and a citizen?" is \
+wrong), and never re-ask something already FILLED or SKIPPED in CURRENT FORM STATE.
+- If they volunteer several facts at once, SAVE them ALL with save_answers — then `ask` for \
+the next thing and ask it. NEXT FIELD GUIDANCE is a suggestion for what's next; you may pick a \
+more natural field, but always declare it with `ask`.
 - Move at their pace: keep momentum when they're rolling; slow down and reassure when stuck.
 - Briefly say WHY a question matters when it builds trust ("I ask about income because it \
 decides which programs can help you").
@@ -474,6 +476,24 @@ def _tools(form_id: str | None = None) -> list[dict]:
                         },
                     },
                     "required": ["category", "household_size", "sources"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "ask",
+                "description": (
+                    "Call this EVERY turn, right before you ask the person a question, to declare "
+                    "which ONE form field you're collecting next. You choose the most natural, "
+                    "human order — but you MUST declare the field so the app can show the right "
+                    "tappable answer buttons and save the reply to the correct field. Pass the "
+                    "field_key from CURRENT FORM STATE. (Skip this only when calling go_to_review.)"
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {"field_key": {"type": "string", "description": "The field_key you are about to ask about."}},
+                    "required": ["field_key"],
                 },
             },
         },
@@ -727,23 +747,19 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         fld = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), None)
         if fld and answered_field_key not in answers:
             ftype = fld.get("type", "text")
-            rule = fld.get("validation_rule") or {}
-            saved = False
             if ftype == "boolean":
                 yn = _coerce_yes_no(user_text, answered_field_key)
                 if yn is not None:
                     svc.set_field(db, session, schema, answered_field_key, "yes" if yn else "no", input_mode=input_mode)
-                    saved = True
-            elif ftype in ("select", "phone", "ssn", "date", "number") or (
-                ftype == "text" and (rule.get("pattern") or (rule.get("max_length") or 99) <= 4)
-            ):
-                # Clean single-value types (select, phone, ZIP/state, date, number): a direct
-                # validated save sticks; a combined or noisy utterance ("123 Main, Dublin, OH")
-                # fails validation and falls through to the model's extractor. Plain free-text
-                # (address/city/name) is always left to the model so it can split + clean it.
-                saved = bool(svc.set_field(db, session, schema, answered_field_key, user_text, input_mode=input_mode).get("ok"))
-            captured = saved
-            if saved:
+                    captured = True
+            else:
+                # Bind the answer to the field that was actually asked, BEFORE the model runs,
+                # so the guidance + next_field reflect the truly-next field (no one-turn lag).
+                # One field is asked at a time, so the utterance is a single value; set_field
+                # validates it — a noisy/combined utterance that fails validation falls through
+                # to the model's extractor (which can split it).
+                captured = bool(svc.set_field(db, session, schema, answered_field_key, user_text, input_mode=input_mode).get("ok"))
+            if captured:
                 answers = svc._answers_map(db, session_id)
 
     form_ctx = _build_form_context(schema, answers)
@@ -796,6 +812,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
 
     go_review = False
     assistant_text = ""
+    declared_field_key: str | None = None  # the field the agent says it's asking this turn
     model = settings.OPENAI_MODEL
     turn_start = time.monotonic()
 
@@ -856,6 +873,12 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                         else:
                             go_review = True
                             out = {"ok": True}
+                    elif name == "ask":
+                        # The agent declares which field it's about to ask — chips + answer
+                        # binding follow this, so the model keeps a human order without the UI
+                        # ever guessing the field.
+                        declared_field_key = str(args.get("field_key") or "").strip() or None
+                        out = {"ok": True}
                     else:
                         out = {"error": f"unknown tool {name}"}
                 except Exception:
@@ -910,10 +933,12 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     svc._set_collection_status(session, len(missing_applicable) == 0)
     db.commit()
 
-    # next_field = the field we GUIDE the agent to ask (deterministic, reliable). The UI
-    # shows its chips and sends its field_key back with the answer, so the binding never
-    # relies on brittle text matching.
-    nxt = _prioritized_next(session.form_id, answers, missing_applicable)
+    # next_field = the field the agent SAID it's asking (via the 'ask' tool). The agent picks
+    # the human order; we trust its declaration so the chips and the answer binding always
+    # match the question. Fall back to the next missing field only if it didn't declare (or
+    # declared one that's already answered).
+    missing_by_key = {f["field_key"]: f for f in missing_applicable}
+    nxt = missing_by_key.get(declared_field_key) or _prioritized_next(session.form_id, answers, missing_applicable)
     return {
         "assistant_message": assistant_text,
         "done": done,
