@@ -47,6 +47,8 @@ _DIRECT_SKIP_WORDS = {
     "skip", "skipped", "skip it", "skip this", "none", "n/a", "na",
     "no answer", "leave blank", "blank", "not applicable",
 }
+# Read-back answers use the existing readiness low-confidence blocker instead of a
+# separate pending-confirmation table. Keep this below LOW_CONFIDENCE_THRESHOLD.
 _READBACK_CONFIDENCE = 0.5
 
 
@@ -184,8 +186,6 @@ def _readback_prompt(field: dict, value: Any) -> str:
     """Deterministic confirmation prompt used when a read-back field blocks readiness."""
     label = field.get("label", field["field_key"])
     rendered = _format_readback_value(field, value)
-    if field.get("type") == "date":
-        return f"I heard {rendered} for {label}. Is that right?"
     return f"I heard {rendered} for {label}. Is that right?"
 
 
@@ -862,7 +862,8 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     # Deterministic capture by the EXPLICIT field the UI is answering (the question's field
     # key is sent with the answer). This binds the chip/question to its field instead of
     # guessing from text, so a yes/no or select answer can NEVER be dropped and re-asked —
-    # the #1 cause of frustrating loops. Text/date answers are left to the model's extractor.
+    # the #1 cause of frustrating loops. The LLM can still save volunteered extra facts,
+    # but the field that was actually asked gets first chance to save, skip, or confirm.
     captured = False
     if not is_start and answered_field_key:
         fld = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), None)

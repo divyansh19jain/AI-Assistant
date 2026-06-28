@@ -273,7 +273,8 @@ export default function AssistantPage() {
         setLoading(false);
         if (restored && restored.length) {
           setMessages(restored);
-          // Restore the field binding too, so the next answer still goes to the right field.
+          // Restore both field binding and visible current-key state, so reloads keep
+          // answer chips, Whisper hints, and backend field_key submission aligned.
           try {
             const rawNf = sessionStorage.getItem(nfKey(sessionId));
             if (rawNf) {

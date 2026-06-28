@@ -360,6 +360,10 @@ def set_field(
     (so stored values stay well-formed) and persist. An empty / "skip" value on an
     OPTIONAL field stores the skip sentinel; on a required field it's an error the
     agent is told to re-ask for. Returns a per-field result dict.
+
+    ``confidence`` is normally 1.0. The voice agent deliberately uses a lower value
+    for read-back fields (date/phone/ZIP), which makes the shared readiness gate block
+    approval until the user confirms the spoken value.
     """
     from app.forms.validation import validate_answer, ValidationError
 

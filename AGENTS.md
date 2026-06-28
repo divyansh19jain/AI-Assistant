@@ -46,6 +46,7 @@ React 18, TypeScript, and Tailwind.
   - Missing fields: `backend/app/forms/missing_fields.py`.
   - Completion readiness gate: `backend/app/forms/readiness.py`.
   - Conversational agent: `backend/app/ai/agent.py` (tool-calling; rule-based fallback).
+  - Agent state/voice contracts: `docs/ai/AGENT-STATE-AND-VOICE.md`.
   - Questions/prompts: `backend/app/forms/questions.py`, `prompts.py`.
   - EMR prefill: `backend/app/forms/mapper.py`.
   - PDF: `backend/app/pdf/pdf_service.py`.

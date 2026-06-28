@@ -99,6 +99,12 @@ The existing helpers that follow it:
   several fields, skip optionals, correct prior values, and request review.
 - The agent is not the completion authority. It must pass the deterministic
   readiness gate in `app/forms/readiness.py` before review/approval/PDF.
+- The agent's human behavior is intentionally separated from state correctness:
+  the LLM chooses the next natural question through the `ask` tool, while the
+  backend enforces field binding, recursive dependency cleanup, skip persistence,
+  and voice read-back confirmation. See
+  [AGENT-STATE-AND-VOICE.md](./AGENT-STATE-AND-VOICE.md) before changing this
+  flow.
 - ODM-07216 has deterministic applicant-to-Person-1 carry-forward in
   `app/sessions/service.py`. Do not re-ask Person 1 first/last name when the
   applicant name is already known unless the user explicitly overwrote Person 1.
