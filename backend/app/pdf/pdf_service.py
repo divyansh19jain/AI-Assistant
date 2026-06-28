@@ -259,6 +259,14 @@ def _fill_acroform_pdf(
                 value = _mapped_widget_value(raw, entry, widget.field_type_string)
                 if value is not None:
                     widget.field_value = value
+                    # Force readable black text — several ODM form fields ship with a
+                    # light default appearance that's hard to read once filled.
+                    try:
+                        widget.text_color = (0, 0, 0)
+                        if not widget.text_fontsize or widget.text_fontsize < 9:
+                            widget.text_fontsize = 10
+                    except Exception:
+                        pass
                     widget.update()
                     filled_keys.add(field_key)
 
