@@ -496,22 +496,31 @@ export default function ReviewPage() {
 
         {sections.map(([sectionKey, fields]) => {
           if (fields.length === 0) return null;
-          const filled = fields.filter((f) => f.source !== "skipped" && f.value !== null && f.value !== undefined);
+          const isSelectionSection = sectionKey === "selected";
+          const visibleFields = isSelectionSection ? fields.filter((f) => f.value === true) : fields;
+          if (isSelectionSection && visibleFields.length === 0) return null;
+          const filled = visibleFields.filter((f) =>
+            f.source !== "skipped" && f.value !== null && f.value !== undefined && f.is_valid !== false
+          );
 
           return (
             <div key={sectionKey} className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden animate-float-in">
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-gray-700">
-                  {fields[0]?.section_title || sectionKey.replace(/_/g, " ")}
+                  {isSelectionSection ? "Selected Assessments" : fields[0]?.section_title || sectionKey.replace(/_/g, " ")}
                 </h3>
-                <span className="text-xs text-gray-400">{filled.length} / {fields.length} filled</span>
+                <span className="text-xs text-gray-400">
+                  {isSelectionSection ? `${visibleFields.length} selected` : `${filled.length} / ${visibleFields.length} filled`}
+                </span>
               </div>
 
               <div className="divide-y divide-gray-50">
-                {fields.map((field: ReviewField) => {
+                {visibleFields.map((field: ReviewField) => {
                   const isSkipped = field.source === "skipped";
-                  const isMissing = !isSkipped && (field.value === null || field.value === undefined);
+                  const isInvalid = field.is_valid === false;
+                  const isMissing = !isSkipped && (field.value === null || field.value === undefined || isInvalid);
                   const src = SOURCE_LABELS[field.source] || SOURCE_LABELS.missing;
+                  const label = isSelectionSection ? field.label.replace(/\s+selected$/i, "") : field.label;
 
                   return (
                     <div
@@ -525,8 +534,8 @@ export default function ReviewPage() {
                     >
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] text-gray-400 uppercase tracking-wide mb-0.5">
-                          {field.label}
-                          {!field.is_required && (
+                          {label}
+                          {!field.is_required && !isSelectionSection && (
                             <span className="ml-1.5 text-[9px] text-gray-300 normal-case tracking-normal">(optional)</span>
                           )}
                         </p>
@@ -536,7 +545,9 @@ export default function ReviewPage() {
                           : isMissing ? "text-amber-400 italic"
                           : "text-gray-800"
                         }`}>
-                          {isSkipped ? "Skipped"
+                          {isSelectionSection ? "Selected"
+                           : isSkipped ? "Skipped"
+                           : isInvalid ? "Needs correction"
                            : isMissing ? "Not provided"
                            : field.is_sensitive ? "•••••••"
                            : String(field.value)}

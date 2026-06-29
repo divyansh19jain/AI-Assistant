@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { api, type NextField } from "@/lib/api";
 import { useVoice } from "@/lib/useVoice";
@@ -66,29 +66,38 @@ function InfoPanel({ review, currentKey }: { review: ReviewResponse | null; curr
   return (
     <div className="flex flex-col h-full overflow-y-auto chat-area">
       {Object.entries(review.sections).map(([sectionKey, fields]) => {
-        const filled = fields.filter((f) =>
+        const isSelectionSection = sectionKey === "selected";
+        const visibleFields = isSelectionSection ? fields.filter((f) => f.value === true) : fields;
+        if (isSelectionSection && visibleFields.length === 0) return null;
+        const filled = visibleFields.filter((f) =>
           f.value !== null && f.value !== undefined && f.source !== "skipped" && f.is_valid !== false
         ).length;
         return (
           <div key={sectionKey} className="mb-1">
             <div className="sticky top-0 z-10 px-4 py-2.5 flex items-center justify-between bg-slate-50/95 backdrop-blur border-b border-slate-200">
-              <span className="text-xs font-bold tracking-wider uppercase text-slate-500">{sectionKey.replace(/_/g, " ")}</span>
-              <span className="text-xs text-slate-400 tabular-nums">{filled}/{fields.length}</span>
+              <span className="text-xs font-bold tracking-wider uppercase text-slate-500">
+                {isSelectionSection ? "Selected assessments" : sectionKey.replace(/_/g, " ")}
+              </span>
+              <span className="text-xs text-slate-400 tabular-nums">
+                {isSelectionSection ? `${visibleFields.length} on` : `${filled}/${visibleFields.length}`}
+              </span>
             </div>
             <div className="divide-y divide-slate-100">
-              {fields.map((field: ReviewField) => {
+              {visibleFields.map((field: ReviewField) => {
                 const isSkipped = field.source === "skipped";
                 const isInvalid = field.is_valid === false;
                 const isMissing = field.value === null || field.value === undefined || isInvalid;
                 const isCurrent = field.field_key === currentKey;
+                const label = isSelectionSection ? field.label.replace(/\s+selected$/i, "") : field.label;
                 const display = field.is_sensitive && !isMissing && !isSkipped ? "••••••"
+                  : isSelectionSection ? "Selected"
                   : isInvalid ? "Needs correction" : isSkipped ? "Skipped" : isMissing ? "—" : String(field.value);
                 return (
                   <div key={field.field_key} className="px-4 py-2.5 transition-colors"
                     style={{ background: isCurrent ? "#eff6ff" : "transparent", borderLeft: isCurrent ? "3px solid #2563eb" : "3px solid transparent" }}>
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[13px] text-slate-500 truncate flex-1">
-                        {field.label}{!field.is_required && <span className="ml-1 text-[11px] text-slate-400">(optional)</span>}
+                        {label}{!field.is_required && !isSelectionSection && <span className="ml-1 text-[11px] text-slate-400">(optional)</span>}
                       </span>
                       {isCurrent ? <Badge tone="blue">Now</Badge>
                         : isInvalid ? <Badge tone="amber">Fix</Badge>
@@ -145,10 +154,13 @@ export default function AssistantPage() {
   const doneRef   = useRef(false);
   const thinkingRef = useRef(false);
 
+  const currentField = useMemo(() => {
+    if (!nextKey || !review) return null;
+    return Object.values(review.sections).flat().find((f) => f.field_key === nextKey) ?? null;
+  }, [nextKey, review]);
   // Build a Whisper hint from the field we're currently expecting.
-  const currentLabel = nextKey && review
-    ? Object.values(review.sections).flat().find((f) => f.field_key === nextKey)?.label ?? ""
-    : "";
+  const currentLabel = currentField?.label ?? "";
+  const currentSectionTitle = currentField?.section_title ?? "";
 
   const rearmRef = useRef<() => void>(() => {});
   const noSpeechCount = useRef(0);
@@ -370,7 +382,9 @@ export default function AssistantPage() {
           <Orb size={40} />
           <div className="min-w-0">
             <p className="font-bold leading-tight truncate">{session?.form_title ?? "Application Assistant"}</p>
-            <p className="text-xs text-slate-400 leading-tight">Mia · your form helper</p>
+            <p className="text-xs text-slate-400 leading-tight truncate">
+              {currentSectionTitle ? `Current: ${currentSectionTitle}` : "Mia · your form helper"}
+            </p>
           </div>
           {session?.mock_mode && (
             <span className="ml-1 text-[11px] font-semibold bg-amber-50 text-amber-600 border border-amber-200 px-2 py-0.5 rounded-full">DEMO</span>
@@ -403,6 +417,19 @@ export default function AssistantPage() {
       <div className="flex-1 flex min-h-0">
         {/* Conversation */}
         <div className="flex-1 flex flex-col min-w-0">
+          {currentSectionTitle && (
+            <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-3 sm:px-5">
+              <div className="mx-auto flex max-w-4xl flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-blue-600">Current assessment</p>
+                  <p className="truncate text-base font-semibold text-slate-900">{currentSectionTitle}</p>
+                </div>
+                {currentLabel && (
+                  <p className="truncate text-sm font-medium text-slate-500 sm:max-w-[45%]">{currentLabel}</p>
+                )}
+              </div>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto chat-area px-4 sm:px-5 py-5 sm:py-6">
             <div className="max-w-4xl mx-auto space-y-4">
               {messages.map((m) => m.role === "assistant" ? (
