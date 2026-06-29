@@ -261,6 +261,57 @@ def test_dependency_gate_normalizes_before_value_match():
     assert is_field_applicable(child, answers, {"selected.phq9": gate, "phq9.q1": child})
 
 
+def test_dependency_not_value_and_min_true_clauses():
+    """Schema branches can express screen-outs without hardcoded agent rules."""
+    selected = {
+        "field_key": "selected.mdq",
+        "label": "MDQ selected",
+        "section": "selected",
+        "type": "boolean",
+    }
+    q1 = {
+        "field_key": "mdq.q1",
+        "label": "Symptom 1",
+        "section": "mdq",
+        "type": "boolean",
+        "depends_on": {"field_key": "selected.mdq", "value": True},
+    }
+    q2 = {
+        "field_key": "mdq.q2",
+        "label": "Symptom 2",
+        "section": "mdq",
+        "type": "boolean",
+        "depends_on": {"field_key": "selected.mdq", "value": True},
+    }
+    followup = {
+        "field_key": "mdq.same_period",
+        "label": "Same period",
+        "section": "mdq",
+        "type": "boolean",
+        "depends_on": {"field_keys": ["mdq.q1", "mdq.q2"], "min_true": 2},
+    }
+    audit_q1 = {
+        "field_key": "auditc.q1",
+        "label": "Alcohol frequency",
+        "section": "auditc",
+        "type": "select",
+        "validation_rule": {"allowed_values": ["Never", "Monthly or less"]},
+    }
+    audit_followup = {
+        "field_key": "auditc.q2",
+        "label": "Drinks",
+        "section": "auditc",
+        "type": "select",
+        "depends_on": {"field_key": "auditc.q1", "not_value": "Never"},
+    }
+    fields_by_key = {f["field_key"]: f for f in [selected, q1, q2, followup, audit_q1, audit_followup]}
+
+    assert not is_field_applicable(followup, {"selected.mdq": True, "mdq.q1": True, "mdq.q2": False}, fields_by_key)
+    assert is_field_applicable(followup, {"selected.mdq": True, "mdq.q1": True, "mdq.q2": True}, fields_by_key)
+    assert not is_field_applicable(audit_followup, {"auditc.q1": "Never"}, fields_by_key)
+    assert is_field_applicable(audit_followup, {"auditc.q1": "Monthly or less"}, fields_by_key)
+
+
 def test_validate_zip_pattern():
     field = {"type": "text", "required": True, "validation_rule": {"pattern": r"^\d{5}(-\d{4})?$"}}
     assert validate_answer(field, "43215") == "43215"

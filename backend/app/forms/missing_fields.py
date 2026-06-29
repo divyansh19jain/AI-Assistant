@@ -65,15 +65,54 @@ def _normalized_dependency_value(
         return _INVALID_DEPENDENCY_VALUE
 
 
-def _dependency_satisfied(
-    field: dict,
+def _dependency_clause_satisfied(
+    dep: dict[str, Any],
     answers: dict[str, Any],
     fields_by_key: dict[str, dict] | None = None,
 ) -> bool:
-    """Check whether a field's dependency condition is met."""
-    dep = field.get("depends_on")
-    if dep is None:
-        return True
+    """Evaluate one dependency clause.
+
+    Future form packs can express human workflow branches declaratively:
+    ``value`` for equality, ``not_value`` for "ask only if not X", ``values`` for
+    membership, ``field_keys``/``min_true`` for count-style symptom gates, and
+    nested ``any``/``all`` for multi-question clinical gates.
+    """
+    if "all" in dep:
+        clauses = dep.get("all") or []
+        return all(
+            _dependency_clause_satisfied(clause, answers, fields_by_key)
+            for clause in clauses
+            if isinstance(clause, dict)
+        )
+    if "any" in dep:
+        clauses = dep.get("any") or []
+        return any(
+            _dependency_clause_satisfied(clause, answers, fields_by_key)
+            for clause in clauses
+            if isinstance(clause, dict)
+        )
+
+    if "field_keys" in dep:
+        keys = [str(key) for key in dep.get("field_keys") or [] if isinstance(key, str)]
+        if not keys:
+            return False
+        try:
+            min_true = int(dep.get("min_true", 1))
+        except (TypeError, ValueError):
+            return False
+        if min_true < 1:
+            return False
+        true_count = 0
+        for key in keys:
+            dep_answer = answers.get(key)
+            if not _has_meaningful_value(dep_answer):
+                continue
+            dep_answer = _normalized_dependency_value(key, dep_answer, fields_by_key)
+            if dep_answer is _INVALID_DEPENDENCY_VALUE:
+                continue
+            if dep_answer is True:
+                true_count += 1
+        return true_count >= min_true
 
     dep_key = dep.get("field_key")
     if not dep_key:
@@ -89,10 +128,51 @@ def _dependency_satisfied(
     if "value" in dep:
         return dep_answer == dep["value"]
 
+    if "not_value" in dep:
+        return dep_answer != dep["not_value"]
+
+    if "values" in dep:
+        return dep_answer in set(dep.get("values") or [])
+
+    if "not_values" in dep:
+        return dep_answer not in set(dep.get("not_values") or [])
+
     if dep.get("condition") == "present":
         return _has_meaningful_value(dep_answer)
 
     return True
+
+
+def _dependency_parent_keys(dep: dict[str, Any] | None) -> set[str]:
+    """Return every field key referenced by a possibly-nested dependency."""
+    if not isinstance(dep, dict):
+        return set()
+    keys: set[str] = set()
+    dep_key = dep.get("field_key")
+    if dep_key:
+        keys.add(str(dep_key))
+    for dep_key in dep.get("field_keys") or []:
+        if isinstance(dep_key, str):
+            keys.add(dep_key)
+    for child in dep.get("all") or []:
+        keys.update(_dependency_parent_keys(child if isinstance(child, dict) else None))
+    for child in dep.get("any") or []:
+        keys.update(_dependency_parent_keys(child if isinstance(child, dict) else None))
+    return keys
+
+
+def _dependency_satisfied(
+    field: dict,
+    answers: dict[str, Any],
+    fields_by_key: dict[str, dict] | None = None,
+) -> bool:
+    """Check whether a field's dependency condition is met."""
+    dep = field.get("depends_on")
+    if dep is None:
+        return True
+    if not isinstance(dep, dict):
+        return True
+    return _dependency_clause_satisfied(dep, answers, fields_by_key)
 
 
 def is_field_applicable(
@@ -113,23 +193,22 @@ def is_field_applicable(
         return False
 
     dep = field.get("depends_on")
-    dep_key = dep.get("field_key") if isinstance(dep, dict) else None
-    if not dep_key or not fields_by_key:
+    dep_keys = _dependency_parent_keys(dep if isinstance(dep, dict) else None)
+    if not dep_keys or not fields_by_key:
         return True
 
     field_key = field.get("field_key", "")
     seen = set(_seen or set())
     if field_key:
         seen.add(field_key)
-    if dep_key in seen:
-        # Invalid cyclic schemas should not make both sides look applicable forever.
-        return False
-
-    parent = fields_by_key.get(dep_key)
-    if not parent:
-        # Unknown external gate; the direct dependency check above is all we can apply.
-        return True
-    return is_field_applicable(parent, answers, fields_by_key, seen)
+    for dep_key in dep_keys:
+        if dep_key in seen:
+            # Invalid cyclic schemas should not make both sides look applicable forever.
+            return False
+        parent = fields_by_key.get(dep_key)
+        if parent and not is_field_applicable(parent, answers, fields_by_key, seen):
+            return False
+    return True
 
 
 def get_applicable_answers(

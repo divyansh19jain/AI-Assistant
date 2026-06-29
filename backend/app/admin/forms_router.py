@@ -45,6 +45,51 @@ _OUTPUT_TARGETS = {"pdf", "web"}
 _WORKFLOW_TASK_TYPES = {"generate_pdf", "web_submit"}
 
 
+def _dependency_field_keys(dep: dict, *, field_key: str) -> set[str]:
+    """Return field keys referenced by a dependency tree, validating its shape.
+
+    ``depends_on`` is the branching language shared by the agent, review,
+    workflows, and PDF output. It supports a simple direct gate:
+    ``{"field_key": "s.has_other", "value": true}``, plus nested ``any``/``all``
+    groups and count gates such as ``{"field_keys": [...], "min_true": 2}``.
+    The admin validator must understand the same tree shape as the runtime or
+    edited forms can drift from bundled packs.
+    """
+    if not isinstance(dep, dict):
+        raise ValueError(f"field {field_key} depends_on must be an object")
+
+    keys: set[str] = set()
+    for group_key in ("any", "all"):
+        if group_key not in dep:
+            continue
+        clauses = dep.get(group_key)
+        if not isinstance(clauses, list) or not clauses:
+            raise ValueError(f"field {field_key} depends_on.{group_key} must be a non-empty list")
+        for clause in clauses:
+            keys.update(_dependency_field_keys(clause, field_key=field_key))
+        return keys
+
+    if "field_keys" in dep:
+        dep_keys = dep.get("field_keys")
+        if not isinstance(dep_keys, list) or not dep_keys:
+            raise ValueError(f"field {field_key} depends_on.field_keys must be a non-empty list")
+        keys: set[str] = set()
+        for dep_key in dep_keys:
+            if not isinstance(dep_key, str) or not dep_key.strip():
+                raise ValueError(f"field {field_key} depends_on.field_keys must contain only field keys")
+            keys.add(dep_key)
+        if "min_true" in dep:
+            min_true = dep.get("min_true")
+            if not isinstance(min_true, int) or isinstance(min_true, bool) or min_true < 1:
+                raise ValueError(f"field {field_key} depends_on.min_true must be a positive integer")
+        return keys
+
+    dep_key = dep.get("field_key")
+    if not isinstance(dep_key, str) or not dep_key.strip():
+        raise ValueError(f"field {field_key} depends_on must include field_key")
+    return {dep_key}
+
+
 def _validate_targets(value: list[str]) -> list[str]:
     bad = [v for v in value if v not in _OUTPUT_TARGETS]
     if bad:
@@ -97,14 +142,16 @@ def _validate_schema_document(schema: dict) -> dict:
                 raise ValueError(f"field {field_key} validation_rule must be an object")
             dep = field.get("depends_on")
             if dep is not None:
-                if not isinstance(dep, dict) or not isinstance(dep.get("field_key"), str):
-                    raise ValueError(f"field {field_key} depends_on must include field_key")
+                _dependency_field_keys(dep, field_key=field_key)
             fields.append(field)
 
     for field in fields:
         dep = field.get("depends_on")
-        if dep and dep.get("field_key") not in field_keys:
-            raise ValueError(f"field {field['field_key']} depends on unknown field {dep.get('field_key')}")
+        if not dep:
+            continue
+        for dep_key in _dependency_field_keys(dep, field_key=field["field_key"]):
+            if dep_key not in field_keys:
+                raise ValueError(f"field {field['field_key']} depends on unknown field {dep_key}")
 
     return schema
 

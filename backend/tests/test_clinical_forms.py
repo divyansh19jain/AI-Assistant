@@ -7,6 +7,35 @@ def _clinical_gates(*selected: str) -> dict[str, bool]:
     return {f"selected.{key}": key in chosen for key in keys}
 
 
+def _start_clinical_session(client, *selected: str) -> str:
+    session = client.post(
+        "/api/session/create",
+        json={
+            "form_id": "BH_SELF_REPORT_BATTERY",
+            "manual_mode": True,
+            "initial_answers": _clinical_gates(*selected),
+        },
+    ).json()
+    return session["session_id"]
+
+
+def _answer(client, session_id: str, field_key: str, raw):
+    result = client.post(
+        f"/api/session/{session_id}/answer",
+        json={"field_key": field_key, "raw_answer": raw, "input_mode": "typed"},
+    )
+    assert result.status_code == 200, result.text
+    payload = result.json()
+    assert payload["success"] is True, payload
+    return payload
+
+
+def _answer_client_identity(client, session_id: str) -> None:
+    _answer(client, session_id, "client.first_name", "Amy")
+    _answer(client, session_id, "client.last_name", "Jones")
+    _answer(client, session_id, "client.dob", "01/05/1980")
+
+
 def test_clinical_scoring_phq9_total_and_interpretation():
     from app.clinical.scoring import score_clinical_battery
 
@@ -53,6 +82,104 @@ def test_clinical_session_initial_answers_gate_selected_tools(client):
     assert "phq9.q1" in review["missing_applicable"]
     assert "gad7.q1" not in review["missing_applicable"]
     assert "selected.phq9" not in review["missing_applicable"]
+
+
+def test_clinical_branching_cssrs_skips_ideation_details_after_no(client):
+    session_id = _start_clinical_session(client, "cssrs")
+    _answer_client_identity(client, session_id)
+    _answer(client, session_id, "cssrs.wish_dead", "No")
+    result = _answer(client, session_id, "cssrs.suicidal_thoughts", "No")
+
+    assert result["next_question"]["field_key"] == "cssrs.behavior"
+    review = client.get(f"/api/session/{session_id}/review").json()
+    missing = set(review["missing_applicable"])
+    assert "cssrs.behavior" in missing
+    assert not {"cssrs.method", "cssrs.intent", "cssrs.plan"}.intersection(missing)
+
+
+def test_clinical_branching_cssrs_asks_details_after_suicidal_thoughts(client):
+    session_id = _start_clinical_session(client, "cssrs")
+    _answer_client_identity(client, session_id)
+    _answer(client, session_id, "cssrs.wish_dead", "No")
+    result = _answer(client, session_id, "cssrs.suicidal_thoughts", "Yes")
+
+    assert result["next_question"]["field_key"] == "cssrs.method"
+
+
+def test_clinical_screen_outs_score_complete_for_not_applicable_followups():
+    from app.clinical.scoring import score_clinical_battery
+
+    scores = {
+        score["tool_key"]: score
+        for score in score_clinical_battery(
+            "BH_SELF_REPORT_BATTERY",
+            {
+                "selected.cssrs": True,
+                "cssrs.wish_dead": False,
+                "cssrs.suicidal_thoughts": False,
+                "cssrs.behavior": False,
+                "selected.auditc": True,
+                "auditc.q1": "Never",
+                "selected.dast10": True,
+                "dast10.q1": False,
+                "selected.mdq": True,
+                **{f"mdq.q{i}": False for i in range(1, 14)},
+            },
+        )
+    }
+
+    assert scores["cssrs"]["status"] == "complete"
+    assert scores["cssrs"]["answered_items"] == 3
+    assert scores["cssrs"]["total_items"] == 3
+    assert scores["cssrs"]["risk_level"] == "none"
+    assert scores["auditc"]["status"] == "complete"
+    assert scores["auditc"]["answered_items"] == 1
+    assert scores["auditc"]["total_items"] == 1
+    assert scores["dast10"]["status"] == "complete"
+    assert scores["dast10"]["answered_items"] == 1
+    assert scores["dast10"]["total_items"] == 1
+    assert scores["mdq"]["status"] == "complete"
+    assert scores["mdq"]["answered_items"] == 13
+    assert scores["mdq"]["total_items"] == 13
+
+
+def test_clinical_branching_auditc_never_skips_quantity_questions(client):
+    session_id = _start_clinical_session(client, "auditc")
+    _answer_client_identity(client, session_id)
+    result = _answer(client, session_id, "auditc.q1", "Never")
+
+    assert result["next_question"] is None
+    review = client.get(f"/api/session/{session_id}/review").json()
+    assert "auditc.q2" not in review["missing_applicable"]
+    assert "auditc.q3" not in review["missing_applicable"]
+
+
+def test_clinical_branching_dast_no_skips_problem_questions(client):
+    session_id = _start_clinical_session(client, "dast10")
+    _answer_client_identity(client, session_id)
+    result = _answer(client, session_id, "dast10.q1", "No")
+
+    assert result["next_question"] is None
+    review = client.get(f"/api/session/{session_id}/review").json()
+    assert not any(key.startswith("dast10.q") and key != "dast10.q1" for key in review["missing_applicable"])
+
+
+def test_clinical_branching_mdq_followups_require_at_least_two_symptoms(client):
+    session_id = _start_clinical_session(client, "mdq")
+    _answer_client_identity(client, session_id)
+    for i in range(1, 14):
+        raw = "Yes" if i == 1 else "No"
+        result = _answer(client, session_id, f"mdq.q{i}", raw)
+
+    assert result["next_question"] is None
+
+    session_id = _start_clinical_session(client, "mdq")
+    _answer_client_identity(client, session_id)
+    for i in range(1, 14):
+        raw = "Yes" if i in {1, 2} else "No"
+        result = _answer(client, session_id, f"mdq.q{i}", raw)
+
+    assert result["next_question"]["field_key"] == "mdq.same_period"
 
 
 def test_clinical_results_api_exposes_client_assessment_data_and_scores(client, monkeypatch):

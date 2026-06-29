@@ -8,6 +8,7 @@ it as 'not applicable' — so it gets re-asked. This test fails loudly on any su
 import pytest
 
 from app.forms import registry
+from app.forms.missing_fields import _dependency_parent_keys
 from app.forms.service import get_all_fields_from_schema, load_form_schema
 
 
@@ -17,9 +18,9 @@ def _violations(form_id: str) -> list[tuple[str, str]]:
     out: list[tuple[str, str]] = []
     for i, f in enumerate(fields):
         dep = f.get("depends_on")
-        gate = dep.get("field_key") if isinstance(dep, dict) else None
-        if gate and gate in order and order[gate] > i:
-            out.append((f["field_key"], gate))  # child before parent
+        for gate in _dependency_parent_keys(dep if isinstance(dep, dict) else None):
+            if gate in order and order[gate] > i:
+                out.append((f["field_key"], gate))  # child before parent
     return out
 
 

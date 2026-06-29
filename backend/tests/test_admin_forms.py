@@ -162,6 +162,44 @@ def test_invalid_schema_rejected(client):
     assert r.status_code == 422
 
 
+def test_schema_validator_accepts_nested_and_count_dependencies(client):
+    h = _auth(client)
+    client.post("/api/admin/forms", headers=h, json={"form_id": "DEPS", "title": "Deps"})
+    schema = {
+        "form_id": "DEPS",
+        "form_title": "Deps",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "S",
+                "fields": [
+                    {"field_key": "s.q1", "label": "Q1", "section": "s", "type": "boolean"},
+                    {"field_key": "s.q2", "label": "Q2", "section": "s", "type": "boolean"},
+                    {
+                        "field_key": "s.followup",
+                        "label": "Follow-up",
+                        "section": "s",
+                        "type": "boolean",
+                        "depends_on": {"field_keys": ["s.q1", "s.q2"], "min_true": 2},
+                    },
+                    {
+                        "field_key": "s.any_followup",
+                        "label": "Any follow-up",
+                        "section": "s",
+                        "type": "text",
+                        "depends_on": {"any": [{"field_key": "s.q1", "value": True}, {"field_key": "s.q2", "value": True}]},
+                    },
+                ],
+            }
+        ],
+    }
+
+    r = client.put("/api/admin/forms/DEPS/schema", headers=h, json={"schema": schema})
+
+    assert r.status_code == 200, r.text
+
+
 def test_invalid_workflow_rejected(client):
     h = _auth(client)
     client.post("/api/admin/forms", headers=h, json={"form_id": "WFBAD", "title": "WFBAD"})

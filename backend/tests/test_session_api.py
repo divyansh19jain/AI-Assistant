@@ -398,6 +398,65 @@ def test_review_omits_inactive_conditional_fields(client):
     assert review["is_complete"] is True
 
 
+def test_gate_correction_clears_multi_level_stale_answers(client, db):
+    from app.db.models import FormAnswer
+
+    h = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()
+    headers = {"Authorization": f"Bearer {h['token']}"}
+    schema = {
+        "form_id": "DEEP_COND",
+        "form_title": "Deep Conditional",
+        "version": "1.0",
+        "sections": [
+            {
+                "section_key": "s",
+                "section_title": "S",
+                "fields": [
+                    {"field_key": "s.top_gate", "label": "Top", "section": "s", "type": "boolean", "required": True},
+                    {
+                        "field_key": "s.child_gate",
+                        "label": "Child",
+                        "section": "s",
+                        "type": "boolean",
+                        "required": True,
+                        "depends_on": {"field_key": "s.top_gate", "value": True},
+                    },
+                    {
+                        "field_key": "s.grandchild_value",
+                        "label": "Grandchild",
+                        "section": "s",
+                        "type": "text",
+                        "required": True,
+                        "depends_on": {"field_key": "s.child_gate", "value": True},
+                    },
+                ],
+            }
+        ],
+    }
+    client.post("/api/admin/forms", headers=headers, json={"form_id": "DEEP_COND", "title": "Deep Conditional"})
+    client.put("/api/admin/forms/DEEP_COND/schema", headers=headers, json={"schema": schema})
+    client.post("/api/admin/forms/DEEP_COND/publish", headers=headers)
+    sid = client.post("/api/session/create", json={"form_id": "DEEP_COND", "manual_mode": True}).json()["session_id"]
+
+    for field_key, raw in [
+        ("s.top_gate", "yes"),
+        ("s.child_gate", "yes"),
+        ("s.grandchild_value", "stale detail"),
+        ("s.top_gate", "no"),
+    ]:
+        r = client.post(
+            f"/api/session/{sid}/answer",
+            json={"field_key": field_key, "raw_answer": raw, "input_mode": "typed"},
+        )
+        assert r.status_code == 200, r.text
+
+    review = client.get(f"/api/session/{sid}/review").json()
+    field_keys = [f["field_key"] for f in review["sections"]["s"]]
+    assert field_keys == ["s.top_gate"]
+    stored_keys = {row[0] for row in db.query(FormAnswer.field_key).filter(FormAnswer.session_id == sid).all()}
+    assert stored_keys == {"s.top_gate"}
+
+
 def test_review_fields_include_schema_edit_metadata(client):
     h = client.post("/api/admin/login", json={"username": "admin", "password": "admin1234"}).json()
     headers = {"Authorization": f"Bearer {h['token']}"}

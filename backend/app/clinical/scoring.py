@@ -197,7 +197,32 @@ def _dla20_label(total: int) -> str:
 def _score_audit_c(answers: dict[str, Any]) -> dict[str, Any] | None:
     if not _selected(answers, "auditc"):
         return None
-    scores = [_value_score(answers.get(k), AUDIT_C_MAPS[k]) for k in ("auditc.q1", "auditc.q2", "auditc.q3")]
+
+    q1_score = _value_score(answers.get("auditc.q1"), AUDIT_C_MAPS["auditc.q1"])
+    if q1_score is None:
+        return {
+            "tool_key": "auditc",
+            "title": "AUDIT-C",
+            "status": "incomplete",
+            "answered_items": 0,
+            "total_items": 1,
+            "total_score": 0,
+            "max_score": 12,
+            "interpretation": "Incomplete - answer alcohol frequency to score.",
+        }
+    if q1_score == 0:
+        return {
+            "tool_key": "auditc",
+            "title": "AUDIT-C",
+            "status": "complete",
+            "answered_items": 1,
+            "total_items": 1,
+            "total_score": 0,
+            "max_score": 12,
+            "interpretation": "Lower alcohol misuse screen; no alcohol use endorsed.",
+        }
+
+    scores = [q1_score, _value_score(answers.get("auditc.q2"), AUDIT_C_MAPS["auditc.q2"]), _value_score(answers.get("auditc.q3"), AUDIT_C_MAPS["auditc.q3"])]
     answered = [s for s in scores if s is not None]
     total = sum(answered)
     status = "complete" if len(answered) == 3 else "incomplete"
@@ -224,6 +249,30 @@ def _score_audit_c(answers: dict[str, Any]) -> dict[str, Any] | None:
 def _score_dast10(answers: dict[str, Any]) -> dict[str, Any] | None:
     if not _selected(answers, "dast10"):
         return None
+    q1_value = answers.get("dast10.q1")
+    if not isinstance(q1_value, bool):
+        return {
+            "tool_key": "dast10",
+            "title": "DAST-10",
+            "status": "incomplete",
+            "answered_items": 0,
+            "total_items": 1,
+            "total_score": 0,
+            "max_score": 10,
+            "interpretation": "Incomplete - answer initial drug-use screen item to score.",
+        }
+    if q1_value is False:
+        return {
+            "tool_key": "dast10",
+            "title": "DAST-10",
+            "status": "complete",
+            "answered_items": 1,
+            "total_items": 1,
+            "total_score": 0,
+            "max_score": 10,
+            "interpretation": "No non-medical drug use endorsed on this screen.",
+        }
+
     keys = [f"dast10.q{i}" for i in range(1, 11)]
     values: list[int | None] = []
     for key in keys:
@@ -291,7 +340,9 @@ def _score_taps(answers: dict[str, Any]) -> dict[str, Any] | None:
 def _score_cssrs(answers: dict[str, Any]) -> dict[str, Any] | None:
     if not _selected(answers, "cssrs"):
         return None
-    keys = ["cssrs.wish_dead", "cssrs.suicidal_thoughts", "cssrs.method", "cssrs.intent", "cssrs.plan", "cssrs.behavior"]
+    keys = ["cssrs.wish_dead", "cssrs.suicidal_thoughts", "cssrs.behavior"]
+    if answers.get("cssrs.suicidal_thoughts") is True:
+        keys = ["cssrs.wish_dead", "cssrs.suicidal_thoughts", "cssrs.method", "cssrs.intent", "cssrs.plan", "cssrs.behavior"]
     values = [answers.get(k) if isinstance(answers.get(k), bool) else None for k in keys]
     answered = [v for v in values if v is not None]
     if len(answered) != len(keys):
@@ -299,8 +350,10 @@ def _score_cssrs(answers: dict[str, Any]) -> dict[str, Any] | None:
         risk = "incomplete"
     elif any(answers.get(k) is True for k in ("cssrs.intent", "cssrs.plan", "cssrs.behavior")):
         risk, level = "high", "High risk flag - urgent safety review is indicated."
-    elif any(answers.get(k) is True for k in ("cssrs.suicidal_thoughts", "cssrs.method")):
+    elif answers.get("cssrs.method") is True:
         risk, level = "moderate", "Moderate risk flag - prompt safety follow-up is indicated."
+    elif answers.get("cssrs.suicidal_thoughts") is True:
+        risk, level = "moderate", "Moderate risk flag - suicidal thoughts endorsed; prompt safety follow-up is indicated."
     elif answers.get("cssrs.wish_dead") is True:
         risk, level = "low", "Low risk flag - passive death wish endorsed; review safety and supports."
     else:
@@ -327,21 +380,30 @@ def _score_mdq(answers: dict[str, Any]) -> dict[str, Any] | None:
     impairment = answers.get("mdq.impairment")
     answered_count = len([v for v in symptom_values if v is not None])
     yes_count = len([v for v in symptom_values if v is True])
-    complete = answered_count == 13 and isinstance(same_period, bool) and impairment not in (None, "__skipped__")
+    needs_followups = answered_count == 13 and yes_count >= 2
+    complete = answered_count == 13 and (
+        not needs_followups or (isinstance(same_period, bool) and impairment not in (None, "__skipped__"))
+    )
+    total_items = 15 if needs_followups else 13
+    scored_answered_items = answered_count
+    if needs_followups:
+        scored_answered_items += (1 if isinstance(same_period, bool) else 0)
+        scored_answered_items += (1 if impairment not in (None, "__skipped__") else 0)
     impairment_positive = str(impairment) in {"Moderate problem", "Serious problem"}
     positive = bool(complete and yes_count >= 7 and same_period is True and impairment_positive)
     return {
         "tool_key": "mdq",
         "title": "Mood Disorder Questionnaire",
         "status": "complete" if complete else "incomplete",
-        "answered_items": answered_count + (1 if isinstance(same_period, bool) else 0) + (1 if impairment not in (None, "__skipped__") else 0),
-        "total_items": 15,
+        "answered_items": scored_answered_items,
+        "total_items": total_items,
         "total_score": yes_count,
         "max_score": 13,
         "positive_screen": positive,
         "interpretation": (
             "Positive bipolar-spectrum screen pattern; clinical follow-up is recommended."
             if positive else
+            "MDQ positive-screen pattern not met; fewer than two symptom items were endorsed." if complete and not needs_followups else
             "Incomplete - answer remaining MDQ items to score." if not complete else
             "MDQ positive-screen pattern not met."
         ),

@@ -45,6 +45,30 @@ Every assessment section depends on its `selected.*` gate. That means a clinical
 session only asks the selected instruments. Medicaid does not send
 `initial_answers`, so its existing session flow is unchanged.
 
+## Branching Rules
+
+Branching belongs in `form.schema.json`, not in prompt text. The assistant, review
+readiness, stale-answer cleanup, PDF output, and EMR results API all read the same
+`depends_on` contract.
+
+Supported dependency patterns:
+
+- Direct match: `{"field_key": "selected.phq9", "value": true}`.
+- Screen-out: `{"field_key": "auditc.q1", "not_value": "Never"}`.
+- Count gate: `{"field_keys": ["mdq.q1", "mdq.q2"], "min_true": 2}`.
+- Nested groups: `{"any": [...]}` and `{"all": [...]}`.
+
+Clinical internal branches currently encoded:
+
+- C-SSRS method/intent/plan questions are asked only when current suicidal
+  thoughts are endorsed; lifetime behavior is still asked independently.
+- AUDIT-C quantity and heavy-drinking questions are skipped when alcohol
+  frequency is `Never`.
+- DAST-10 problem questions are skipped when the initial non-medical drug-use
+  item is `No`.
+- MDQ same-period and impairment follow-ups are asked only when at least two
+  symptom items are endorsed.
+
 ## Voice And Touch Flow
 
 The clinical pack uses the same assistant endpoint as Medicaid:
@@ -134,11 +158,14 @@ client data and is not emitted as assessment data.
 
 1. Add a `selected.<tool>` boolean gate.
 2. Add a section whose fields depend on that gate.
-3. Use `select` fields with `allowed_values` when touch answers are expected.
-4. Add field help in `prompts/field_overrides.json`.
-5. Add scoring in `app/clinical/scoring.py`.
-6. Add a regression test for the score and the EMR API payload.
-7. Verify `ODM_07216` tests still pass; the Medicaid form must remain isolated.
+3. Add internal `depends_on` gates for screen-outs or follow-ups. Do not rely on
+   prompt instructions to skip irrelevant questions.
+4. Use `select` fields with `allowed_values` when touch answers are expected.
+5. Add field help in `prompts/field_overrides.json`.
+6. Add scoring in `app/clinical/scoring.py`, including dynamic item counts for
+   skipped branches.
+7. Add regression tests for branching, scoring, and the EMR API payload.
+8. Verify `ODM_07216` tests still pass; the Medicaid form must remain isolated.
 
 Before production use, verify official instrument wording, scoring rules, and
 license or permission requirements for each tool.

@@ -97,9 +97,9 @@
       "fields": [
         {"field_key": "cssrs.wish_dead", "label": "Wish to be dead", "section": "cssrs", "type": "boolean", "required": true, "question_text": "In the past month, have you wished you were dead or wished you could go to sleep and not wake up?", "depends_on": {"field_key": "selected.cssrs", "value": true}},
         {"field_key": "cssrs.suicidal_thoughts", "label": "Thoughts of killing yourself", "section": "cssrs", "type": "boolean", "required": true, "question_text": "In the past month, have you actually had thoughts of killing yourself?", "depends_on": {"field_key": "selected.cssrs", "value": true}},
-        {"field_key": "cssrs.method", "label": "Thought about method", "section": "cssrs", "type": "boolean", "required": true, "question_text": "Have you thought about how you might do it?", "depends_on": {"field_key": "selected.cssrs", "value": true}},
-        {"field_key": "cssrs.intent", "label": "Intent without plan", "section": "cssrs", "type": "boolean", "required": true, "question_text": "Have you had thoughts of acting on those thoughts, even without working out all the details?", "depends_on": {"field_key": "selected.cssrs", "value": true}},
-        {"field_key": "cssrs.plan", "label": "Intent with plan", "section": "cssrs", "type": "boolean", "required": true, "question_text": "Have you started working out details of how to kill yourself, and intended to carry out that plan?", "depends_on": {"field_key": "selected.cssrs", "value": true}},
+        {"field_key": "cssrs.method", "label": "Thought about method", "section": "cssrs", "type": "boolean", "required": true, "question_text": "Have you thought about how you might do it?", "depends_on": {"field_key": "cssrs.suicidal_thoughts", "value": true}},
+        {"field_key": "cssrs.intent", "label": "Intent without plan", "section": "cssrs", "type": "boolean", "required": true, "question_text": "Have you had thoughts of acting on those thoughts, even without working out all the details?", "depends_on": {"field_key": "cssrs.suicidal_thoughts", "value": true}},
+        {"field_key": "cssrs.plan", "label": "Intent with plan", "section": "cssrs", "type": "boolean", "required": true, "question_text": "Have you started working out details of how to kill yourself, and intended to carry out that plan?", "depends_on": {"field_key": "cssrs.suicidal_thoughts", "value": true}},
         {"field_key": "cssrs.behavior", "label": "Suicide behavior", "section": "cssrs", "type": "boolean", "required": true, "question_text": "In your lifetime, have you ever done anything, started to do anything, or prepared to do anything to end your life?", "depends_on": {"field_key": "selected.cssrs", "value": true}}
       ]
     },
@@ -108,8 +108,8 @@
       "section_title": "AUDIT-C Alcohol Screen",
       "fields": [
         {"field_key": "auditc.q1", "label": "Alcohol frequency", "section": "auditc", "type": "select", "required": true, "question_text": "How often do you have a drink containing alcohol?", "validation_rule": {"allowed_values": ["Never", "Monthly or less", "2 to 4 times a month", "2 to 3 times a week", "4 or more times a week"]}, "depends_on": {"field_key": "selected.auditc", "value": true}},
-        {"field_key": "auditc.q2", "label": "Drinks per drinking day", "section": "auditc", "type": "select", "required": true, "question_text": "On a typical day when you drink, how many drinks do you have?", "validation_rule": {"allowed_values": ["1 or 2", "3 or 4", "5 or 6", "7 to 9", "10 or more"]}, "depends_on": {"field_key": "selected.auditc", "value": true}},
-        {"field_key": "auditc.q3", "label": "Heavy drinking frequency", "section": "auditc", "type": "select", "required": true, "question_text": "How often do you have six or more drinks on one occasion?", "validation_rule": {"allowed_values": ["Never", "Less than monthly", "Monthly", "Weekly", "Daily or almost daily"]}, "depends_on": {"field_key": "selected.auditc", "value": true}}
+        {"field_key": "auditc.q2", "label": "Drinks per drinking day", "section": "auditc", "type": "select", "required": true, "question_text": "On a typical day when you drink, how many drinks do you have?", "validation_rule": {"allowed_values": ["1 or 2", "3 or 4", "5 or 6", "7 to 9", "10 or more"]}, "depends_on": {"field_key": "auditc.q1", "not_value": "Never"}},
+        {"field_key": "auditc.q3", "label": "Heavy drinking frequency", "section": "auditc", "type": "select", "required": true, "question_text": "How often do you have six or more drinks on one occasion?", "validation_rule": {"allowed_values": ["Never", "Less than monthly", "Monthly", "Weekly", "Daily or almost daily"]}, "depends_on": {"field_key": "auditc.q1", "not_value": "Never"}}
       ]
     },
     {
@@ -127,15 +127,15 @@
       "section_title": "DAST-10 Drug Use Screen",
       "fields": [
         {"field_key": "dast10.q1", "label": "Used drugs not medically required", "section": "dast10", "type": "boolean", "required": true, "question_text": "In the past 12 months, have you used drugs other than those required for medical reasons?", "depends_on": {"field_key": "selected.dast10", "value": true}},
-        {"field_key": "dast10.q2", "label": "Used more than one drug", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you used more than one drug at a time?", "depends_on": {"field_key": "selected.dast10", "value": true}},
-        {"field_key": "dast10.q3", "label": "Able to stop using drugs", "section": "dast10", "type": "boolean", "required": true, "question_text": "Are you always able to stop using drugs when you want to?", "depends_on": {"field_key": "selected.dast10", "value": true}},
-        {"field_key": "dast10.q4", "label": "Blackouts or flashbacks", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you had blackouts or flashbacks because of drug use?", "depends_on": {"field_key": "selected.dast10", "value": true}},
-        {"field_key": "dast10.q5", "label": "Guilt about drug use", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you ever felt bad or guilty about your drug use?", "depends_on": {"field_key": "selected.dast10", "value": true}},
-        {"field_key": "dast10.q6", "label": "Others complain about drug use", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have family, friends, or others complained about your drug use?", "depends_on": {"field_key": "selected.dast10", "value": true}},
-        {"field_key": "dast10.q7", "label": "Neglected responsibilities", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you neglected family, work, school, or other responsibilities because of drug use?", "depends_on": {"field_key": "selected.dast10", "value": true}},
-        {"field_key": "dast10.q8", "label": "Illegal activities", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you done anything illegal to obtain drugs?", "depends_on": {"field_key": "selected.dast10", "value": true}},
-        {"field_key": "dast10.q9", "label": "Withdrawal symptoms", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you had withdrawal symptoms when you stopped using drugs?", "depends_on": {"field_key": "selected.dast10", "value": true}},
-        {"field_key": "dast10.q10", "label": "Medical problems", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you had medical problems because of drug use, such as memory loss, hepatitis, seizures, bleeding, or injuries?", "depends_on": {"field_key": "selected.dast10", "value": true}}
+        {"field_key": "dast10.q2", "label": "Used more than one drug", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you used more than one drug at a time?", "depends_on": {"field_key": "dast10.q1", "value": true}},
+        {"field_key": "dast10.q3", "label": "Able to stop using drugs", "section": "dast10", "type": "boolean", "required": true, "question_text": "Are you always able to stop using drugs when you want to?", "depends_on": {"field_key": "dast10.q1", "value": true}},
+        {"field_key": "dast10.q4", "label": "Blackouts or flashbacks", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you had blackouts or flashbacks because of drug use?", "depends_on": {"field_key": "dast10.q1", "value": true}},
+        {"field_key": "dast10.q5", "label": "Guilt about drug use", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you ever felt bad or guilty about your drug use?", "depends_on": {"field_key": "dast10.q1", "value": true}},
+        {"field_key": "dast10.q6", "label": "Others complain about drug use", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have family, friends, or others complained about your drug use?", "depends_on": {"field_key": "dast10.q1", "value": true}},
+        {"field_key": "dast10.q7", "label": "Neglected responsibilities", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you neglected family, work, school, or other responsibilities because of drug use?", "depends_on": {"field_key": "dast10.q1", "value": true}},
+        {"field_key": "dast10.q8", "label": "Illegal activities", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you done anything illegal to obtain drugs?", "depends_on": {"field_key": "dast10.q1", "value": true}},
+        {"field_key": "dast10.q9", "label": "Withdrawal symptoms", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you had withdrawal symptoms when you stopped using drugs?", "depends_on": {"field_key": "dast10.q1", "value": true}},
+        {"field_key": "dast10.q10", "label": "Medical problems", "section": "dast10", "type": "boolean", "required": true, "question_text": "Have you had medical problems because of drug use, such as memory loss, hepatitis, seizures, bleeding, or injuries?", "depends_on": {"field_key": "dast10.q1", "value": true}}
       ]
     },
     {
@@ -181,8 +181,31 @@
         {"field_key": "mdq.q11", "label": "More interested in sex", "section": "mdq", "type": "boolean", "required": true, "question_text": "Have you been much more interested in sex than usual?", "depends_on": {"field_key": "selected.mdq", "value": true}},
         {"field_key": "mdq.q12", "label": "Risky or unusual behavior", "section": "mdq", "type": "boolean", "required": true, "question_text": "Have you done things that were unusual for you or that other people thought were risky?", "depends_on": {"field_key": "selected.mdq", "value": true}},
         {"field_key": "mdq.q13", "label": "Spending caused trouble", "section": "mdq", "type": "boolean", "required": true, "question_text": "Have you spent money in a way that got you or your family into trouble?", "depends_on": {"field_key": "selected.mdq", "value": true}},
-        {"field_key": "mdq.same_period", "label": "Symptoms same period", "section": "mdq", "type": "boolean", "required": true, "question_text": "Did several of these happen during the same period of time?", "depends_on": {"field_key": "selected.mdq", "value": true}},
-        {"field_key": "mdq.impairment", "label": "Problems caused", "section": "mdq", "type": "select", "required": true, "question_text": "How much of a problem did these mood or energy changes cause for you?", "validation_rule": {"allowed_values": ["No problem", "Minor problem", "Moderate problem", "Serious problem"]}, "depends_on": {"field_key": "selected.mdq", "value": true}}
+        {
+          "field_key": "mdq.same_period",
+          "label": "Symptoms same period",
+          "section": "mdq",
+          "type": "boolean",
+          "required": true,
+          "question_text": "Did several of these happen during the same period of time?",
+          "depends_on": {
+            "field_keys": ["mdq.q1", "mdq.q2", "mdq.q3", "mdq.q4", "mdq.q5", "mdq.q6", "mdq.q7", "mdq.q8", "mdq.q9", "mdq.q10", "mdq.q11", "mdq.q12", "mdq.q13"],
+            "min_true": 2
+          }
+        },
+        {
+          "field_key": "mdq.impairment",
+          "label": "Problems caused",
+          "section": "mdq",
+          "type": "select",
+          "required": true,
+          "question_text": "How much of a problem did these mood or energy changes cause for you?",
+          "validation_rule": {"allowed_values": ["No problem", "Minor problem", "Moderate problem", "Serious problem"]},
+          "depends_on": {
+            "field_keys": ["mdq.q1", "mdq.q2", "mdq.q3", "mdq.q4", "mdq.q5", "mdq.q6", "mdq.q7", "mdq.q8", "mdq.q9", "mdq.q10", "mdq.q11", "mdq.q12", "mdq.q13"],
+            "min_true": 2
+          }
+        }
       ]
     },
     {

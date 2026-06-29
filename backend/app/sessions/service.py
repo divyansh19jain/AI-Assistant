@@ -16,6 +16,7 @@ from app.forms import cache as form_cache
 from app.forms.mapper import prefill_from_emr
 from app.forms.missing_fields import (
     SKIPPED,
+    _dependency_parent_keys,
     get_missing_applicable_fields,
     get_missing_required_fields,
     is_field_applicable,
@@ -795,26 +796,36 @@ def _invalidate_stale_answers(db: DBSession, session: FormSession, schema: dict)
     fields = get_all_fields_from_schema(schema)
     known_keys = {f["field_key"] for f in fields}
     by_key = {f["field_key"]: f for f in fields}
-    answers = _answers_map(db, session.id)
-    applicable_keys = {f["field_key"] for f in fields if is_field_applicable(f, answers, by_key)}
-
     cleared: list[str] = []
-    for row in db.query(FormAnswer).filter(FormAnswer.session_id == session.id).all():
-        fk = row.field_key
-        if fk not in known_keys or fk in applicable_keys:
-            continue
-        # Only clear on a REAL conflict: the gating field is answered and its condition no
-        # longer holds. If the gate isn't answered yet (e.g. a home address saved before
-        # "are you homeless?"), keep the value — it may become applicable, don't re-ask it.
-        # If an unanswered gate is itself inactive, this row is an orphan descendant.
-        dep = (by_key.get(fk) or {}).get("depends_on")
-        gate_key = dep.get("field_key") if isinstance(dep, dict) else None
-        if gate_key and gate_key not in answers:
-            gate_field = by_key.get(gate_key)
-            if gate_field is None or is_field_applicable(gate_field, answers, by_key):
+    cleared_set: set[str] = set()
+    while True:
+        answers = _answers_map(db, session.id)
+        applicable_keys = {f["field_key"] for f in fields if is_field_applicable(f, answers, by_key)}
+        round_cleared: list[str] = []
+
+        for row in db.query(FormAnswer).filter(FormAnswer.session_id == session.id).all():
+            fk = row.field_key
+            if fk not in known_keys or fk in applicable_keys:
                 continue
-        db.delete(row)
-        cleared.append(fk)
+            # Only clear on a real conflict. If an answer was captured before its gate,
+            # keep it while that gate is unanswered and still applicable; if the gate was
+            # cleared earlier in this loop, let the stale descendant collapse too.
+            dep = (by_key.get(fk) or {}).get("depends_on")
+            gate_keys = _dependency_parent_keys(dep if isinstance(dep, dict) else None)
+            unanswered_gates = {key for key in gate_keys if key not in answers}
+            if unanswered_gates and not unanswered_gates.intersection(cleared_set):
+                if all(
+                    by_key.get(key) is None or is_field_applicable(by_key[key], answers, by_key)
+                    for key in unanswered_gates
+                ):
+                    continue
+            db.delete(row)
+            round_cleared.append(fk)
+        if not round_cleared:
+            break
+        db.flush()
+        cleared.extend(round_cleared)
+        cleared_set.update(round_cleared)
     if cleared:
         db.commit()
         # 🔒 audit metadata only — the field keys, never the cleared values (PHI).
