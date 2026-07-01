@@ -153,6 +153,9 @@ export default function AssistantPage() {
   const sendRef   = useRef<(t: string, mode: string) => void>(() => {});
   const doneRef   = useRef(false);
   const thinkingRef = useRef(false);
+  // Single owner of the pending "open the mic" timer — every hands-free arm request
+  // routes through armMic() below so overlapping triggers can't stack into a loop.
+  const armTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentField = useMemo(() => {
     if (!nextKey || !review) return null;
@@ -184,15 +187,45 @@ export default function AssistantPage() {
   const voiceStatusRef = useRef(voiceStatus);
   useEffect(() => { voiceStatusRef.current = voiceStatus; }, [voiceStatus]);
 
+  // ── Centralized mic arming ────────────────────────────────────────────
+  // Every place that wants to (re)open the mic — the greeting/reply onEnd, the
+  // no-speech re-arm, the reload restore, the mic toggle, the error recovery —
+  // goes through armMic(). It (1) keeps at most ONE pending arm so overlapping
+  // timers can't stack into a visible listen→idle→listen loop, and (2) refuses to
+  // open the mic while Mia is still speaking/thinking or the mic is already live,
+  // which is what makes the tail of the greeting echo back in and churn the mic.
+  const cancelArm = useCallback(() => {
+    if (armTimerRef.current !== null) {
+      clearTimeout(armTimerRef.current);
+      armTimerRef.current = null;
+    }
+  }, []);
+  const armMic = useCallback((delay: number) => {
+    cancelArm();
+    armTimerRef.current = setTimeout(() => {
+      armTimerRef.current = null;
+      if (doneRef.current || thinkingRef.current) return;
+      const s = voiceStatusRef.current;
+      if (s === "speaking" || s === "processing" || s === "listening") return;
+      startListening();
+    }, delay);
+  }, [cancelArm, startListening]);
+
   // Hands-free re-arm: if a listen captured nothing (silence/echo), try again a
   // couple of times, then fall back to idle so the composer is clearly usable —
   // the conversation never dead-ends on a missed capture.
   rearmRef.current = () => {
     if (doneRef.current || thinkingRef.current) return;
-    if (voiceStatusRef.current === "speaking") return;
+    // onNoSpeech only fires right AFTER a listen ended, so the engine is already torn
+    // down and re-arming is safe. Do NOT gate on voiceStatusRef here: it is updated by
+    // an async effect and, in this synchronous onNoSpeech callback, still holds the
+    // pre-teardown value ("listening"/"processing") — gating on it would suppress
+    // every re-arm. armMic()'s own delayed guard (evaluated 500ms later, once the
+    // status has settled) plus startListening's idempotency guard prevent any reopen
+    // while audio/mic is genuinely still active.
     if (noSpeechCount.current < 2) {
       noSpeechCount.current += 1;
-      setTimeout(() => startListening(), 400);
+      armMic(500);
     } else {
       noSpeechCount.current = 0;
       inputRef.current?.focus(); // give up gracefully — make the composer the obvious next step
@@ -226,8 +259,12 @@ export default function AssistantPage() {
   // Speak a reply, then (hands-free) reopen the mic when it's the user's turn.
   const speakReply = useCallback((text: string, canListen: boolean) => {
     if (!autoSpeak) return;
-    speak(text, canListen ? () => setTimeout(() => startListening(), 350) : undefined);
-  }, [autoSpeak, speak, startListening]);
+    // Wait ~600ms after TTS truly ends before opening the mic so the greeting's
+    // acoustic tail (and any speaker→mic echo) dies first — SpeechRecognition runs
+    // its own mic without the warm stream's echo cancellation, so an early open
+    // captures Mia's own voice and triggers the no-speech re-arm loop.
+    speak(text, canListen ? () => armMic(600) : undefined);
+  }, [autoSpeak, speak, armMic]);
 
   // Core: one agent turn.
   const sendToAgent = useCallback(async (text: string, inputMode: string) => {
@@ -239,6 +276,7 @@ export default function AssistantPage() {
       return;
     }
     stopSpeaking(); stopListening(); clearTranscript();
+    cancelArm(); // drop any pending greeting/re-arm so it can't reopen the mic mid-turn
     setVoiceError(null);
     noSpeechCount.current = 0;
     pushMsg("user", clean);
@@ -267,7 +305,7 @@ export default function AssistantPage() {
       const errorMessage = "Something went wrong reaching the assistant. Please try again.";
       setVoiceError(errorMessage);
       if (autoSpeak) {
-        speak(errorMessage, () => setTimeout(() => startListening(), 500));
+        speak(errorMessage, () => armMic(600));
       } else {
         inputRef.current?.focus();
       }
@@ -275,7 +313,7 @@ export default function AssistantPage() {
       thinkingRef.current = false;
       setThinking(false);
     }
-  }, [sessionId, autoSpeak, pushMsg, refreshReview, speak, speakReply, startListening, stopSpeaking, stopListening, clearTranscript, router]);
+  }, [sessionId, autoSpeak, pushMsg, refreshReview, speak, speakReply, armMic, cancelArm, stopSpeaking, stopListening, clearTranscript, router]);
   sendRef.current = sendToAgent;
 
   /* Load session + kick off the conversation. */
@@ -304,7 +342,11 @@ export default function AssistantPage() {
               setNextKey(nf?.field_key ?? null);
             }
           } catch { /* ignore */ }
-          setTimeout(() => startListening(), 400);
+          // On reload there's no greeting to justify opening the mic; only resume
+          // hands-free listening if the last turn was Mia's and voice is on.
+          const last = restored[restored.length - 1];
+          if (autoSpeak && last?.role === "assistant") armMic(500);
+          else inputRef.current?.focus();
         } else {
           // try/finally so a slow/failed greeting can never leave `thinking` stuck
           // (which would disable the mic, Send, and sending — a hard dead-end).
@@ -336,7 +378,13 @@ export default function AssistantPage() {
         setVoiceError("Couldn't load this session.");
       }
     })();
-  }, [sessionId, autoSpeak, refreshReview, pushMsg, speakReply, startListening]);
+  }, [sessionId, autoSpeak, refreshReview, pushMsg, speakReply, armMic]);
+
+  // Cancel any pending mic arm on REAL unmount only. Keeping this out of the startup
+  // effect matters: that effect re-runs whenever autoSpeak/speakReply change (e.g. the
+  // user toggles voice), and a cleanup there would cancel a legitimately-pending
+  // greeting arm without rescheduling it (the started-guard early-returns).
+  useEffect(() => cancelArm, [cancelArm]);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, thinking]);
   // Persist the current field binding so a reload keeps answers bound to the right field.
@@ -359,8 +407,9 @@ export default function AssistantPage() {
   }, [unlockAudio]);
 
   function toggleMic() {
+    cancelArm(); // a manual tap overrides any pending hands-free arm
     if (isListening) { stopListening(); }
-    else { stopSpeaking(); setVoiceError(null); setTimeout(() => startListening(), 250); }
+    else { stopSpeaking(); setVoiceError(null); armMic(250); }
   }
 
   if (loading) {
@@ -400,7 +449,7 @@ export default function AssistantPage() {
               className="lg:hidden min-h-12 px-4 inline-flex items-center rounded-lg text-sm font-semibold border border-slate-200 text-slate-600 hover:bg-slate-50">
               Review
             </button>
-            <button onClick={() => setAutoSpeak((v) => { if (v) { stopSpeaking(); stopListening(); } return !v; })}
+            <button onClick={() => setAutoSpeak((v) => { if (v) { cancelArm(); stopSpeaking(); stopListening(); } return !v; })}
               className={`flex min-h-12 items-center gap-2 rounded-lg border px-3 text-sm font-semibold transition-colors sm:px-3.5 ${autoSpeak ? "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100" : "bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100"}`}>
               <svg width="15" height="15" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 {autoSpeak

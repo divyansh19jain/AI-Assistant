@@ -56,10 +56,14 @@ const BASE_HINT = "yes, no, skip, correct, wrong, Jackson, Johnson, Smith, Jones
 // when it hears near-silence or the tail of the assistant's own TTS — producing junk
 // like "yes, no, skip, correct, yes, no, skip…". Treat a transcript that is mostly
 // repeated hint/command words as a non-answer so it never auto-submits.
+// Only the words Whisper actually regurgitates from the prompt hint (commands + the
+// name/field vocabulary). Pure grammar words ("the", "a", "of") were removed: they
+// appear in almost every genuine answer, so counting them made real multi-word replies
+// like "yes the address is correct" tip over the 0.7 ratio and get wrongly discarded.
 const _HALLUCINATION_TOKENS = new Set([
   "yes", "no", "skip", "correct", "wrong", "yeah", "yep", "nope", "okay", "ok",
   "sure", "jackson", "johnson", "smith", "jones", "williams", "medicare",
-  "medicaid", "patient", "name", "address", "date", "of", "birth", "the", "a",
+  "medicaid", "patient", "name", "address", "date", "birth",
 ]);
 function isLikelyHallucination(text: string): boolean {
   const tokens = text.toLowerCase().replace(/[.,!?;:'"-]/g, " ").split(/\s+/).filter(Boolean);
@@ -73,8 +77,19 @@ const SILENCE_THRESHOLD = 20;   // RMS below this = silent (0–255 scale); rais
 const SILENCE_GRACE_MS  = 1800; // stop after this many ms of continuous silence
 const MIN_SPEECH_MS     = 600;  // don't stop before this even if silent (catch short words)
 const MAX_RECORDING_MS  = 20000; // hard stop so background noise can never hold the mic forever
+// Browser SpeechRecognition: keep the mic open across natural pauses and only finalize
+// after this much silence following the last (interim or final) result, so a mid-answer
+// pause doesn't cut the speaker off.
+const SR_END_SILENCE_MS = 1400;
+// Initial window before ANY speech is heard — a silent mic settles after this (then the
+// hands-free re-arm decides what to do) instead of holding "Listening…" for MAX_RECORDING_MS.
+const SR_NO_SPEECH_MS = 6500;
 const BROWSER_VOICE_WAIT_MS = 600; // Chrome can delay voice loading without firing voiceschanged
-const BROWSER_TTS_MAX_MS = 20000; // browser speech must always release the conversation
+// Safety-net ceiling for the browser-TTS "release the turn" timer. Must comfortably
+// exceed the real spoken duration of the longest message (the canned greeting can be
+// ~30s) so the REAL utt.onend fires first; a too-low cap releases mid-speech and opens
+// the mic while Mia is still talking (her voice echoes into STT).
+const BROWSER_TTS_MAX_MS = 45000;
 
 // `??` so an explicitly-empty value routes through the same-origin /api proxy; see lib/api.ts.
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -114,6 +129,7 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
 
   // STT refs
   const recognitionRef     = useRef<any>(null);   // browser SpeechRecognition (primary)
+  const srSilenceTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null); // end-of-speech debounce for SpeechRecognition
   const mediaRecorderRef   = useRef<MediaRecorder | null>(null);
   const chunksRef          = useRef<Blob[]>([]);
   // Warm mic stream — acquired once, reused across turns so startListening is instant
@@ -368,9 +384,11 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
     if (!synth) { setStatus("idle"); onStart?.(); onEnd?.(); return; }
 
     let started = false;
+    let realStart = false; // true only once the OS engine actually starts speaking
     let finished = false;
     let voiceTimer: ReturnType<typeof setTimeout> | null = null;
     let finishTimer: ReturnType<typeof setTimeout> | null = null;
+    let neverStartedTimer: ReturnType<typeof setTimeout> | null = null;
 
     const clearTimers = () => {
       if (voiceTimer !== null) {
@@ -380,6 +398,10 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
       if (finishTimer !== null) {
         clearTimeout(finishTimer);
         finishTimer = null;
+      }
+      if (neverStartedTimer !== null) {
+        clearTimeout(neverStartedTimer);
+        neverStartedTimer = null;
       }
     };
 
@@ -411,7 +433,7 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
       const voices = activeSynth.getVoices();
       const preferred = selectFemaleVoice(voices);
       if (preferred) utt.voice = preferred;
-      utt.onstart = markStarted;
+      utt.onstart = () => { realStart = true; markStarted(); };
       utt.onend = () => finish(true);
       utt.onerror = (e) => {
         const error = (e as any).error;
@@ -429,7 +451,14 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
       // Some browsers never emit onstart/onend when speech is blocked or voices
       // are still initializing. Show the message and release the turn anyway.
       setTimeout(markStarted, 150);
-      const estimatedMs = Math.min(BROWSER_TTS_MAX_MS, Math.max(3500, text.length * 80 + 1500));
+      // If the engine never ACTUALLY starts speaking (autoplay-blocked/muted), release
+      // the turn quickly so we don't sit on a silent "Speaking…" for the whole estimate.
+      neverStartedTimer = setTimeout(() => { if (!realStart) finish(true); }, 4000);
+      // SAFETY NET for when speech DID start but `onend` never fires — keep it generous
+      // (up to BROWSER_TTS_MAX_MS) so a slowly-spoken greeting finishes for real (via
+      // utt.onend) before it fires. An under-estimate would release the turn mid-speech
+      // and open the mic while Mia is still talking, feeding her own voice into STT.
+      const estimatedMs = Math.min(BROWSER_TTS_MAX_MS, Math.max(3500, text.length * 100 + 2500));
       finishTimer = setTimeout(() => finish(true), estimatedMs);
     };
 
@@ -501,6 +530,7 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
     log("stopListening");
     wantListeningRef.current = false;
     clearMaxListenTimer();
+    if (srSilenceTimerRef.current !== null) { clearTimeout(srSilenceTimerRef.current); srSilenceTimerRef.current = null; }
     if (recognitionRef.current) {
       try { recognitionRef.current.stop(); } catch {}
       recognitionRef.current = null;
@@ -546,39 +576,79 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
       try {
         const rec = new SR();
         rec.lang = "en-US";
-        rec.interimResults = false;
-        rec.continuous = false;
+        // continuous + interim so a natural pause mid-answer does NOT end the session
+        // and cut the speaker off. We accumulate the final transcript and decide when
+        // the user has finished — a short silence (SR_END_SILENCE_MS) after the last
+        // result — then stop() and submit once from onend.
+        rec.interimResults = true;
+        rec.continuous = true;
         rec.maxAlternatives = 1;
-        let got = false;
-        rec.onresult = (e: any) => {
-          let text = "";
-          for (let i = e.resultIndex; i < e.results.length; i++) text += e.results[i][0].transcript;
-          text = text.trim();
-          log("SpeechRecognition result:", text);
-          if (text && !isLikelyHallucination(text)) {
-            got = true;
-            setTranscript(text);
-            onTranscriptRef.current?.(text);
+        let finalText = "";
+        let lastInterim = ""; // fallback if the engine ends before the tail turns final
+        const clearSrSilence = () => {
+          if (srSilenceTimerRef.current !== null) {
+            clearTimeout(srSilenceTimerRef.current);
+            srSilenceTimerRef.current = null;
           }
+        };
+        const scheduleFinalize = (delay: number) => {
+          clearSrSilence();
+          srSilenceTimerRef.current = setTimeout(() => {
+            srSilenceTimerRef.current = null;
+            if (recognitionRef.current === rec) { try { rec.stop(); } catch {} }
+          }, delay);
+        };
+        rec.onresult = (e: any) => {
+          let interim = "";
+          for (let i = e.resultIndex; i < e.results.length; i++) {
+            const seg = e.results[i][0]?.transcript ?? "";
+            if (e.results[i].isFinal) finalText += seg;
+            else interim += seg;
+          }
+          if (interim.trim()) lastInterim = interim;
+          // Speech heard — switch from the initial no-speech window to the short
+          // end-of-answer debounce and keep pushing it back while the user talks, so a
+          // natural pause never cuts them off.
+          if (interim.trim() || finalText.trim()) scheduleFinalize(SR_END_SILENCE_MS);
         };
         rec.onerror = (e: any) => {
           log("SpeechRecognition error:", e?.error);
           if (e?.error === "not-allowed" || e?.error === "service-not-allowed") {
             wantListeningRef.current = false;
             clearMaxListenTimer();
+            clearSrSilence();
             setStatus("error");
             onErrorRef.current?.("Microphone access is blocked. Allow the mic in your browser, then try again.");
           }
         };
         rec.onend = () => {
           clearMaxListenTimer();
+          clearSrSilence();
           recognitionRef.current = null;
-          setStatus("idle");
-          if (!got && wantListeningRef.current) onNoSpeechRef.current?.();
+          const text = (finalText.trim() || lastInterim.trim());
+          // `wanted` is false only when stopListening() tore this listen down (user
+          // tapped Stop, or chose a chip / typed while listening). In that case DON'T
+          // submit — otherwise a stale voice answer lands on the NEXT question.
+          const wanted = wantListeningRef.current;
           wantListeningRef.current = false;
+          if (wanted && text && !isLikelyHallucination(text)) {
+            log("SpeechRecognition final:", text);
+            // Go straight to "processing" (not "idle") so the pill reads Thinking… with
+            // no ~250ms "Ready" flash before the send fires.
+            setStatus("processing");
+            setTranscript(text);
+            onTranscriptRef.current?.(text);
+          } else {
+            setStatus("idle");
+            if (wanted) onNoSpeechRef.current?.();
+          }
         };
         recognitionRef.current = rec;
         rec.start();
+        // No result yet: arm a longer initial window so a silent mic doesn't hold
+        // "Listening…" open for the full MAX_RECORDING_MS; onresult shortens it to the
+        // end-of-answer debounce once the user actually speaks.
+        scheduleFinalize(SR_NO_SPEECH_MS);
         maxListenTimerRef.current = setTimeout(() => {
           if (recognitionRef.current === rec) {
             log("max listen duration reached - stopping SpeechRecognition");
@@ -665,6 +735,7 @@ export function useVoice({ onTranscript, onError, onNoSpeech, hint = "", formId 
       synthRef.current?.cancel();
       wantListeningRef.current = false;
       clearMaxListenTimer();
+      if (srSilenceTimerRef.current !== null) { clearTimeout(srSilenceTimerRef.current); srSilenceTimerRef.current = null; }
       try { recognitionRef.current?.stop(); } catch {}
       recognitionRef.current = null;
       stopSilenceDetection();

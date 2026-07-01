@@ -284,8 +284,13 @@ def _parse_boolean(value: Any) -> bool:
 def _parse_date(value: Any) -> str:
     """Normalize to YYYY-MM-DD."""
     s = _clean_date_text(str(value).strip())
+    # A spelled-out month ("February 19 1999") MUST go through the named-month
+    # formats below. The compact-digit heuristic strips non-digits, which would drop
+    # the month word entirely and misread the leftover digits — e.g. "February 19
+    # 1999" -> "191999" -> strptime "%Y%m%d" -> 1919-09-09 (single-digit %m/%d).
+    has_alpha = any(c.isalpha() for c in s)
     compact = re.sub(r"\D", "", s)
-    if len(compact) in {6, 7, 8}:
+    if not has_alpha and len(compact) in {6, 7, 8}:
         # Voice/STT often turns "01/01/1992" into "0101 1992". In this US form
         # context, prefer MMDDYYYY unless the value clearly starts with a year.
         compact_candidates = [compact]
@@ -295,7 +300,12 @@ def _parse_date(value: Any) -> str:
         elif len(compact) == 7:
             compact_candidates.extend([f"0{compact}", f"{compact[:2]}0{compact[2:]}"])
         for candidate in compact_candidates:
-            compact_formats = ["%Y%m%d"] if candidate[:4].startswith(("19", "20")) else ["%m%d%Y", "%Y%m%d"]
+            # Only treat a candidate as YYYYMMDD when it is a full 8 digits — otherwise
+            # strptime's single-digit month/day fallback turns "191999" into 1919-09-09.
+            if candidate[:4].startswith(("19", "20")) and len(candidate) == 8:
+                compact_formats = ["%Y%m%d"]
+            else:
+                compact_formats = ["%m%d%Y"] + (["%Y%m%d"] if len(candidate) == 8 else [])
             for fmt in compact_formats:
                 try:
                     dt = datetime.strptime(candidate, fmt)
@@ -312,6 +322,8 @@ def _parse_date(value: Any) -> str:
         "%b %d %Y",
         "%B %d, %Y",
         "%b %d, %Y",
+        "%d %B %Y",   # day-first spoken: "19 February 1999"
+        "%d %b %Y",
     ]
     for fmt in formats:
         try:
@@ -322,12 +334,187 @@ def _parse_date(value: Any) -> str:
     raise ValidationError("Please provide a valid date in MM/DD/YYYY format.")
 
 
+_ONES = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    "eleven": 11, "twelve": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+    "sixteen": 16, "seventeen": 17, "eighteen": 18, "nineteen": 19,
+    "twenty": 20, "thirty": 30,
+    # ordinals
+    "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+    "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+    "eleventh": 11, "twelfth": 12, "thirteenth": 13, "fourteenth": 14,
+    "fifteenth": 15, "sixteenth": 16, "seventeenth": 17, "eighteenth": 18,
+    "nineteenth": 19, "twentieth": 20, "thirtieth": 30,
+    # compound ordinals like "twenty-second" handled below
+}
+_TENS_ORD = {
+    "twenty": 20, "thirty": 30,
+}
+
+
+def _spoken_to_int(word: str) -> int | None:
+    """Convert a single spoken number/ordinal word to int, or None if unknown."""
+    w = word.lower().replace("-", " ")
+    if w in _ONES:
+        return _ONES[w]
+    # "twenty second" / "twenty-second" / "thirtieth" compound
+    parts = w.split()
+    if len(parts) == 2 and parts[0] in _TENS_ORD and parts[1] in _ONES:
+        return _TENS_ORD[parts[0]] + _ONES[parts[1]]
+    return None
+
+
+def _year_words_to_digits(s: str) -> str:
+    """Convert spoken year patterns to 4-digit integers.
+
+    Handles:
+      "nineteen ninety"           -> "1990"
+      "nineteen eighty five"      -> "1985"
+      "nineteen ninety nine"      -> "1999"
+      "two thousand"              -> "2000"
+      "two thousand five"         -> "2005"
+      "twenty twenty"             -> "2020"  (only when following a digit/month)
+    """
+    # "nineteen TENS [UNITS]" — e.g. "nineteen eighty five" -> 1985
+    # tens must be a tens-place word (twenty, thirty, … ninety), units optional.
+    _tens_words = {
+        "twenty": 20, "thirty": 30, "forty": 40, "fifty": 50,
+        "sixty": 60, "seventy": 70, "eighty": 80, "ninety": 90,
+    }
+    _units_words = {
+        "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+        "six": 6, "seven": 7, "eight": 8, "nine": 9,
+    }
+
+    def _repl_19(m: re.Match) -> str:
+        tens_word = m.group(1).lower()
+        units_word = (m.group(2) or "").lower()
+        tens = _tens_words.get(tens_word)
+        if tens is None:
+            return m.group(0)
+        units = _units_words.get(units_word, 0)
+        return str(1900 + tens + units)
+
+    s = re.sub(
+        r"\bninete(?:en)?\s+(\w+)(?:\s+(\w+))?",
+        _repl_19,
+        s, flags=re.IGNORECASE,
+    )
+
+    # "two thousand [X]"
+    def _repl_2k(m: re.Match) -> str:
+        extra_word = (m.group(1) or "").lower()
+        extra = _ONES.get(extra_word, 0) if extra_word else 0
+        return str(2000 + extra)
+
+    s = re.sub(r"\btwo\s+thousand(?:\s+(\w+))?", _repl_2k, s, flags=re.IGNORECASE)
+
+    # "twenty XX" as a year ONLY when it looks like a 2020s year context
+    # (i.e. "twenty twenty" or "twenty twenty-one" after a month word).
+    # We DON'T replace "twenty" generically here — that breaks "twenty second".
+    _month_names = (
+        "january", "february", "march", "april", "may", "june",
+        "july", "august", "september", "october", "november", "december",
+        "jan", "feb", "mar", "apr", "jun", "jul", "aug", "sep", "oct", "nov", "dec",
+    )
+    month_pat = "|".join(_month_names)
+
+    def _repl_20s(m: re.Match) -> str:
+        units_word = m.group(2).lower()
+        units = _ONES.get(units_word)
+        if units is None or units > 9:  # only 2020-2029
+            return m.group(0)
+        return m.group(1) + " " + str(2020 + units)
+
+    # Only convert "twenty X" when preceded by a digit (day) or month name
+    s = re.sub(
+        r"(\d{1,2}|" + month_pat + r")\s+twenty\s+(\w+)",
+        _repl_20s, s, flags=re.IGNORECASE,
+    )
+    return s
+
+
 def _clean_date_text(value: str) -> str:
-    """Prepare common spoken dates, e.g. "January 5th 1980", for parsing."""
+    """Normalize spoken/STT dates to a form strptime can parse.
+
+    Handles:
+      "March fifth nineteen ninety"            -> "March 5 1990"
+      "the fifth of March 1990"                -> "5 March 1990"
+      "January first two thousand"             -> "January 1 2000"
+      "May twenty second nineteen eighty five" -> "May 22 1985"
+      "December thirty first nineteen ninety nine" -> "December 31 1999"
+      "March 5th 1990"                         -> "March 5 1990"  (existing)
+    """
     s = value.strip()
+    # Strip leading "the" before ordinals ("the fifth of march")
+    s = re.sub(r"^the\s+", "", s, flags=re.IGNORECASE)
+    # Remove ordinal suffixes on digits: "5th" -> "5"
     s = re.sub(r"\b(\d{1,2})(st|nd|rd|th)\b", r"\1", s, flags=re.IGNORECASE)
+    # Remove filler words
     s = re.sub(r"\bof\b", " ", s, flags=re.IGNORECASE)
-    s = re.sub(r"\s+", " ", s)
+
+    # Replace compound day ordinals BEFORE year conversion so "twenty second"
+    # is turned to "22" and not misread as part of a year.
+    def _replace_compound_day(m: re.Match) -> str:
+        n = _spoken_to_int(m.group(0))
+        return str(n) if n is not None else m.group(0)
+
+    s = re.sub(
+        r"\b(?:twenty|thirty)[\s\-]"
+        r"(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|"
+        r"tenth|eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|"
+        r"seventeenth|eighteenth|nineteenth|twentieth|thirtieth|"
+        r"one|two|three|four|five|six|seven|eight|nine)\b",
+        _replace_compound_day, s, flags=re.IGNORECASE,
+    )
+
+    # Convert spoken year patterns (nineteen XX, two thousand, etc.)
+    s = _year_words_to_digits(s)
+
+    # Convert remaining single spoken ordinal/number words for the day position.
+    def _replace_day(m: re.Match) -> str:
+        n = _spoken_to_int(m.group(0))
+        return str(n) if n is not None else m.group(0)
+
+    s = re.sub(
+        r"\b(first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|"
+        r"eleventh|twelfth|thirteenth|fourteenth|fifteenth|sixteenth|seventeenth|"
+        r"eighteenth|nineteenth|twentieth|thirtieth)\b",
+        _replace_day, s, flags=re.IGNORECASE,
+    )
+
+    # Plain number words adjacent to a month name (e.g. "eleven january 1999" → "11 january 1999").
+    # Only replace when a month name is within two tokens — avoids corrupting names/phrases.
+    _month_pat = (
+        r"(?:january|february|march|april|may|june|july|august|"
+        r"september|october|november|december|"
+        r"jan|feb|mar|apr|jun|jul|aug|sep|oct|nov|dec)"
+    )
+    _day_words = (
+        r"(?:one|two|three|four|five|six|seven|eight|nine|ten|"
+        r"eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|"
+        r"eighteen|nineteen|twenty|thirty)"
+    )
+
+    def _replace_plain_day(m: re.Match) -> str:
+        n = _ONES.get(m.group(1).lower())
+        return str(n) + m.group(2) if n is not None else m.group(0)
+
+    # Pattern: day-word followed by month ("eleven january 1999")
+    s = re.sub(
+        rf"\b{_day_words}\b(\s+{_month_pat})",
+        lambda m: str(_ONES.get(m.group(0).split()[0].lower(), m.group(0).split()[0])) + m.group(0)[len(m.group(0).split()[0]):],
+        s, flags=re.IGNORECASE,
+    )
+    # Pattern: month followed by day-word ("january eleven 1999")
+    s = re.sub(
+        rf"({_month_pat}\s+){_day_words}\b",
+        lambda m: m.group(0)[:len(m.group(1))] + str(_ONES.get(m.group(0)[len(m.group(1)):].lower(), m.group(0)[len(m.group(1)):])),
+        s, flags=re.IGNORECASE,
+    )
+
+    s = re.sub(r"\s+", " ", s).strip()
     return s
 
 

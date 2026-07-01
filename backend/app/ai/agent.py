@@ -296,6 +296,74 @@ def _confirmation_field_payload(field: dict | None) -> dict | None:
     }
 
 
+def _confirmation_turn_reply(db, session, session_id: str, schema: dict, answers: dict) -> dict:
+    """Return a deterministic reply after a read-back confirmation (yes/no), bypassing the LLM.
+
+    The LLM must never see the 'Yes'/'No' in its context because it tends to re-ask the
+    confirmed field or produce an off-topic response. Instead we check whether another
+    low-confidence field still needs read-back, then either re-prompt that field or move
+    on to the next missing field — identical to what the main loop produces at the end of
+    a normal turn, but without the model call.
+    """
+    from app.forms.missing_fields import get_missing_applicable_fields, get_missing_required_fields
+    from app.db.models import SessionMessage
+
+    # Another low-confidence field might still be pending (e.g. both ZIP and phone were
+    # captured in voice mode).
+    confirm_next = _first_low_confidence_field(db, session_id, schema)
+    if confirm_next:
+        confirm_field, confirm_value = confirm_next
+        assistant_text = _readback_prompt(confirm_field, confirm_value)
+        db.add(SessionMessage(session_id=session_id, role="assistant", content=assistant_text))
+        db.commit()
+        missing_applicable = get_missing_applicable_fields(session.form_id, answers, schema)
+        missing_required = get_missing_required_fields(session.form_id, answers, schema)
+        readiness = svc.get_session_readiness(db, session_id) or {"ready": False}
+        svc._set_collection_status(session, len(missing_applicable) == 0)
+        db.commit()
+        return {
+            "assistant_message": assistant_text,
+            "done": bool(readiness["ready"]),
+            "go_to_review": False,
+            "state": {
+                "answered_count": svc._valid_answer_count(schema, answers),
+                "missing_count": len(missing_applicable),
+                "missing_required_count": len(missing_required),
+                "total": len(get_all_fields_from_schema(schema)),
+                "next_field_key": confirm_field["field_key"],
+            },
+            "next_field": _confirmation_field_payload(confirm_field),
+            "answers": answers,
+        }
+
+    # All confirmed — move to the next missing field deterministically.
+    missing_applicable = get_missing_applicable_fields(session.form_id, answers, schema)
+    missing_required = get_missing_required_fields(session.form_id, answers, schema)
+    readiness = svc.get_session_readiness(db, session_id) or {"ready": False}
+    done = bool(readiness["ready"])
+    svc._set_collection_status(session, len(missing_applicable) == 0)
+    db.commit()
+
+    nxt = missing_applicable[0] if missing_applicable else None
+    assistant_text = _next_action_reply(schema, answers, session.form_id, is_start=False)
+    db.add(SessionMessage(session_id=session_id, role="assistant", content=assistant_text))
+    db.commit()
+    return {
+        "assistant_message": assistant_text,
+        "done": done,
+        "go_to_review": done,
+        "state": {
+            "answered_count": svc._valid_answer_count(schema, answers),
+            "missing_count": len(missing_applicable),
+            "missing_required_count": len(missing_required),
+            "total": len(get_all_fields_from_schema(schema)),
+            "next_field_key": nxt["field_key"] if nxt else None,
+        },
+        "next_field": _next_field_payload(db, nxt, answers),
+        "answers": answers,
+    }
+
+
 def _topic_queries(user_text: str) -> list[str]:
     """Map a help request to static KB topics without embedding raw user text."""
     text = (user_text or "").lower()
@@ -1068,8 +1136,30 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     # the #1 cause of frustrating loops. The LLM can still save volunteered extra facts,
     # but the field that was actually asked gets first chance to save, skip, or confirm.
     captured = False
+    confirmation_captured = False  # True when this turn was a read-back yes/no, not a new answer
     answered_field = None
-    if not is_start and answered_field_key:
+
+    # ── Read-back confirmation (robust) ──────────────────────────────────────
+    # A read-back field (voice date/phone/ZIP saved at low confidence) is pending
+    # whenever _first_low_confidence_field finds one. If the user's reply is a clear
+    # yes/no, resolve it on THAT field — regardless of which answered_field_key the
+    # frontend sent. This makes confirmation immune to any frontend state race where
+    # the key drifts (the #1 cause of "I confirmed my DOB but it wasn't saved").
+    if not is_start:
+        pending = _first_low_confidence_field(db, session_id, schema)
+        if pending:
+            pending_field, _pending_val = pending
+            if not _is_help_request(pending_field, user_text):
+                yn = _coerce_yes_no(user_text, pending_field["field_key"])
+                if yn is not None:
+                    captured = _handle_low_confidence_confirmation(
+                        db, session, schema, pending_field["field_key"], user_text
+                    )
+                    if captured:
+                        confirmation_captured = True
+                        answers = svc._answers_map(db, session_id)
+
+    if not confirmation_captured and not is_start and answered_field_key:
         answered_field = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), None)
         if answered_field and _is_help_request(answered_field, user_text):
             return _help_turn_response(db, session, schema, answered_field, user_text, answers)
@@ -1077,6 +1167,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         if fld and answered_field_key in answers:
             captured = _handle_low_confidence_confirmation(db, session, schema, answered_field_key, user_text)
             if captured:
+                confirmation_captured = True
                 answers = svc._answers_map(db, session_id)
         if not captured and fld and answered_field_key not in answers:
             ftype = fld.get("type", "text")
@@ -1171,6 +1262,11 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     info_tool_called = False  # an informational tool (income screening) produced a reply this turn
     model = settings.OPENAI_MODEL
     turn_start = time.monotonic()
+
+    # Confirmation turns (user said yes/no to a read-back) are fully deterministic —
+    # bypass the LLM entirely so it never sees "Yes" in context and re-asks the same field.
+    if confirmation_captured:
+        return _confirmation_turn_reply(db, session, session_id, schema, answers)
 
     try:
         for _ in range(_MAX_TOOL_ROUNDS):

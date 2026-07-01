@@ -157,6 +157,17 @@ def test_validate_date_formats():
     assert validate_answer(field, "1 1 1992") == "1992-01-01"
 
 
+def test_validate_spoken_month_with_two_digit_day():
+    # Regression: a spelled-out month with a TWO-digit day ("February 19 1999")
+    # used to strip to "191999" and misparse as 1919-09-09. The month word must win.
+    field = {"type": "date", "required": True, "validation_rule": {"format": "date"}}
+    assert validate_answer(field, "February 19 1999") == "1999-02-19"
+    assert validate_answer(field, "February 19th 1999") == "1999-02-19"
+    assert validate_answer(field, "February 19, 1999") == "1999-02-19"
+    assert validate_answer(field, "Dec 25 1985") == "1985-12-25"
+    assert validate_answer(field, "19 February 1999") == "1999-02-19"  # day-first spoken
+
+
 def test_validate_phone():
     field = {"type": "phone", "required": True, "validation_rule": {"pattern": r"^\d{10}$"}}
     assert validate_answer(field, "6145551234") == "6145551234"

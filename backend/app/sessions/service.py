@@ -574,10 +574,17 @@ def set_field(
         FormAnswer.field_key == field_key,
     ).first()
     if existing:
-        existing.value_json = json.dumps(store_value)
+        new_value_json = json.dumps(store_value)
+        old_confidence = float(existing.confidence or 0.0)
+        value_changed = new_value_json != existing.value_json
+        existing.value_json = new_value_json
         existing.raw_answer = raw_answer
         existing.source = source
-        existing.confidence = confidence
+        # Never downgrade a confirmed field (confidence >= 0.75) by re-echoing the
+        # same value. Only update confidence if the stored value actually changed (a
+        # correction) or the new confidence is higher (e.g. a typed re-entry).
+        if value_changed or confidence > old_confidence:
+            existing.confidence = confidence
     else:
         db.add(FormAnswer(
             session_id=session.id, field_key=field_key,
