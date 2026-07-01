@@ -46,6 +46,10 @@ def _value_for(field: dict, persona: dict):
         return "43215"
     if r"\d{10}" in pattern:
         return "5551234567"
+    # Personal-name fields reject non-name placeholders ("Test"), so use a real name.
+    label_l = str(field.get("label", "")).lower()
+    if any(w in label_l for w in ("first name", "last name", "middle name", "full name", "maiden name")):
+        return "Jordan"
     base = "Test"
     max_len = rule.get("max_length")
     if max_len and max_len < len(base):

@@ -295,11 +295,147 @@ def _fill_acroform_pdf(
                 color=(0, 0, 0),
             )
 
+    # Append continuation pages for person3, person4, person5 (and beyond).
+    # The base PDF only has slots for person1 and person2; additional household members
+    # are stamped onto fresh copies of the person2 pages (matching the form's own
+    # "make a copy of the pages and attach them" instruction).
+    _append_extra_person_pages(doc, base_pdf, entries, answers, field_type_by_key)
+
     file_name = f"{_safe_file_prefix(form_id)}_{session_id[:8]}.pdf"
     out_path = _get_output_dir() / file_name
     doc.save(str(out_path))
     doc.close()
     return out_path, file_name
+
+
+def _append_extra_person_pages(
+    doc: "fitz.Document",
+    base_pdf: Path,
+    entries: list[dict],
+    answers: dict,
+    field_type_by_key: dict[str, str],
+) -> None:
+    """Copy the person2 pages from the base PDF and stamp person3+ data onto them.
+
+    For each additional person whose gate field (personN.adding_personN) is True,
+    we append blank copies of the person2 source pages and write the person's answers
+    at the same x/y coordinates the person2 mapping uses.  AcroForm widgets on the
+    copied pages are flattened (the copy comes from the blank base PDF) so we always
+    use coordinate-based insertion — no widget conflicts with the already-filled pages.
+    """
+    # Build a lookup: field suffix -> person2 mapping entries (one per PDF entry row).
+    # e.g. "first_name" -> [{"page": 8, "x": 130, "y": 695, ...}, ...]
+    p2_suffix_to_entries: dict[str, list[dict]] = {}
+    p2_pages: set[int] = set()
+    for entry in entries:
+        fk = entry.get("field_key", "")
+        if not fk.startswith("person2."):
+            continue
+        suffix = fk[len("person2."):]
+        entry = _entry_with_schema_defaults(entry, field_type_by_key)
+        p2_suffix_to_entries.setdefault(suffix, []).append(entry)
+        pg = int(entry.get("page", 1))
+        if pg > 0:
+            p2_pages.add(pg)
+
+    if not p2_suffix_to_entries:
+        return  # no person2 mapping — nothing to copy
+
+    # Sorted page numbers (1-indexed) that make up the "person2 template".
+    template_pages_1idx = sorted(p2_pages)
+
+    # Insert position: right after person 2's last page so all household members
+    # are grouped together before the income/coverage sections.
+    # 0-indexed: last person2 page in the base PDF.
+    insert_after_0idx = max(template_pages_1idx) - 1  # e.g. page 9 → index 8
+
+    # Discover extra persons: any personN (N >= 3) whose gate answer is True.
+    extra_ns = sorted(
+        int(m.group(1))
+        for k, v in answers.items()
+        if (m := re.match(r"^person(\d+)\.adding_person\d+$", k))
+        and int(m.group(1)) >= 3
+        and _truthy(v)
+    )
+    if not extra_ns:
+        return
+
+    # Open a fresh (unfilled) copy of the base PDF to pull clean template pages from.
+    try:
+        base_doc = fitz.open(str(base_pdf))
+    except Exception:
+        logger.warning("Could not open base PDF for extra person pages: %s", base_pdf)
+        return
+
+    try:
+        # Track how many pages we've inserted so far; each block shifts the insertion point.
+        pages_inserted = 0
+
+        for n in extra_ns:
+            prefix = f"person{n}"
+            # Map from each template page (1-indexed) to its new 0-indexed position in doc.
+            new_page_by_template: dict[int, int] = {}
+            for i, pg_1idx in enumerate(template_pages_1idx):
+                src_pg_0idx = pg_1idx - 1
+                if src_pg_0idx < 0 or src_pg_0idx >= len(base_doc):
+                    continue
+                # Insert right after person 2's block (shifted by how many we've added).
+                dest = insert_after_0idx + 1 + pages_inserted + i
+                doc.insert_pdf(base_doc, from_page=src_pg_0idx, to_page=src_pg_0idx,
+                               start_at=dest)
+                new_page_by_template[pg_1idx] = dest
+
+            pages_inserted += len(new_page_by_template)
+            if not new_page_by_template:
+                continue
+
+            if not new_page_by_template:
+                continue
+
+            # Add a "Person N (Continuation)" header on the first appended page.
+            first_new_pg = doc[new_page_by_template[template_pages_1idx[0]]]
+            first_new_pg.insert_text(
+                fitz.Point(35, 35),
+                f"Person {n} (Continuation Sheet)",
+                fontsize=11,
+                color=(0, 0, 0.6),
+            )
+
+            # Stamp personN answers onto the new pages using person2 coordinates.
+            for suffix, p2_entries in p2_suffix_to_entries.items():
+                field_key = f"{prefix}.{suffix}"
+                raw = answers.get(field_key)
+                if raw is None:
+                    continue
+                for entry in p2_entries:
+                    src_pg_1idx = int(entry.get("page", 1))
+                    new_pg_0idx = new_page_by_template.get(src_pg_1idx)
+                    if new_pg_0idx is None:
+                        continue
+                    new_page = doc[new_pg_0idx]
+                    x, y = entry.get("x", 100), entry.get("y", 100)
+                    field_type_hint = entry.get("field_type", "")
+
+                    if field_type_hint == "checkbox" or field_type_hint == "CheckBox":
+                        if _mapped_widget_value(raw, entry, "CheckBox") is not None:
+                            new_page.insert_text(fitz.Point(x, y), "X", fontsize=12, color=(0, 0, 0))
+                        continue
+
+                    if field_type_hint == "radio":
+                        if _mapped_widget_value(raw, entry, "RadioButton") is not None:
+                            new_page.insert_text(fitz.Point(x, y), "●", fontsize=10, color=(0, 0, 0))
+                        continue
+
+                    value = _mapped_widget_value(raw, entry, field_type_hint)
+                    if value is not None:
+                        new_page.insert_text(
+                            fitz.Point(x, y),
+                            value,
+                            fontsize=entry.get("font_size", 10),
+                            color=(0, 0, 0),
+                        )
+    finally:
+        base_doc.close()
 
 
 def _generate_summary_pdf(session_id: str, answers: dict, form_id: str, schema: dict) -> tuple[Path, str]:

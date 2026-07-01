@@ -16,11 +16,34 @@ Both degrade gracefully without an API key.
 from __future__ import annotations
 
 import logging
+import re
 from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
 logger = logging.getLogger(__name__)
+
+
+def _is_echoed_prompt(field: dict, text: str) -> bool:
+    """True when ``text`` is the field's own question/label echoed back (a non-answer).
+
+    Matches the field's question_text (and label) so an echoed prompt like
+    "what is your first name" is treated as a non-answer, while a genuine term
+    question like "what is wic" — which does NOT match the field's question — still
+    routes to help.
+    """
+    def _norm(s: str) -> str:
+        return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", " ", s.lower())).strip()
+
+    norm = _norm(text)
+    if len(norm.split()) < 3:
+        return False  # too short to be a confident echo; let help/answer logic decide
+    question = _norm(str(field.get("question_text", "")))
+    if question and (norm in question or question in norm):
+        return True
+    label = _norm(str(field.get("label", "")))
+    # "what is your <label>" / "what's my <label>" style echoes of the prompt.
+    return bool(label) and norm in _norm(f"what is your {label}")
 
 # Obvious help phrases handled without an LLM call (fast + free).
 _HELP_PHRASES = (
@@ -29,6 +52,10 @@ _HELP_PHRASES = (
     "what should i", "what do i", "can you explain", "explain", "help",
     "what is that", "i'm confused", "im confused", "not sure what",
     "what's this for", "whats this for", "what is this for",
+    # "what is X" — patient asking about a specific term or program (e.g. "what is wic")
+    "what is ", "what are ", "what does ", "what's ",
+    "tell me about", "can you tell me", "how does", "how do i",
+    "do i need", "do i have to", "is this required", "why is this",
 )
 
 
@@ -55,6 +82,14 @@ def classify_intent(field: dict, raw_answer: str) -> str:
     """
     text = raw_answer.strip().lower()
     if not text:
+        return "answer"
+
+    # Echoed-prompt guard: when the input is the field's OWN question repeated back
+    # (a common STT artifact, e.g. the recognizer picks up the assistant asking
+    # "what is your first name"), it is NOT a help request — it's a non-answer the
+    # validator should reject. We detect it by matching the field's question text so
+    # genuine term questions like "what is WIC?" still route to help below.
+    if _is_echoed_prompt(field, text):
         return "answer"
 
     # Fast path: obvious help phrasing or a bare question.

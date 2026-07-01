@@ -9,6 +9,96 @@ class ValidationError(Exception):
     pass
 
 
+# ── Name-field rule-based pre-filter ─────────────────────────────────────────
+# These checks run BEFORE the LLM semantic validator so we never rely solely
+# on an AI call that can fail silently or be too lenient.
+
+# Common English words that are definitively NOT human names.
+# Extended with food/drink, actions, phrases, objects, and gibberish patterns.
+_NAME_BLOCKLIST: frozenset[str] = frozenset({
+    # Phrases / multi-word non-names
+    "give me some", "give me", "tell me", "show me", "help me",
+    "i want", "i need", "i would", "i will", "i can", "i am",
+    "some info", "some information", "something",
+    # Foods & drinks
+    "shake", "mojito", "smoothie", "coffee", "latte", "espresso", "tea",
+    "soda", "beer", "wine", "burger", "pizza", "taco", "sushi", "sandwich",
+    "salad", "soup", "pasta", "donut", "cookie", "cake", "pie", "apple",
+    "banana", "mango", "grape", "lemon", "lime", "orange",
+    # Actions / verbs used as inputs
+    "yoga", "swim", "run", "jump", "fly", "walk", "shop", "buy",
+    "sell", "work", "sleep", "eat", "drink", "cook", "play", "dance",
+    # Objects / concepts
+    "blue", "green", "red", "yellow", "black", "white", "purple", "pink",
+    "chair", "table", "phone", "laptop", "car", "truck", "house", "room",
+    "river", "mountain", "ocean", "forest", "cloud", "star", "moon",
+    "money", "cash", "dollar", "euro",
+    # Brands / places that aren't also common names
+    "youtube", "google", "amazon", "walmart", "target", "starbucks",
+    "facebook", "instagram", "twitter", "tiktok", "netflix", "uber",
+    # Gibberish patterns caught elsewhere, but explicit common ones
+    "abc", "xyz", "test", "none", "null", "unknown",
+})
+
+# Multi-word answers that span 3+ words are almost never a single name.
+# Exception: hyphenated names like "Mary-Jane", "Jean-Pierre" still single token.
+_NAME_MAX_WORDS = 3
+
+# Characters that belong in a name: letters, hyphens, apostrophes, spaces, periods.
+_NAME_PATTERN = re.compile(r"^[A-Za-zÀ-ÖØ-öø-ÿ'\-\. ]+$")
+
+
+def validate_name_field(label: str, value: str) -> None:
+    """
+    Rule-based guard for personal name fields (first, last, middle, full name).
+    Raises ValidationError if the value is clearly not a human name.
+    This runs before (and regardless of) the LLM semantic validator.
+    """
+    v = value.strip()
+    if not v:
+        return  # emptiness is handled separately by required-field checks
+
+    v_lower = v.lower()
+
+    # 1. Exact blocklist match
+    if v_lower in _NAME_BLOCKLIST:
+        raise ValidationError(
+            f"That doesn't look like a name. Please enter your actual {label.lower()}."
+        )
+
+    # 2. Partial blocklist match (phrase contained in the value)
+    for blocked in _NAME_BLOCKLIST:
+        if " " in blocked and blocked in v_lower:
+            raise ValidationError(
+                f"That doesn't look like a name. Please enter your actual {label.lower()}."
+            )
+
+    # 3. Too many words — names don't span 4+ separate words
+    words = v.split()
+    if len(words) > _NAME_MAX_WORDS:
+        raise ValidationError(
+            f"That looks like more than a name. Please enter just your {label.lower()}."
+        )
+
+    # 4. Non-name characters (digits, special chars outside letters/hyphens/apostrophes)
+    if not _NAME_PATTERN.match(v):
+        raise ValidationError(
+            f"Names should only contain letters. Please enter your {label.lower()}."
+        )
+
+    # 5. Single very-short tokens that aren't initials or real names
+    if len(words) == 1 and len(v) == 1 and not v.isupper():
+        raise ValidationError(
+            f"That doesn't look like a complete {label.lower()}. Could you enter the full name?"
+        )
+
+
+def _is_name_label(label: str) -> bool:
+    """Return True if the field label suggests a personal name field."""
+    low = label.lower()
+    return any(w in low for w in ("first name", "last name", "middle name", "full name", "maiden name"))
+
+
 def validate_answer(field: dict, value: Any) -> Any:
     """
     Validate and normalize a value against a field schema.
@@ -39,11 +129,15 @@ def validate_answer(field: dict, value: Any) -> Any:
 
     # Text / email / select
     value = str(value).strip() if value is not None else ""
+    label_str = field.get("label", "this field")
     if field_type in {"text", "textarea", "email", "select"} and _looks_like_non_answer_text(value):
-        label = field.get("label", "this field")
         raise ValidationError(
-            f"That sounds like an instruction or question, not an answer for {label}. Please give the actual value."
+            f"That sounds like an instruction or question, not an answer for {label_str}. Please give the actual value."
         )
+
+    # Name-field rule-based guard — must run before LLM, deterministic.
+    if field_type in {"text", "textarea"} and _is_name_label(label_str):
+        validate_name_field(label_str, value)
 
     # Medicaid PDF fields often store state as a two-letter code, but callers are
     # humans using voice. Accept "Ohio" and normalize to "OH" instead of asking
@@ -75,11 +169,15 @@ def validate_answer(field: dict, value: Any) -> Any:
 # Keys are lowercased; values must match an entry in the field's allowed_values
 # (case-insensitively).
 _VALUE_SYNONYMS: dict[str, str] = {
-    # Name suffixes
+    # Name suffixes — spoken forms and preference phrases
     "junior": "jr",
     "jr.": "jr",
+    "i'm a junior": "jr",
+    "i am a junior": "jr",
     "senior": "sr",
     "sr.": "sr",
+    "i'm a senior": "sr",
+    "i am a senior": "sr",
     "the second": "ii",
     "second": "ii",
     "2nd": "ii",
@@ -128,6 +226,20 @@ def _match_allowed_value(value: str, allowed_values: list) -> str | None:
     synonym = _VALUE_SYNONYMS.get(raw_lower) or _VALUE_SYNONYMS.get(candidate)
     if synonym and synonym in canonical_by_norm:
         return canonical_by_norm[synonym]
+
+    # 3) Strip common spoken prefixes ("I prefer Junior" -> "Junior",
+    #    "it's Junior" -> "Junior", "say Junior" -> "Junior") and retry.
+    _SPOKEN_PREFIXES = (
+        "i prefer ", "i'd say ", "it's ", "it is ", "say ", "mine is ",
+        "that's ", "that is ", "use ", "put ", "the answer is ", "i am ",
+    )
+    for prefix in _SPOKEN_PREFIXES:
+        if raw_lower.startswith(prefix):
+            stripped = value.strip()[len(prefix):]
+            result = _match_allowed_value(stripped, allowed_values)
+            if result is not None:
+                return result
+            break
 
     return None
 

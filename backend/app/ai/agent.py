@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
 from typing import Any
 
@@ -75,7 +76,9 @@ def _field_status(field: dict, answers: dict[str, Any]) -> tuple[str, Any]:
 def _build_form_context(schema: dict, answers: dict[str, Any]) -> str:
     """A compact, section-grouped snapshot of the form for the system prompt."""
     section_titles = {s["section_key"]: s.get("section_title", s["section_key"]) for s in schema.get("sections", [])}
-    lines: list[str] = []
+    lines: list[str] = [
+        "RULE: Any field marked FILLED or SKIPPED is DONE — do NOT ask for it again under any circumstances.",
+    ]
     current_section = None
     fields = get_all_fields_from_schema(schema)
     fields_by_key = {f["field_key"]: f for f in fields}
@@ -124,12 +127,14 @@ def _coerce_yes_no(text: str, field_key: str) -> bool | None:
     t = (text or "").strip().lower().strip(".!?")
     if not t:
         return None
-    if field_key.endswith("adding_person2"):
+    if re.search(r"adding_person\d+$", field_key):
         if any(w in t for w in ("just me", "only me", "myself", "just for me", "for myself",
-                                "no one else", "by myself", "just mine", "only myself", "nobody else")):
+                                "no one else", "by myself", "just mine", "only myself", "nobody else",
+                                "that's all", "thats all", "no more", "done", "no one")):
             return False
         if any(w in t for w in ("spouse", "wife", "husband", "partner", "kid", "child", "children",
-                                "son", "daughter", "family", "others", "other people", "another person", "add")):
+                                "son", "daughter", "family", "others", "other people", "another person", "add",
+                                "more people", "someone else", "another member")):
             return True
     if "email" in field_key:  # "do you want emails, or mail only?"
         if "mail only" in t or t in ("mail", "just mail", "by mail", "paper", "mail please"):
@@ -376,6 +381,10 @@ def _next_field_guidance(form_id: str, field: dict | None) -> str:
     ]
     if help_text:
         lines.append(f"- plain_language_help: {help_text}")
+    lines.append(
+        "- CRITICAL: Before asking ANY field, check CURRENT FORM STATE. "
+        "If the field is FILLED or SKIPPED there, skip it and move to the next MISSING field instead."
+    )
     lines.append("- Whatever field you choose, call the `ask` tool with its field_key before you ask it.")
     return "\n".join(lines)
 
@@ -421,15 +430,22 @@ amount before taxes come out").
 HOW YOU WORK (like a real case manager, not a survey)
 - YOU choose the next question, in the order a sharp human case worker would: get the big \
 picture first (who's applying — just them, or a spouse/kids?), then their key details, then \
-income and coverage. Don't march down the form in raw order, and don't pester for trivial \
-optional fields (middle name, suffix) unless it flows naturally — offer to skip them.
+income and coverage. Don't march down the form in raw order. Ask EVERY field — required and \
+optional — in a sensible human order. For optional fields (middle name, suffix, mailing \
+address, email, etc.) ask them and let the person say "none", "skip", or "same as home" to \
+skip. Never silently skip a field.
 - Ask ONE thing at a time. BEFORE each question, CALL the `ask` tool with that field's \
 field_key. This is required every turn (except when you call go_to_review) so the app shows \
 the right answer buttons and saves the reply to the correct field. Then ask that one thing in \
 warm, plain words. NEVER ask two fields in one breath ("are you married, and a citizen?" is \
-wrong), and never re-ask something already FILLED or SKIPPED in CURRENT FORM STATE.
-- If they volunteer several facts at once, SAVE them ALL with save_answers — then `ask` for \
-the next thing and ask it. NEXT FIELD GUIDANCE is a suggestion for what's next; you may pick a \
+wrong). NEVER ask a field that is marked FILLED or SKIPPED in CURRENT FORM STATE — those are \
+DONE, period. This includes fields auto-filled from ZIP code (city, state, county) or from \
+records. If something is FILLED, move on to the next MISSING field.
+- NAME FIELDS ARE ALWAYS SEPARATE. First name, middle name, and last name must each be asked \
+and answered individually. If you asked for first name and they said "Jacob", save ONLY first \
+name = "Jacob". Do NOT also save middle name or last name. Ask each name in a separate turn.
+- If they volunteer several non-name facts at once, SAVE them ALL with save_answers — then \
+`ask` for the next thing. NEXT FIELD GUIDANCE is a suggestion for what's next; you may pick a \
 more natural field, but always declare it with `ask`.
 - Move at their pace: keep momentum when they're rolling; slow down and reassure when stuck.
 - Briefly say WHY a question matters when it builds trust ("I ask about income because it \
@@ -473,8 +489,14 @@ everything before anything is submitted.
 
 YOUR TOOLS
 - save_answers: every time they give usable info, save EVERY field you can fill — even several \
-at once. If they correct something, save the new value.
-- skip_fields: for optional things they don't have ("no middle name").
+at once. If they correct something, save the new value. IMPORTANT: NEVER infer or assume a \
+name field value from another name answer. First name, middle name, and last name are always \
+separate — only save a name field when the person explicitly stated THAT name. For example, \
+if they said "Jacob" when asked for first name, save ONLY first name = "Jacob"; do NOT also \
+save middle name or last name from that same answer.
+- skip_fields: ONLY after you have asked an optional field and the person said they don't \
+have it or want to skip it. NEVER silently skip any field — always ask first, then skip if \
+they say so. Even optional fields (middle name, mailing address, email) must be asked.
 - go_to_review: only when everything needed is captured; then congratulate them warmly.
 
 WHEN TO GET A HUMAN
@@ -500,7 +522,7 @@ def _tools(form_id: str | None = None) -> list[dict]:
             "type": "function",
             "function": {
                 "name": "save_answers",
-                "description": "Save one or more field values the person provided. Use the exact field_key in brackets from the form state. You may pass several at once.",
+                "description": "Save one or more field values the person EXPLICITLY stated. Use the exact field_key in brackets from the form state. NEVER infer or guess name fields — only save first_name, middle_name, or last_name when the person directly said that specific name value. You may save multiple fields when the person volunteered several facts in one message.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -524,7 +546,7 @@ def _tools(form_id: str | None = None) -> list[dict]:
             "type": "function",
             "function": {
                 "name": "skip_fields",
-                "description": "Mark one or more OPTIONAL fields as intentionally blank (the person has none / it doesn't apply).",
+                "description": "Mark one or more OPTIONAL fields as intentionally blank. ONLY call this AFTER you have asked the person about the field and they said they don't have it, it doesn't apply, or they want to skip it. NEVER silently skip a field without asking — every field must be asked so the person can answer or skip it themselves.",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -835,6 +857,54 @@ def _next_action_reply(schema: dict, answers: dict[str, Any], form_id: str = "",
     return question
 
 
+def _deterministic_question(form_id: str, field: dict) -> str:
+    """Plain, correct question text for ONE specific field.
+
+    Used to override an off-script agent question so the spoken prompt always
+    matches the field the answer is bound to. Without this, the agent can say
+    "what is your last name?" while the answer binding still points at middle
+    name, silently saving the answer to the wrong field.
+    """
+    try:
+        from app.forms.prompts import get_field_override
+
+        override = get_field_override(form_id, field["field_key"])
+    except Exception:
+        override = {}
+    return (
+        override.get("question")
+        or field.get("question_text")
+        or f"Please provide your {field.get('label', field['field_key'])}."
+    )
+
+
+# Generic label words that don't distinguish one field from another.
+_LABEL_STOPWORDS = {
+    "name", "number", "code", "optional", "if", "different", "the", "a", "an",
+    "your", "of", "is", "are", "do", "you", "and", "or",
+}
+
+
+def _text_mentions_field(text: str, field: dict) -> bool:
+    """True if ``text`` already references ``field`` by its distinguishing label word(s).
+
+    Used to AVOID overriding an agent reply that is already asking the right field
+    (e.g. the agent said "...and your middle name?" for the middle_name field, or a
+    multi-save acknowledgment that ends with "what's your phone number?"). We match on
+    the field's significant label tokens, ignoring generic words like "name"/"number"
+    that are shared across many fields.
+    """
+    if not text:
+        return False
+    low = text.lower()
+    label = str(field.get("label", "")).lower()
+    # Full label phrase match first ("middle name", "mailing address").
+    if label and label in low:
+        return True
+    significant = [w for w in re.split(r"[^a-z]+", label) if w and w not in _LABEL_STOPWORDS]
+    return any(w in low for w in significant)
+
+
 # ──────────────────────────── keyless fallback ────────────────────────────
 
 def _turn_state(form_id: str, answers: dict, schema: dict) -> dict:
@@ -1098,6 +1168,7 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
     go_review = False
     assistant_text = ""
     declared_field_key: str | None = None  # the field the agent says it's asking this turn
+    info_tool_called = False  # an informational tool (income screening) produced a reply this turn
     model = settings.OPENAI_MODEL
     turn_start = time.monotonic()
 
@@ -1141,8 +1212,10 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                     elif name == "skip_fields":
                         out = _exec_skip_fields(db, session, schema, args)
                     elif name == "screen_income":
+                        info_tool_called = True
                         out = _exec_screen_income(args)
                     elif name == "screen_income_sources":
+                        info_tool_called = True
                         out = _exec_screen_income_sources(args)
                     elif name == "go_to_review":
                         # Match the review/approval gate exactly: the agent can
@@ -1162,8 +1235,47 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                         # The agent declares which field it's about to ask — chips + answer
                         # binding follow this, so the model keeps a human order without the UI
                         # ever guessing the field.
-                        declared_field_key = str(args.get("field_key") or "").strip() or None
-                        out = {"ok": True}
+                        fk_to_ask = str(args.get("field_key") or "").strip() or None
+                        # Guard: enforce that the agent asks fields in schema order.
+                        # (1) Cannot ask an already-answered field.
+                        # (2) Cannot skip over an unanswered field to ask a later one.
+                        if fk_to_ask:
+                            current_answers = svc._answers_map(db, session_id)
+                            from app.forms.missing_fields import _field_answered as _fa
+                            all_fields_list = get_all_fields_from_schema(schema)
+                            fk_schema = next(
+                                (f for f in all_fields_list if f["field_key"] == fk_to_ask),
+                                None,
+                            )
+                            next_missing = _next_missing(session.form_id, schema, current_answers)
+                            next_missing_key = next_missing["field_key"] if next_missing else None
+
+                            if fk_schema and _fa(fk_schema, current_answers):
+                                # Already answered — redirect to actual next missing.
+                                out = {
+                                    "ok": False,
+                                    "error": (
+                                        f"Field '{fk_to_ask}' is already filled — do not ask for it again. "
+                                        f"The next unanswered field is '{next_missing_key}'. Ask that one instead."
+                                    ),
+                                }
+                            elif next_missing_key and fk_to_ask != next_missing_key:
+                                # Trying to skip over a field that hasn't been asked yet.
+                                out = {
+                                    "ok": False,
+                                    "error": (
+                                        f"You cannot skip to '{fk_to_ask}' — field '{next_missing_key}' "
+                                        f"({next_missing.get('label', next_missing_key)}) "
+                                        f"comes first and has not been answered yet. "
+                                        f"Ask '{next_missing_key}' now."
+                                    ),
+                                }
+                            else:
+                                declared_field_key = fk_to_ask
+                                out = {"ok": True}
+                        else:
+                            declared_field_key = None
+                            out = {"ok": True}
                     else:
                         out = {"error": f"unknown tool {name}"}
                 except Exception:
@@ -1246,7 +1358,61 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         nxt = confirm_field
         next_payload = _confirmation_field_payload(confirm_field)
     else:
-        nxt = missing_by_key.get(declared_field_key) or _prioritized_next(session.form_id, answers, missing_applicable)
+        # The spoken question and the answer binding MUST point at the same field.
+        # The `ask` ordering guard only sets declared_field_key when it equals the
+        # next missing field, so any declared field is guaranteed in-order. When the
+        # agent skipped `ask` (or its out-of-order ask was rejected) declared is None,
+        # and the agent's free text may be asking the WRONG field — so we override the
+        # spoken question with a deterministic one for the true next field. This is the
+        # fix for "agent says 'what is your last name?' but the answer is bound to
+        # middle name", which silently saved answers to the wrong field.
+        deterministic_next = _prioritized_next(session.form_id, answers, missing_applicable)
+        declared_field = missing_by_key.get(declared_field_key) if declared_field_key else None
+        on_script = (
+            declared_field is not None
+            and deterministic_next is not None
+            and declared_field["field_key"] == deterministic_next["field_key"]
+        )
+        if on_script:
+            nxt = declared_field
+        else:
+            nxt = deterministic_next
+            # Only override the agent's spoken text when this turn shows the BUG SIGNATURE:
+            # the user just answered one field and we have ADVANCED to a different field, yet
+            # the agent's free text may still be asking the wrong one. We deliberately do NOT
+            # override informational replies (income screening), inline clarifications that stay
+            # on the same field, or replies that already name the next field — those are the
+            # regressions an earlier review caught.
+            advanced = (
+                answered_field_key is not None
+                and nxt is not None
+                and answered_field_key != nxt["field_key"]
+                and answered_field_key in answers  # the answered field actually saved
+            )
+            already_asks_next = nxt is not None and _text_mentions_field(assistant_text, nxt)
+            should_override = (
+                nxt is not None
+                and advanced
+                and not info_tool_called
+                and not already_asks_next
+            )
+            if should_override:
+                forced_q = _deterministic_question(session.form_id, nxt)
+                if forced_q.strip() and forced_q.strip() != (assistant_text or "").strip():
+                    logger.info(
+                        "Off-script question (declared=%s, answered=%s) overridden with deterministic ask for '%s'.",
+                        declared_field_key, answered_field_key, nxt["field_key"],
+                    )
+                    assistant_text = forced_q
+                    last_msg = (
+                        db.query(SessionMessage)
+                        .filter(SessionMessage.session_id == session_id, SessionMessage.role == "assistant")
+                        .order_by(SessionMessage.id.desc())
+                        .first()
+                    )
+                    if last_msg:
+                        last_msg.content = assistant_text
+                        db.commit()
         next_payload = _next_field_payload(db, nxt, answers)
     return {
         "assistant_message": assistant_text,

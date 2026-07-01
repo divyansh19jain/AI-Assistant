@@ -1,4 +1,5 @@
 import json
+import re
 import uuid
 import logging
 from typing import Any
@@ -365,6 +366,125 @@ _MAILING_SAME_TOKENS = {
     "same as where i live", "no different", "it's the same", "its the same", "same as home address",
 }
 
+# Relationships where personN is YOUNGER than the primary applicant/person1.
+_CHILD_RELATIONSHIPS: frozenset[str] = frozenset({
+    "child", "son", "daughter", "grandchild", "grandson", "granddaughter",
+    "nephew", "niece", "step-child", "stepchild", "step-son", "stepson",
+    "step-daughter", "stepdaughter", "foster child", "ward",
+})
+# Relationships where personN is OLDER than the primary applicant/person1.
+_PARENT_RELATIONSHIPS: frozenset[str] = frozenset({
+    "parent", "mother", "father", "mom", "dad", "grandparent",
+    "grandmother", "grandfather", "step-parent", "stepparent",
+    "step-mother", "stepmother", "step-father", "stepfather",
+    "guardian", "foster parent",
+})
+def _check_cross_person_dob(
+    db: DBSession,
+    session_id: str,
+    field_key: str,
+    new_dob_iso: str,
+    answers: dict,
+) -> str | None:
+    """Return an error message if new_dob_iso violates a parent/child age ordering,
+    or None if the save is acceptable.
+
+    Supports an arbitrary number of household persons (person1, person2, person3, …).
+    For each personN.dob being saved, checks against every other personM (M != N) that
+    has a known DOB and a child/parent relationship declared relative to personN.
+    """
+    from datetime import date
+
+    # Only applies to personN.dob fields.
+    m = re.match(r"^(person(\d+))\.dob$", field_key)
+    if not m:
+        return None
+    my_prefix, my_n = m.group(1), int(m.group(2))
+
+    try:
+        new_dt = date.fromisoformat(new_dob_iso)
+    except Exception:
+        return None
+
+    # Collect all other personM prefixes that have a stored DOB.
+    other_prefixes = [
+        k.rsplit(".dob", 1)[0]
+        for k in answers
+        if re.match(r"^person\d+\.dob$", k)
+        and k != field_key
+        and str(answers[k]).strip() not in ("", "__skipped__")
+    ]
+
+    for ref_prefix in other_prefixes:
+        ref_n = int(re.search(r"\d+", ref_prefix).group())
+        # The relationship field describes personN's relation to personM (where M < N).
+        # By convention, personN.relationship_to_applicant describes the relationship of
+        # the higher-numbered person to the lower-numbered one.
+        higher, lower = (my_prefix, ref_prefix) if my_n > ref_n else (ref_prefix, my_prefix)
+        higher_n = my_n if my_n > ref_n else ref_n
+        lower_n = ref_n if my_n > ref_n else my_n
+        rel_key = f"{higher}.relationship_to_applicant"
+
+        rel_raw = answers.get(rel_key)
+        if not rel_raw or not isinstance(rel_raw, str):
+            continue
+        rel_str = rel_raw.strip().lower()
+        if not rel_str or rel_str == "__skipped__":
+            continue
+
+        ref_dob_raw = answers.get(f"{ref_prefix}.dob")
+        ref_dob_str = str(ref_dob_raw).strip()
+        try:
+            if len(ref_dob_str) != 10 or ref_dob_str[4] != "-":
+                from app.forms.validation import _parse_date as _pd
+                ref_dob_str = _pd(ref_dob_str)
+            ref_dt = date.fromisoformat(ref_dob_str)
+        except Exception:
+            continue
+
+        # age_gap_of_mine > 0: the field being saved is YOUNGER than the reference person.
+        age_gap_years = (new_dt - ref_dt).days / 365.25
+
+        # The higher-numbered person's relationship determines the direction.
+        # Child/dependent → higher is younger than lower.
+        # Parent → higher is older than lower.
+        saving_higher = (my_n == higher_n)
+
+        if rel_str in _CHILD_RELATIONSHIPS:
+            # Higher person is a child of the lower → higher must be born after lower.
+            if saving_higher and age_gap_years <= 0:
+                return (
+                    f"Person {my_n}'s date of birth ({_fmt_dob(new_dt)}) shows them as older than "
+                    f"or the same age as Person {ref_n} ({_fmt_dob(ref_dt)}), but their relationship "
+                    f"is listed as '{rel_raw.strip()}'. Please check the date of birth."
+                )
+            if not saving_higher and age_gap_years >= 0:
+                return (
+                    f"Person {my_n}'s date of birth ({_fmt_dob(new_dt)}) would make them younger than "
+                    f"or the same age as Person {ref_n} ({_fmt_dob(ref_dt)}), but Person {higher_n}'s "
+                    f"relationship is listed as '{rel_raw.strip()}'. Please check Person {my_n}'s date of birth."
+                )
+        elif rel_str in _PARENT_RELATIONSHIPS:
+            # Higher person is a parent of the lower → higher must be born before lower.
+            if saving_higher and age_gap_years >= 0:
+                return (
+                    f"Person {my_n}'s date of birth ({_fmt_dob(new_dt)}) shows them as younger than "
+                    f"or the same age as Person {ref_n} ({_fmt_dob(ref_dt)}), but their relationship "
+                    f"is listed as '{rel_raw.strip()}'. Please check the date of birth."
+                )
+            if not saving_higher and age_gap_years <= 0:
+                return (
+                    f"Person {my_n}'s date of birth ({_fmt_dob(new_dt)}) would make them older than "
+                    f"or the same age as Person {ref_n} ({_fmt_dob(ref_dt)}), but Person {higher_n}'s "
+                    f"relationship is listed as '{rel_raw.strip()}'. Please check Person {my_n}'s date of birth."
+                )
+
+    return None
+
+
+def _fmt_dob(d) -> str:
+    return d.strftime("%m/%d/%Y")
+
 
 def set_field(
     db: DBSession,
@@ -414,6 +534,37 @@ def set_field(
             coerced = validate_answer(field, raw_str)
         except ValidationError as exc:
             return {"ok": False, "field_key": field_key, "label": label, "error": str(exc)}
+
+        # Semantic sanity check for text fields — catches nonsense answers like
+        # "Yoga", "liquor store", "YouTube" saved as a first/last name.
+        # Only runs for non-sensitive text fields; skipped for select/boolean/typed fields
+        # (allowed_values already guarantees correctness for those).
+        field_type = field.get("type", "text")
+        if field_type in {"text", "textarea"} and not field.get("sensitive", False):
+            try:
+                from app.ai.answer_extractor import _semantic_validate
+                sem = _semantic_validate(field, str(coerced))
+                if sem is not None and not sem.is_valid:
+                    logger.info(
+                        "Semantic validation rejected '%s' for field '%s': %s",
+                        coerced, field_key, sem.feedback,
+                    )
+                    return {"ok": False, "field_key": field_key, "label": label, "error": sem.feedback}
+            except Exception:
+                logger.warning(
+                    "Semantic validation raised an exception for field '%s' value '%s'; skipping.",
+                    field_key, coerced, exc_info=True,
+                )
+
+        # Cross-person age consistency check for DOB fields.
+        # Rejects a DOB that is impossible given the other party's stored DOB and their
+        # declared relationship (e.g. a "Child" who is older than the parent).
+        if field.get("type") == "date" and field_key.endswith(".dob"):
+            existing_answers = _answers_map(db, session.id)
+            age_err = _check_cross_person_dob(db, session.id, field_key, str(coerced), existing_answers)
+            if age_err:
+                return {"ok": False, "field_key": field_key, "label": label, "error": age_err}
+
         store_value = coerced
         source = "voice" if input_mode == "voice" else "user"
         raw_answer = raw_str
@@ -851,9 +1002,9 @@ def _apply_pregnancy_skips(db: DBSession, session: FormSession, schema: dict) ->
         key = f["field_key"]
         if "pregnan" not in key.lower() or f.get("required"):
             continue  # never auto-skip a required field
-        for person in ("person1", "person2"):
-            if key.startswith(person + "."):
-                preg_by_person.setdefault(person, []).append(key)
+        prefix = key.split(".")[0] if "." in key else ""
+        if re.match(r"^person\d+$", prefix):
+            preg_by_person.setdefault(prefix, []).append(key)
     if not preg_by_person:
         return
 

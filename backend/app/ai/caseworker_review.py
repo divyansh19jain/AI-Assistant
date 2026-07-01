@@ -31,15 +31,16 @@ def documents_likely_needed(answers: dict[str, Any]) -> list[dict]:
     elif employment == "self_employed":
         docs.append({"document": "Self-employment records", "why": "to verify self-employment income"})
 
-    for person in ("person1", "person2"):
-        if answers.get(f"{person}.us_citizen_or_national") is False:
-            docs.append({"document": "Immigration documents", "why": "to verify immigration status"})
-            break
+    persons = sorted({
+        k.split(".")[0] for k in answers
+        if k.split(".")[0].startswith("person") and k.split(".")[0][6:].isdigit()
+    }) or ["person1", "person2"]
 
-    for person in ("person1", "person2"):
-        if answers.get(f"{person}.medical_bills_last_3_months") is True:
-            docs.append({"document": "Recent medical bills (last 3 months)", "why": "to consider retroactive coverage"})
-            break
+    if any(answers.get(f"{p}.us_citizen_or_national") is False for p in persons):
+        docs.append({"document": "Immigration documents", "why": "to verify immigration status"})
+
+    if any(answers.get(f"{p}.medical_bills_last_3_months") is True for p in persons):
+        docs.append({"document": "Recent medical bills (last 3 months)", "why": "to consider retroactive coverage"})
 
     if any(key.endswith(".ssn") and _has_value(value) for key, value in answers.items()):
         docs.append({"document": "Social Security card", "why": "to confirm the Social Security number"})

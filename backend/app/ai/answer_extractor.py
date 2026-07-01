@@ -243,7 +243,7 @@ def _llm_extract(field: dict, raw_answer: str) -> ExtractionResult | None:
         f"Question that was asked: {question_text}\n"
         f"Patient's answer: {raw_answer!r}\n\n"
         "Extract the value following the type rules. "
-        + (f"Map the answer to the closest allowed value (e.g. 'Junior' -> 'Jr'). " if allowed else "")
+        + (f"Map the answer to the closest allowed value (e.g. 'Junior' -> 'Jr', 'I prefer Junior' -> 'Jr', 'Senior' -> 'Sr'). " if allowed else "")
         + "If the answer does not fit this field, set fits_field=false and provide clarification_question."
     )
 
@@ -337,13 +337,40 @@ def _semantic_validate(field: dict, value: Any) -> "_ValidationSchema | None":
     field_type = field.get("type", "text")
     question_text = field.get("question_text", "")
 
+    label_lower = label.lower()
+    # Build field-type hint so the LLM applies the right strictness level.
+    if any(w in label_lower for w in ("first name", "last name", "middle name", "full name")):
+        field_hint = (
+            "This is a PERSONAL NAME field on a US government Medicaid form. "
+            "Apply this STRICT two-part test:\n"
+            "1. Is this value PRIMARILY known as a human given name or surname in the US? "
+            "Names like 'John', 'Maria', 'Ahmed', 'Chen', 'O'Brien' pass.\n"
+            "2. If the word has a well-known PRIMARY meaning as something other than a person's name "
+            "(a food, drink, object, verb, brand, place, animal, concept, etc.) it FAILS — even if "
+            "someone somewhere might use it as a name. Examples that FAIL: "
+            "'Mojito' (cocktail), 'Yoga' (exercise), 'Shop' (store), 'Blue' (color), "
+            "'Apple' (fruit/brand), 'River' (geography), 'Coffee' (drink), 'Chase' (verb/bank), "
+            "'Hunter' (occupation — borderline, reject if clearly not a name context), "
+            "'Justice' (concept), 'Destiny' (concept used as name — ALLOW this one). "
+            "When in doubt about a single common English word that is NOT widely recognized "
+            "as a first or last name, reject it and ask for clarification."
+        )
+    elif "county" in label_lower:
+        field_hint = "This must be a real US county name. Reject anything that is not a county."
+    elif "city" in label_lower:
+        field_hint = "This must be a real city name. Reject anything that is not a city."
+    else:
+        field_hint = (
+            "Be lenient for free-text fields — only flag obvious nonsense "
+            "(brand names, random words, gibberish, or a value that clearly "
+            "belongs to a completely different kind of field)."
+        )
     system_prompt = (
-        "You are a helpful assistant reviewing answers on an Ohio Medicaid application form. "
-        "Check whether the value makes real-world sense for the field. "
-        "Be lenient for free-text fields — only flag obvious nonsense (brand names, "
-        "random words, country names where a US county is expected, gibberish, etc.). "
+        "You are a strict data validator reviewing answers on a US government Medicaid form. "
+        "Your job is to catch nonsense values before they corrupt a real application. "
+        f"{field_hint} "
         "If valid, set is_valid=true and write a brief warm confirmation. "
-        "If invalid, set is_valid=false and ask the patient warmly to correct it."
+        "If invalid, set is_valid=false and ask the patient warmly to provide their actual name."
     )
     user_prompt = (
         f"Field label: {label}\n"
