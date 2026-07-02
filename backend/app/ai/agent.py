@@ -1149,15 +1149,16 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
         pending = _first_low_confidence_field(db, session_id, schema)
         if pending:
             pending_field, _pending_val = pending
-            if not _is_help_request(pending_field, user_text):
-                yn = _coerce_yes_no(user_text, pending_field["field_key"])
-                if yn is not None:
-                    captured = _handle_low_confidence_confirmation(
-                        db, session, schema, pending_field["field_key"], user_text
-                    )
-                    if captured:
-                        confirmation_captured = True
-                        answers = svc._answers_map(db, session_id)
+            # A clear yes/no resolves the pending read-back. We check yn FIRST (a bare
+            # "yes"/"no" is never a help request) so a confirmation can't be misrouted.
+            yn = _coerce_yes_no(user_text, pending_field["field_key"])
+            if yn is not None:
+                captured = _handle_low_confidence_confirmation(
+                    db, session, schema, pending_field["field_key"], user_text
+                )
+                if captured:
+                    confirmation_captured = True
+                    answers = svc._answers_map(db, session_id)
 
     if not confirmation_captured and not is_start and answered_field_key:
         answered_field = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), None)

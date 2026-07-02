@@ -84,6 +84,16 @@ def classify_intent(field: dict, raw_answer: str) -> str:
     if not text:
         return "answer"
 
+    # Bare yes/no (and close variants) are ALWAYS answers/confirmations, never help.
+    # Guards against an LLM classifier misreading a confirmation "Yes" as a question,
+    # which would drop read-back confirmations (e.g. confirming a date of birth).
+    _YES_NO = {
+        "yes", "yeah", "yep", "yup", "y", "sure", "correct", "right", "ok", "okay",
+        "no", "nope", "nah", "n", "wrong", "incorrect",
+    }
+    if text.strip(".!,? ") in _YES_NO:
+        return "answer"
+
     # Echoed-prompt guard: when the input is the field's OWN question repeated back
     # (a common STT artifact, e.g. the recognizer picks up the assistant asking
     # "what is your first name"), it is NOT a help request — it's a non-answer the
