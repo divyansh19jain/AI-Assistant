@@ -1160,6 +1160,29 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
                     confirmation_captured = True
                     answers = svc._answers_map(db, session_id)
 
+    # ── Skip (robust) ────────────────────────────────────────────────────────
+    # If the user says a skip word ("skip", "none", "n/a", …), skip the field that
+    # is actually being asked — the field the frontend sent, or the current next
+    # missing field — regardless of the two agreeing. Optional fields get the skip
+    # sentinel; a skip on a REQUIRED field is ignored here and falls through so the
+    # agent re-asks. This stops the "I tap skip but it keeps re-asking" loop on
+    # optional fields (SSN, middle name, email) that the LLM otherwise mishandles.
+    if not confirmation_captured and not is_start:
+        raw_skip = (user_text or "").strip().lower().strip(".!,? ")
+        if raw_skip in _DIRECT_SKIP_WORDS:
+            target = None
+            if answered_field_key:
+                target = next((f for f in get_all_fields_from_schema(schema)
+                               if f["field_key"] == answered_field_key), None)
+            if target is None:
+                target = _next_missing(session.form_id, schema, answers)
+            if target and not target.get("required", False) and target["field_key"] not in answers:
+                res = svc.set_field(db, session, schema, target["field_key"], user_text, input_mode=input_mode)
+                if res.get("ok"):
+                    captured = True
+                    confirmation_captured = True  # reuse the deterministic-reply short-circuit
+                    answers = svc._answers_map(db, session_id)
+
     if not confirmation_captured and not is_start and answered_field_key:
         answered_field = next((f for f in get_all_fields_from_schema(schema) if f["field_key"] == answered_field_key), None)
         if answered_field and _is_help_request(answered_field, user_text):
@@ -1490,7 +1513,6 @@ def run_agent_turn(db, session_id: str, user_text: str, input_mode: str = "voice
             should_override = (
                 nxt is not None
                 and advanced
-                and not info_tool_called
                 and not already_asks_next
             )
             if should_override:

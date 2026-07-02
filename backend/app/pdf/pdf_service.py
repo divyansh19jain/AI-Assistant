@@ -418,12 +418,14 @@ def _append_extra_person_pages(
 
                     if field_type_hint == "checkbox" or field_type_hint == "CheckBox":
                         if _mapped_widget_value(raw, entry, "CheckBox") is not None:
-                            new_page.insert_text(fitz.Point(x, y), "X", fontsize=12, color=(0, 0, 0))
+                            # ZapfDingbats chr(0x34) = checkmark glyph; fits inside the ~10pt box
+                            new_page.insert_text(fitz.Point(x + 1, y - 2), chr(0x34), fontsize=9, fontname="zadb", color=(0, 0, 0))
                         continue
 
                     if field_type_hint == "radio":
                         if _mapped_widget_value(raw, entry, "RadioButton") is not None:
-                            new_page.insert_text(fitz.Point(x, y), "●", fontsize=10, color=(0, 0, 0))
+                            # ZapfDingbats chr(0x34) = checkmark glyph; fits inside the ~10pt radio circle
+                            new_page.insert_text(fitz.Point(x + 1, y - 2), chr(0x34), fontsize=9, fontname="zadb", color=(0, 0, 0))
                         continue
 
                     value = _mapped_widget_value(raw, entry, field_type_hint)

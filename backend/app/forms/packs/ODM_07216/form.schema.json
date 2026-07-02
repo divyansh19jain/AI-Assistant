@@ -1115,7 +1115,10 @@
           ],
           "question_text": "Are you currently pregnant?",
           "validation_rule": {},
-          "depends_on": null,
+          "depends_on": {
+            "field_key": "person1.sex",
+            "not_value": "Male"
+          },
           "pdf_mapping": {
             "field_name": "person1_pregnant",
             "page": 2,
@@ -2272,8 +2275,10 @@
           "question_text": "Is Person 2 currently pregnant?",
           "validation_rule": {},
           "depends_on": {
-            "field_key": "person2.adding_person2",
-            "value": true
+            "all": [
+              {"field_key": "person2.adding_person2", "value": true},
+              {"field_key": "person2.sex", "not_value": "Male"}
+            ]
           },
           "pdf_mapping": {
             "field_name": "person2_pregnant",
@@ -3434,8 +3439,10 @@
           "question_text": "Is Person 3 currently pregnant?",
           "validation_rule": {},
           "depends_on": {
-            "field_key": "person3.adding_person3",
-            "value": true
+            "all": [
+              {"field_key": "person3.adding_person3", "value": true},
+              {"field_key": "person3.sex", "not_value": "Male"}
+            ]
           },
           "pdf_mapping": {
             "field_name": "person3_pregnant",
